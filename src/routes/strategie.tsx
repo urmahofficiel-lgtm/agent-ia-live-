@@ -1,13 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { CalendarPlus, LoaderCircle, Search } from "lucide-react";
+import { CalendarPlus, Globe, LoaderCircle, Search } from "lucide-react";
 import { Carte, Erreur, Titre, bouton, champ } from "@/components/ui";
 import { LogoPlateforme } from "@/components/LogoPlateforme";
 import { supabase } from "@/lib/supabase";
 import { jetonSession } from "@/lib/session";
 import { useRequete, useUserId } from "@/lib/donnees";
 import { nomPlateforme } from "@/lib/plateformes";
-import { analyserMarche, planifierDepuisStrategie } from "@/lib/agent.functions";
+import { analyserDepuisLien, analyserMarche, planifierDepuisStrategie } from "@/lib/agent.functions";
 import type { Analyse, Profil } from "@/lib/strategie";
 
 export const Route = createFileRoute("/strategie")({ component: Strategie });
@@ -34,11 +34,14 @@ function Strategie() {
     [userId],
   );
   const [profil, setProfil] = useState<Profil>(VIDE);
-  const [etat, setEtat] = useState<"libre" | "sauvegarde" | "analyse" | "plan">("libre");
+  const [etat, setEtat] = useState<"libre" | "sauvegarde" | "analyse" | "lien" | "plan">("libre");
+  const [lien, setLien] = useState("");
+  const [detailsOuverts, setDetailsOuverts] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
+    if (ligne.data?.site) setLien(ligne.data.site);
     if (ligne.data) setProfil({ ...VIDE, ...Object.fromEntries(Object.keys(VIDE).map((k) => [k, ligne.data?.[k as keyof Profil] ?? ""])) });
   }, [ligne.data]);
 
@@ -66,6 +69,24 @@ function Strategie() {
     await ligne.recharger();
   }
 
+  async function analyserLien(e: FormEvent) {
+    e.preventDefault();
+    setErreur(null);
+    setInfo(null);
+    setEtat("lien");
+    try {
+      const r = await analyserDepuisLien({ data: { lien, jeton: await jetonSession() } });
+      if (r.ok) {
+        setProfil({ ...VIDE, ...r.profil });
+        setInfo("Site analysé : le profil est rempli et la stratégie est prête ci-dessous.");
+      } else setErreur(r.erreur);
+    } catch (err) {
+      setErreur(err instanceof Error ? err.message : "Erreur");
+    }
+    setEtat("libre");
+    await ligne.recharger();
+  }
+
   async function creerCalendrier() {
     setErreur(null);
     setEtat("plan");
@@ -85,12 +106,49 @@ function Strategie() {
 
   return (
     <>
-      <Titre sous="Décrivez votre activité : l'agent analyse votre niche et votre marché, puis choisit où et quoi publier.">
+      <Titre sous="Donnez le lien de votre site : l'agent comprend votre niche, analyse votre marché et choisit où et quoi publier.">
         Stratégie
       </Titre>
 
-      <Carte className="mb-6">
-        <form onSubmit={analyser} className="grid gap-4 md:grid-cols-2">
+      <Carte className="mb-4 border-accent/40">
+        <form onSubmit={analyserLien}>
+          <label htmlFor="lien" className="mb-1 flex items-center gap-2 font-medium">
+            <Globe size={16} className="text-accent" aria-hidden />
+            Le plus simple : le lien de votre site
+          </label>
+          <p className="mb-3 text-sm text-doux">
+            Site, page produit, SaaS, boutique, page Google… L'agent le lit, remplit tout et construit votre stratégie.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              id="lien"
+              className={champ}
+              type="text"
+              inputMode="url"
+              autoComplete="url"
+              placeholder="https://monsite.fr/mon-produit"
+              value={lien}
+              onChange={(e) => setLien(e.target.value)}
+              required
+            />
+            <button className={`${bouton} flex shrink-0 items-center justify-center gap-2`} disabled={etat !== "libre"}>
+              {etat === "lien" ? <LoaderCircle size={16} className="animate-spin" aria-hidden /> : <Search size={16} aria-hidden />}
+              {etat === "lien" ? "Lecture et analyse (≈ 1 min)…" : "Analyser avec l'IA"}
+            </button>
+          </div>
+        </form>
+        {etat === "lien" && <p className="mt-2 text-xs text-doux">Vous pouvez suivre chaque étape dans « En direct ».</p>}
+      </Carte>
+
+      <details
+        className="mb-6 rounded-xl border border-bord bg-carte"
+        open={detailsOuverts || Boolean(profil.activite)}
+        onToggle={(e) => setDetailsOuverts((e.target as HTMLDetailsElement).open)}
+      >
+        <summary className="cursor-pointer p-4 font-medium">
+          {profil.activite ? "Votre profil (modifiable)" : "Pas de site ? Décrivez votre activité vous-même"}
+        </summary>
+        <form onSubmit={analyser} className="grid gap-4 px-4 pb-4 md:grid-cols-2">
           {CHAMPS.map((c) => (
             <label key={c.cle} className={`text-sm ${c.long ? "md:col-span-2" : ""}`}>
               <span className="font-medium">{c.label}</span>
@@ -104,16 +162,16 @@ function Strategie() {
           <div className="flex flex-wrap items-center gap-3 md:col-span-2">
             <button className={`${bouton} flex items-center gap-2`} disabled={etat !== "libre"}>
               {etat === "analyse" || etat === "sauvegarde" ? <LoaderCircle size={16} className="animate-spin" aria-hidden /> : <Search size={16} aria-hidden />}
-              {etat === "analyse" ? "Analyse du marché en cours (≈ 30 s)…" : a ? "Mettre à jour l'analyse" : "Analyser mon marché"}
+              {etat === "analyse" ? "Analyse du marché en cours (≈ 30 s)…" : a ? "Refaire l'analyse avec ces infos" : "Analyser mon marché"}
             </button>
             {ligne.data?.analyse_le && (
               <span className="text-xs text-doux">Dernière analyse : {new Date(ligne.data.analyse_le).toLocaleString("fr-FR")}</span>
             )}
           </div>
         </form>
-        <Erreur message={erreur ?? ligne.erreur} />
-        {info && <p className="mt-2 text-sm text-ok">{info}</p>}
-      </Carte>
+      </details>
+      <Erreur message={erreur ?? ligne.erreur} />
+      {info && <p className="-mt-3 mb-4 text-sm text-ok" role="status">{info}</p>}
 
       {a && (
         <div className="space-y-4">

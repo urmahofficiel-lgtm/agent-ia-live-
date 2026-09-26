@@ -43,7 +43,7 @@ export const schemaAnalyse = z.object({
 
 export type Analyse = z.infer<typeof schemaAnalyse>;
 
-export function consigneAnalyse(p: Profil) {
+export function consigneAnalyse(p: Profil, extraitSite?: string) {
   const ids = PLATEFORMES.filter((x) => x.zernio).map((x) => x.id).join(", ");
   return `Tu es un stratège marketing expert du marché français. Analyse la niche de cette entreprise et construis sa stratégie réseaux sociaux et prospection.
 
@@ -55,7 +55,7 @@ Entreprise :
 - Ton souhaité : ${p.ton || "?"}
 - Site : ${p.site || "?"}
 - Objectif : ${p.objectif || "?"}
-
+${extraitSite ? `\nExtrait de son site (source fiable, appuie-toi dessus) :\n${extraitSite.slice(0, 6000)}\n` : ""}
 Réponds UNIQUEMENT par un objet JSON valide, sans texte autour, de la forme :
 {
  "resume_niche": "la niche précise en 2 phrases",
@@ -97,4 +97,27 @@ Plateformes à utiliser, avec leur fréquence et leurs horaires : ${plateformes}
 Alterne ces thèmes :
 ${piliers}
 Chaque tâche est de type "publication", avec une consigne précise (angle, accroche, appel à l'action).`;
+}
+
+const champ = z.string().catch("").transform((x) => x.trim().slice(0, 1000));
+const schemaProfil = z.object({
+  activite: champ,
+  offre: champ,
+  cible: champ,
+  zone: champ,
+  ton: champ,
+  objectif: champ,
+});
+
+// Profil déduit d'un site par l'IA.
+export function lireProfilDeduit(reponse: string) {
+  const debut = reponse.indexOf("{");
+  const fin = reponse.lastIndexOf("}");
+  if (debut === -1 || fin <= debut) return null;
+  try {
+    const p = schemaProfil.parse(JSON.parse(reponse.slice(debut, fin + 1)));
+    return p.activite ? p : null;
+  } catch {
+    return null;
+  }
 }

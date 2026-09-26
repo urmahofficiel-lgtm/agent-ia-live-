@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { demandeDepuisStrategie, lireAnalyse } from "./strategie";
+import { demandeDepuisStrategie, lireAnalyse, lireProfilDeduit } from "./strategie";
 
 const exemple = {
   resume_niche: "Plombiers indépendants à Lyon",
@@ -43,5 +43,15 @@ describe("demandeDepuisStrategie", () => {
     expect(d).toContain("instagram (2/sem, soir)");
     expect(d).not.toContain("facebook");
     expect(d).toContain("14 prochains jours");
+  });
+});
+
+describe("lireProfilDeduit", () => {
+  it("lit le profil et complète les champs manquants", () => {
+    const p = lireProfilDeduit('```json\n{"activite":"SaaS de devis","offre":"Abonnement 29 €","cible":"Artisans"}\n```');
+    expect(p).toMatchObject({ activite: "SaaS de devis", offre: "Abonnement 29 €", zone: "", ton: "" });
+  });
+  it("refuse une réponse sans activité", () => {
+    expect(lireProfilDeduit('{"offre":"x"}')).toBeNull();
   });
 });

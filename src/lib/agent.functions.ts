@@ -4,7 +4,9 @@ import { PLATEFORMES, plateformeParZernio } from "./plateformes";
 import { demanderIA } from "./ia.server";
 import { preparer, URL_SITE, type Ecrivain } from "./preparation.server";
 import { consignePlanification, datePrevue, lirePlan } from "./commande";
-import { consigneAnalyse, demandeDepuisStrategie, lireAnalyse, type Analyse, type Profil } from "./strategie";
+import { consigneAnalyse, demandeDepuisStrategie, lireAnalyse, lireProfilDeduit, type Analyse, type Profil } from "./strategie";
+import { consigneProfilDepuisSite } from "./site";
+import { lireSite } from "./site.server";
 import { CATEGORIES, lireReponseOverpass, requeteOverpass } from "./osm";
 import { utilisateurDepuisJeton } from "./supabase-serveur";
 import {
@@ -492,38 +494,80 @@ export const envoyerReponse = createServerFn({ method: "POST" })
 
 // --- Stratégie : analyse de la niche et du marché ------------------------------
 
+// Analyse de niche + marché, rangée dans le profil.
+async function lancerAnalyse(sb: Sb, userId: string, profil: Profil, extraitSite?: string) {
+  const journal = (niveau: string, msg: string) => sb.from("evenements_taches").insert({ user_id: userId, niveau, message: msg });
+  await journal("action", "🔎 Analyse de votre niche et de votre marché…");
+  let analyse: Analyse | null = null;
+  for (let essai = 0; essai < 2 && !analyse; essai++) {
+    analyse = lireAnalyse(
+      await demanderIA(consigneAnalyse(profil, extraitSite), {
+        systeme: "Tu es un stratège marketing. Tu réponds uniquement en JSON valide.",
+        maxTokens: 4000,
+      }),
+    );
+  }
+  if (!analyse) {
+    await journal("erreur", "L'analyse n'a pas abouti. Réessayez.");
+    throw new Error("L'IA n'a pas renvoyé d'analyse exploitable. Réessayez.");
+  }
+  await sb.from("profil_marque").update({ analyse_marche: analyse, analyse_le: new Date().toISOString() }).eq("user_id", userId);
+  await journal(
+    "info",
+    `Stratégie prête : ${analyse.resume_niche.slice(0, 120)} — réseaux prioritaires : ${analyse.plateformes
+      .slice(0, 3)
+      .map((p) => PLATEFORMES.find((x) => x.id === p.id)?.nom)
+      .join(", ")}.`,
+  );
+  return analyse;
+}
+
 export const analyserMarche = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ jeton }).parse(input))
   .handler(async ({ data }): Promise<Resultat<{ analyse: Analyse }>> => {
     try {
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
       const { data: profil } = await sb.from("profil_marque").select("activite, offre, cible, zone, ton, site, objectif").maybeSingle();
-      if (!profil?.activite) return { ok: false, erreur: "Décrivez d'abord votre activité, puis enregistrez." };
+      if (!profil?.activite) return { ok: false, erreur: "Décrivez d'abord votre activité, ou collez le lien de votre site." };
+      return { ok: true, analyse: await lancerAnalyse(sb, user.id, profil as Profil) };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });
 
+// Le plus simple : un lien (site, page produit, SaaS…). L'agent lit le site,
+// remplit le profil, puis analyse le marché à partir du vrai contenu.
+export const analyserDepuisLien = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ lien: z.string().min(4).max(500), jeton }).parse(input))
+  .handler(async ({ data }): Promise<Resultat<{ profil: Profil; analyse: Analyse }>> => {
+    try {
+      const { sb, user } = await utilisateurDepuisJeton(data.jeton);
       const journal = (niveau: string, msg: string) => sb.from("evenements_taches").insert({ user_id: user.id, niveau, message: msg });
-      await journal("action", "🔎 Analyse de votre niche et de votre marché…");
-      let analyse: Analyse | null = null;
-      for (let essai = 0; essai < 2 && !analyse; essai++) {
-        analyse = lireAnalyse(
-          await demanderIA(consigneAnalyse(profil as Profil), {
-            systeme: "Tu es un stratège marketing. Tu réponds uniquement en JSON valide.",
-            maxTokens: 3000,
+
+      await journal("action", `🌐 Lecture du site ${data.lien}…`);
+      const site = await lireSite(data.lien);
+      await journal("info", `${site.pages.length} page(s) lue(s) : ${site.pages.map((p) => p.titre || "sans titre").join(" · ")}`);
+
+      await journal("action", "🧠 Compréhension de l'activité, de l'offre et des clients…");
+      let deduit = null;
+      for (let essai = 0; essai < 2 && !deduit; essai++) {
+        deduit = lireProfilDeduit(
+          await demanderIA(consigneProfilDepuisSite(site.url, site.pages), {
+            systeme: "Tu es un analyste marketing. Tu réponds uniquement en JSON valide.",
+            maxTokens: 1500,
           }),
         );
       }
-      if (!analyse) {
-        await journal("erreur", "L'analyse n'a pas abouti. Réessayez.");
-        return { ok: false, erreur: "L'IA n'a pas renvoyé d'analyse exploitable. Réessayez." };
-      }
-      await sb.from("profil_marque").update({ analyse_marche: analyse, analyse_le: new Date().toISOString() }).eq("user_id", user.id);
-      await journal(
-        "info",
-        `Stratégie prête : ${analyse.resume_niche.slice(0, 120)} — réseaux prioritaires : ${analyse.plateformes
-          .slice(0, 3)
-          .map((p) => PLATEFORMES.find((x) => x.id === p.id)?.nom)
-          .join(", ")}.`,
-      );
-      return { ok: true, analyse };
+      if (!deduit) return { ok: false, erreur: "L'IA n'a pas réussi à comprendre le site. Remplissez les champs à la main." };
+
+      const profil: Profil = { ...deduit, site: site.url };
+      const { error } = await sb.from("profil_marque").upsert({ user_id: user.id, ...profil });
+      if (error) return { ok: false, erreur: error.message };
+      await journal("info", `Activité comprise : ${profil.activite.slice(0, 150)}`);
+
+      const extrait = site.pages.map((p) => `${p.titre}\n${p.description}\n${p.texte}`).join("\n\n");
+      const analyse = await lancerAnalyse(sb, user.id, profil, extrait);
+      return { ok: true, profil, analyse };
     } catch (e) {
       return { ok: false, erreur: message(e) };
     }
