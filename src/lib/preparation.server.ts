@@ -40,7 +40,9 @@ export async function preparer(t: TacheAPreparer, contexte: string | null, e: Ec
       await e.enregistrer({ visuel_id: id, visuel_url, visuel_prompt: prompt });
       await e.journal("info", "Image prête.", visuel_url);
     } catch (err) {
-      // Pas d'image : la publication reste possible en texte seul.
+      // Pas d'image : la publication reste possible en texte seul. On note
+      // l'échec pour que le moteur ne réessaie pas en boucle.
+      await e.enregistrer({ visuel_echec: true });
       await e.journal("erreur", `Visuel non créé : ${err instanceof Error ? err.message : "erreur"}`);
     }
   }

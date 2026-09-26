@@ -19,7 +19,7 @@ type Due = {
   contexte: string | null;
 };
 
-type ARediger = { tache_id: string; type: string; plateforme: string | null; titre: string; consigne: string; contexte: string | null };
+type ARediger = { tache_id: string; type: string; plateforme: string | null; titre: string; consigne: string; contexte: string | null; brouillon: string | null };
 
 async function tick(secret: string) {
   const sb = clientMoteur();
@@ -73,7 +73,7 @@ async function tick(secret: string) {
   const { data: aRediger } = await sb.rpc("agent_brouillons_a_faire", { p_secret: secret });
   for (const t of (aRediger ?? []) as ARediger[]) {
     try {
-      await preparer({ type: t.type, plateforme: t.plateforme, titre: t.titre, consigne: t.consigne }, t.contexte, ecrivainMoteur(t.tache_id));
+      await preparer({ type: t.type, plateforme: t.plateforme, titre: t.titre, consigne: t.consigne, brouillon: t.brouillon }, t.contexte, ecrivainMoteur(t.tache_id));
       await maj(t.tache_id, null, null, "info", `Prêt à valider : « ${t.titre} »`);
     } catch (e) {
       await maj(t.tache_id, null, { essais_brouillon: 3 }, "erreur", `Rédaction impossible pour « ${t.titre} » : ${e instanceof Error ? e.message : "erreur"}`);
