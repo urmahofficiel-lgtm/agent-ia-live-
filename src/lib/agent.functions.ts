@@ -1,8 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { PLATEFORMES, plateformeParZernio } from "./plateformes";
-import { demanderIA, rediger } from "./ia.server";
+import { demanderIA } from "./ia.server";
+import { preparer, URL_SITE, type Ecrivain } from "./preparation.server";
 import { consignePlanification, datePrevue, lirePlan } from "./commande";
+import { consigneAnalyse, demandeDepuisStrategie, lireAnalyse, type Analyse, type Profil } from "./strategie";
 import { CATEGORIES, lireReponseOverpass, requeteOverpass } from "./osm";
 import { utilisateurDepuisJeton } from "./supabase-serveur";
 import {
@@ -21,38 +23,121 @@ type Resultat<T = object> = ({ ok: true } & T) | { ok: false; erreur: string };
 
 const message = (e: unknown) => (e instanceof Error ? e.message : "Erreur inattendue.");
 const jeton = z.string().min(10);
-const URL_SITE = "https://agent-ia-live.vercel.app";
 
-// --- Rédaction -------------------------------------------------------------
+// --- Préparation (texte + visuel) --------------------------------------------
 
+type Sb = Awaited<ReturnType<typeof utilisateurDepuisJeton>>["sb"];
+
+// Écrivain « côté site » : agit avec le jeton de l'utilisateur (RLS).
+function ecrivainUtilisateur(sb: Sb, userId: string, tacheId: string, resultatInitial: object | null): Ecrivain {
+  let resultat: Record<string, unknown> = { ...(resultatInitial ?? {}) };
+  return {
+    journal: (niveau, msg, image) =>
+      sb.from("evenements_taches").insert({ tache_id: tacheId, user_id: userId, niveau, message: msg, capture_url: image ?? null }),
+    enregistrer: async (partiel) => {
+      resultat = { ...resultat, ...partiel };
+      await sb.from("taches").update({ resultat }).eq("id", tacheId);
+    },
+    ajouterVisuel: async (mime, donnees, prompt) => {
+      const { data, error } = await sb
+        .from("visuels")
+        .insert({ user_id: userId, tache_id: tacheId, mime, donnees, prompt })
+        .select("id")
+        .single();
+      if (error || !data) throw new Error(error?.message ?? "Enregistrement de l'image impossible.");
+      return data.id as string;
+    },
+  };
+}
+
+async function contexteMarque(sb: Sb) {
+  const { data } = await sb.rpc("mon_contexte_marque");
+  return (data as string | null) || null;
+}
+
+type TacheLue = { id: string; type: string; plateforme: string | null; titre: string; consigne: string; resultat: Record<string, unknown> | null };
+
+async function preparerPourUtilisateur(sb: Sb, userId: string, t: TacheLue, contexte: string | null, options: { refaireTexte?: boolean; refaireImage?: boolean } = {}) {
+  const r = t.resultat ?? {};
+  return preparer(
+    {
+      type: t.type,
+      plateforme: t.plateforme,
+      titre: t.titre,
+      consigne: t.consigne,
+      brouillon: options.refaireTexte ? null : (r.brouillon as string | undefined),
+      visuel_url: options.refaireTexte || options.refaireImage ? null : (r.visuel_url as string | undefined),
+    },
+    contexte,
+    ecrivainUtilisateur(sb, userId, t.id, r),
+  );
+}
+
+// Rédige (ou réécrit) le texte ET crée le visuel d'une tâche.
 export const genererBrouillon = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ tacheId: z.string().uuid(), jeton }).parse(input))
   .handler(async ({ data }): Promise<Resultat<{ brouillon: string }>> => {
     try {
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
-      const { data: t, error } = await sb
+      const { data: t } = await sb.from("taches").select("id, type, plateforme, titre, consigne, resultat").eq("id", data.tacheId).single();
+      if (!t) return { ok: false, erreur: "Tâche introuvable." };
+      const r = await preparerPourUtilisateur(sb, user.id, t as TacheLue, await contexteMarque(sb), { refaireTexte: true });
+      return { ok: true, brouillon: r.brouillon };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });
+
+// Recrée seulement l'image.
+export const regenererVisuel = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ tacheId: z.string().uuid(), jeton }).parse(input))
+  .handler(async ({ data }): Promise<Resultat> => {
+    try {
+      const { sb, user } = await utilisateurDepuisJeton(data.jeton);
+      const { data: t } = await sb.from("taches").select("id, type, plateforme, titre, consigne, resultat").eq("id", data.tacheId).single();
+      if (!t) return { ok: false, erreur: "Tâche introuvable." };
+      const r = await preparerPourUtilisateur(sb, user.id, t as TacheLue, await contexteMarque(sb), { refaireImage: true });
+      return r.visuel_url ? { ok: true } : { ok: false, erreur: "L'image n'a pas pu être créée (voir En direct)." };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });
+
+// « Lancer maintenant » : l'agent traite tout de suite les tâches en attente
+// de préparation, sous les yeux de l'utilisateur (page En direct).
+export const travaillerMaintenant = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ jeton }).parse(input))
+  .handler(async ({ data }): Promise<Resultat<{ traitees: number }>> => {
+    try {
+      const { sb, user } = await utilisateurDepuisJeton(data.jeton);
+      const { data: taches } = await sb
         .from("taches")
         .select("id, type, plateforme, titre, consigne, resultat")
-        .eq("id", data.tacheId)
-        .single();
-      if (error || !t) return { ok: false, erreur: "Tâche introuvable." };
+        .in("statut", ["a_valider", "en_attente"])
+        .in("type", ["publication", "reponse", "prospection", "relance"])
+        .order("planifiee_pour", { ascending: true, nullsFirst: true })
+        .limit(20);
+      const aFaire = ((taches ?? []) as TacheLue[])
+        .filter((t) => !t.resultat?.brouillon || (t.type === "publication" && !t.resultat?.visuel_url))
+        .slice(0, 3);
 
-      const journal = (niveau: string, msg: string) =>
-        sb.from("evenements_taches").insert({ tache_id: t.id, user_id: user.id, niveau, message: msg });
-
-      await journal("action", `Rédaction en cours : « ${t.titre} »`);
-      try {
-        const brouillon = await rediger(t);
-        await sb
-          .from("taches")
-          .update({ resultat: { ...(t.resultat ?? {}), brouillon, genere_le: new Date().toISOString() } })
-          .eq("id", t.id);
-        await journal("info", `Brouillon prêt pour « ${t.titre} » — à valider.`);
-        return { ok: true, brouillon };
-      } catch (e) {
-        await journal("erreur", message(e));
-        throw e;
+      const journal = (niveau: string, msg: string) => sb.from("evenements_taches").insert({ user_id: user.id, niveau, message: msg });
+      if (aFaire.length === 0) {
+        await journal("info", "Rien à préparer : toutes les tâches ont déjà leur texte et leur visuel.");
+        return { ok: true, traitees: 0 };
       }
+      await journal("action", `▶️ L'agent démarre : ${aFaire.length} tâche(s) à préparer.`);
+      const contexte = await contexteMarque(sb);
+      if (!contexte) await journal("info", "Astuce : remplissez la page Stratégie pour que l'agent écrive pour votre niche.");
+      for (const t of aFaire) {
+        try {
+          await preparerPourUtilisateur(sb, user.id, t, contexte);
+        } catch (e) {
+          await journal("erreur", `« ${t.titre} » : ${message(e)}`);
+        }
+      }
+      await journal("info", "✅ Terminé. Les publications sont prêtes à valider dans Tâches.");
+      return { ok: true, traitees: aFaire.length };
     } catch (e) {
       return { ok: false, erreur: message(e) };
     }
@@ -72,6 +157,7 @@ export const publierTache = createServerFn({ method: "POST" })
         .single();
       if (!t) return { ok: false, erreur: "Tâche introuvable." };
       const brouillon = (t.resultat as { brouillon?: string } | null)?.brouillon;
+      const visuel = (t.resultat as { visuel_url?: string } | null)?.visuel_url;
       if (!brouillon) return { ok: false, erreur: "Rédigez d'abord le contenu avec l'IA." };
 
       const zernio = PLATEFORMES.find((p) => p.id === t.plateforme)?.zernio;
@@ -92,14 +178,14 @@ export const publierTache = createServerFn({ method: "POST" })
         sb.from("evenements_taches").insert({ tache_id: t.id, user_id: user.id, niveau, message: msg });
 
       await sb.from("taches").update({ statut: "en_cours" }).eq("id", t.id);
-      await journal("action", `Publication en cours : « ${t.titre} »`);
+      await journal("action", `🚀 Publication en cours sur ${PLATEFORMES.find((p) => p.id === t.plateforme)?.nom} : « ${t.titre} »`);
       try {
-        const post = await publier(zernio, compte.compte_externe_id, brouillon);
+        const post = await publier(zernio, compte.compte_externe_id, brouillon, visuel);
         await sb
           .from("taches")
           .update({ statut: "terminee", resultat: { ...(t.resultat as object), post_id: post._id, publie_le: new Date().toISOString() } })
           .eq("id", t.id);
-        await journal("info", `Publié : « ${t.titre} »`);
+        await journal("info", `✅ Publié : « ${t.titre} »`);
         return { ok: true };
       } catch (e) {
         await sb.from("taches").update({ statut: "echouee" }).eq("id", t.id);
@@ -175,7 +261,8 @@ export const planifierCommande = createServerFn({ method: "POST" })
     try {
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
       const maintenant = new Date();
-      const reponse = await demanderIA(consignePlanification(data.demande, maintenant), {
+      const contexte = await contexteMarque(sb);
+      const reponse = await demanderIA(consignePlanification(data.demande, maintenant, contexte), {
         systeme: "Tu es un planificateur. Tu réponds uniquement en JSON valide.",
         maxTokens: 2500,
       });
@@ -398,6 +485,88 @@ export const envoyerReponse = createServerFn({ method: "POST" })
         message: `Réponse envoyée à ${data.auteur} (${data.genre}).`,
       });
       return { ok: true };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });
+
+// --- Stratégie : analyse de la niche et du marché ------------------------------
+
+export const analyserMarche = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ jeton }).parse(input))
+  .handler(async ({ data }): Promise<Resultat<{ analyse: Analyse }>> => {
+    try {
+      const { sb, user } = await utilisateurDepuisJeton(data.jeton);
+      const { data: profil } = await sb.from("profil_marque").select("activite, offre, cible, zone, ton, site, objectif").maybeSingle();
+      if (!profil?.activite) return { ok: false, erreur: "Décrivez d'abord votre activité, puis enregistrez." };
+
+      const journal = (niveau: string, msg: string) => sb.from("evenements_taches").insert({ user_id: user.id, niveau, message: msg });
+      await journal("action", "🔎 Analyse de votre niche et de votre marché…");
+      let analyse: Analyse | null = null;
+      for (let essai = 0; essai < 2 && !analyse; essai++) {
+        analyse = lireAnalyse(
+          await demanderIA(consigneAnalyse(profil as Profil), {
+            systeme: "Tu es un stratège marketing. Tu réponds uniquement en JSON valide.",
+            maxTokens: 3000,
+          }),
+        );
+      }
+      if (!analyse) {
+        await journal("erreur", "L'analyse n'a pas abouti. Réessayez.");
+        return { ok: false, erreur: "L'IA n'a pas renvoyé d'analyse exploitable. Réessayez." };
+      }
+      await sb.from("profil_marque").update({ analyse_marche: analyse, analyse_le: new Date().toISOString() }).eq("user_id", user.id);
+      await journal(
+        "info",
+        `Stratégie prête : ${analyse.resume_niche.slice(0, 120)} — réseaux prioritaires : ${analyse.plateformes
+          .slice(0, 3)
+          .map((p) => PLATEFORMES.find((x) => x.id === p.id)?.nom)
+          .join(", ")}.`,
+      );
+      return { ok: true, analyse };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });
+
+export const planifierDepuisStrategie = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ jours: z.number().int().min(3).max(30).default(14), jeton }).parse(input))
+  .handler(async ({ data }): Promise<Resultat<{ creees: number }>> => {
+    try {
+      const { sb, user } = await utilisateurDepuisJeton(data.jeton);
+      const { data: profil } = await sb.from("profil_marque").select("analyse_marche").maybeSingle();
+      const analyse = profil?.analyse_marche as Analyse | null;
+      if (!analyse) return { ok: false, erreur: "Lancez d'abord l'analyse de marché." };
+      const { data: comptes } = await sb.from("comptes_connectes").select("plateforme").eq("statut", "connecte");
+      const connectes = (comptes ?? []).map((c) => c.plateforme as string);
+
+      const maintenant = new Date();
+      const reponse = await demanderIA(
+        consignePlanification(demandeDepuisStrategie(analyse, connectes, data.jours), maintenant, await contexteMarque(sb)),
+        { systeme: "Tu es un planificateur. Tu réponds uniquement en JSON valide.", maxTokens: 3500 },
+      );
+      const plan = lirePlan(reponse);
+      if (plan.length === 0) return { ok: false, erreur: "Le calendrier n'a pas pu être créé. Réessayez." };
+      const { data: reglages } = await sb.from("reglages_agent").select("validation_requise").maybeSingle();
+      const validation = reglages?.validation_requise ?? true;
+      const { error } = await sb.from("taches").insert(
+        plan.map((t) => ({
+          user_id: user.id,
+          type: t.type,
+          plateforme: t.plateforme ?? null,
+          titre: t.titre,
+          consigne: t.consigne,
+          statut: validation ? "a_valider" : "en_attente",
+          planifiee_pour: datePrevue(t, maintenant)?.toISOString() ?? null,
+        })),
+      );
+      if (error) return { ok: false, erreur: error.message };
+      await sb.from("evenements_taches").insert({
+        user_id: user.id,
+        niveau: "action",
+        message: `📅 Calendrier créé : ${plan.length} publications sur ${data.jours} jours, selon votre stratégie.`,
+      });
+      return { ok: true, creees: plan.length };
     } catch (e) {
       return { ok: false, erreur: message(e) };
     }

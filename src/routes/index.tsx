@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Power } from "lucide-react";
 import { Carte, Erreur, Titre } from "@/components/ui";
 import { Commande } from "@/components/Commande";
@@ -12,6 +12,7 @@ function TableauDeBord() {
   const userId = useUserId();
   const { reglages, enregistrer, erreur } = useReglages();
   const taches = useRequete<{ statut: StatutTache }[]>(() => supabase().from("taches").select("statut"), [userId]);
+  const profil = useRequete<{ analyse_le: string | null }>(() => supabase().from("profil_marque").select("analyse_le").maybeSingle(), [userId]);
   const prospects = useRequete<{ id: string }[]>(() => supabase().from("prospects").select("id"), [userId]);
 
   const compte = (s: StatutTache) => taches.data?.filter((t) => t.statut === s).length ?? 0;
@@ -20,6 +21,18 @@ function TableauDeBord() {
   return (
     <>
       <Titre sous="Dites à l'agent ce que vous voulez : il crée les tâches, rédige, et publie après votre validation.">Tableau de bord</Titre>
+
+      {!profil.chargement && !profil.data?.analyse_le && (
+        <Carte className="mb-4 flex flex-wrap items-center justify-between gap-3 border-accent/40">
+          <div>
+            <p className="font-medium">Première étape : votre stratégie</p>
+            <p className="text-sm text-doux">Décrivez votre activité : l'agent analyse votre niche et sait où et quoi publier.</p>
+          </div>
+          <Link to="/strategie" className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+            Définir ma stratégie
+          </Link>
+        </Carte>
+      )}
 
       <Commande />
 

@@ -51,13 +51,14 @@ export async function listerComptes(profileId: string) {
   });
 }
 
-export async function publier(plateforme: string, accountId: string, contenu: string) {
+export async function publier(plateforme: string, accountId: string, contenu: string, imageUrl?: string | null) {
   const r = await appel<{ post: { _id: string; status: string } }>("/posts", {
     method: "POST",
     body: JSON.stringify({
       content: contenu,
       publishNow: true,
       platforms: [{ platform: plateforme, accountId }],
+      ...(imageUrl ? { mediaItems: [{ type: "image", url: imageUrl }] } : {}),
     }),
   });
   return r.post;

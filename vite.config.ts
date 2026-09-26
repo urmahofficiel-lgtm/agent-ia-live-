@@ -11,7 +11,10 @@ export default defineConfig(({ command }) => ({
     tailwindcss(),
     tsConfigPaths({ projects: ["./tsconfig.json"] }),
     tanstackStart(),
-    ...(command === "build" ? [nitro({ preset: process.env.NITRO_BUILD_PRESET || "vercel" })] : []),
+    // 300 s : le moteur rédige et crée des images, ce qui dépasse la durée par défaut.
+    ...(command === "build"
+      ? [nitro({ preset: process.env.NITRO_BUILD_PRESET || "vercel", vercel: { functions: { maxDuration: 300 } } })]
+      : []),
     viteReact(),
   ],
   test: { exclude: ["node_modules", "dist", ".output"] },

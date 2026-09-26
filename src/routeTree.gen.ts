@@ -15,8 +15,10 @@ import { Route as EnDirectRouteImport } from './routes/en-direct'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as ParametresRouteImport } from './routes/parametres'
 import { Route as ProspectionRouteImport } from './routes/prospection'
+import { Route as StrategieRouteImport } from './routes/strategie'
 import { Route as TachesRouteImport } from './routes/taches'
 import { Route as ApiAgentTickRouteImport } from './routes/api/agent/tick'
+import { Route as ApiVisuelsIdRouteImport } from './routes/api/visuels/$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -48,6 +50,11 @@ const ProspectionRoute = ProspectionRouteImport.update({
   path: '/prospection',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StrategieRoute = StrategieRouteImport.update({
+  id: '/strategie',
+  path: '/strategie',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TachesRoute = TachesRouteImport.update({
   id: '/taches',
   path: '/taches',
@@ -58,6 +65,11 @@ const ApiAgentTickRoute = ApiAgentTickRouteImport.update({
   path: '/api/agent/tick',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiVisuelsIdRoute = ApiVisuelsIdRouteImport.update({
+  id: '/api/visuels/$id',
+  path: '/api/visuels/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -66,8 +78,10 @@ export interface FileRoutesByFullPath {
   '/messages': typeof MessagesRoute
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
+  '/strategie': typeof StrategieRoute
   '/taches': typeof TachesRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
+  '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -76,8 +90,10 @@ export interface FileRoutesByTo {
   '/messages': typeof MessagesRoute
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
+  '/strategie': typeof StrategieRoute
   '/taches': typeof TachesRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
+  '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -87,8 +103,10 @@ export interface FileRoutesById {
   '/messages': typeof MessagesRoute
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
+  '/strategie': typeof StrategieRoute
   '/taches': typeof TachesRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
+  '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -99,8 +117,10 @@ export interface FileRouteTypes {
     | '/messages'
     | '/parametres'
     | '/prospection'
+    | '/strategie'
     | '/taches'
     | '/api/agent/tick'
+    | '/api/visuels/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -109,8 +129,10 @@ export interface FileRouteTypes {
     | '/messages'
     | '/parametres'
     | '/prospection'
+    | '/strategie'
     | '/taches'
     | '/api/agent/tick'
+    | '/api/visuels/$id'
   id:
     | '__root__'
     | '/'
@@ -119,8 +141,10 @@ export interface FileRouteTypes {
     | '/messages'
     | '/parametres'
     | '/prospection'
+    | '/strategie'
     | '/taches'
     | '/api/agent/tick'
+    | '/api/visuels/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -130,8 +154,10 @@ export interface RootRouteChildren {
   MessagesRoute: typeof MessagesRoute
   ParametresRoute: typeof ParametresRoute
   ProspectionRoute: typeof ProspectionRoute
+  StrategieRoute: typeof StrategieRoute
   TachesRoute: typeof TachesRoute
   ApiAgentTickRoute: typeof ApiAgentTickRoute
+  ApiVisuelsIdRoute: typeof ApiVisuelsIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -178,6 +204,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProspectionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/strategie': {
+      id: '/strategie'
+      path: '/strategie'
+      fullPath: '/strategie'
+      preLoaderRoute: typeof StrategieRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/taches': {
       id: '/taches'
       path: '/taches'
@@ -192,6 +225,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/visuels/$id': {
+      id: '/api/visuels/$id'
+      path: '/api/visuels/$id'
+      fullPath: '/api/visuels/$id'
+      preLoaderRoute: typeof ApiVisuelsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -202,8 +242,10 @@ const rootRouteChildren: RootRouteChildren = {
   MessagesRoute: MessagesRoute,
   ParametresRoute: ParametresRoute,
   ProspectionRoute: ProspectionRoute,
+  StrategieRoute: StrategieRoute,
   TachesRoute: TachesRoute,
   ApiAgentTickRoute: ApiAgentTickRoute,
+  ApiVisuelsIdRoute: ApiVisuelsIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

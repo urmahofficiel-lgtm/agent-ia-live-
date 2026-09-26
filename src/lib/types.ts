@@ -9,7 +9,7 @@ export type Tache = {
   consigne: string;
   statut: StatutTache;
   planifiee_pour: string | null;
-  resultat: { brouillon?: string } | null;
+  resultat: { brouillon?: string; visuel_url?: string } | null;
   created_at: string;
 };
 
@@ -18,6 +18,7 @@ export type Evenement = {
   tache_id: string | null;
   niveau: "info" | "action" | "erreur";
   message: string;
+  capture_url: string | null;
   created_at: string;
 };
 

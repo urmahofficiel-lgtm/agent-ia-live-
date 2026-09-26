@@ -4,7 +4,7 @@ import { Carte, Erreur, Titre, bouton, boutonSecondaire, champ } from "@/compone
 import { supabase } from "@/lib/supabase";
 import { useReglages, useRequete, useUserId } from "@/lib/donnees";
 import { PLATEFORMES, nomPlateforme } from "@/lib/plateformes";
-import { genererBrouillon, publierTache } from "@/lib/agent.functions";
+import { genererBrouillon, publierTache, regenererVisuel } from "@/lib/agent.functions";
 import { jetonSession } from "@/lib/session";
 import { LIBELLE_STATUT, LIBELLE_TYPE, type StatutTache, type Tache, type TypeTache } from "@/lib/types";
 
@@ -44,6 +44,7 @@ function Taches() {
   }
 
   const rediger = (id: string) => action(id, (jeton) => genererBrouillon({ data: { tacheId: id, jeton } }));
+  const nouvelleImage = (id: string) => action(id, (jeton) => regenererVisuel({ data: { tacheId: id, jeton } }));
   const publierMaintenant = (id: string) => action(id, (jeton) => publierTache({ data: { tacheId: id, jeton } }));
 
   async function creer(e: FormEvent) {
@@ -134,6 +135,14 @@ function Taches() {
                 <div className="mt-3 rounded-lg border border-bord bg-fond p-3">
                   <p className="mb-1 text-xs font-medium text-accent">Brouillon de l'IA</p>
                   <p className="text-sm whitespace-pre-wrap">{t.resultat.brouillon}</p>
+                  {t.resultat.visuel_url && (
+                    <img src={t.resultat.visuel_url} alt="Visuel de la publication" loading="lazy" className="mt-3 max-h-64 rounded-lg border border-bord" />
+                  )}
+                  {t.type === "publication" && ["a_valider", "en_attente"].includes(t.statut) && (
+                    <button className="mt-2 text-xs text-doux underline" disabled={redaction !== null} onClick={() => nouvelleImage(t.id)}>
+                      {t.resultat.visuel_url ? "Nouvelle image" : "Créer l'image"}
+                    </button>
+                  )}
                 </div>
               )}
             </div>

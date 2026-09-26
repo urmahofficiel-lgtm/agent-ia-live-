@@ -17,14 +17,14 @@ const tachePlanifiee = z.object({
 
 export type TachePlanifiee = z.infer<typeof tachePlanifiee>;
 
-export function consignePlanification(demande: string, maintenant: Date) {
+export function consignePlanification(demande: string, maintenant: Date, contexte?: string | null) {
   const ids = PLATEFORMES.map((p) => p.id).join(", ");
   return `Nous sommes le ${maintenant.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}.
 Découpe la demande suivante en tâches concrètes pour un agent qui gère les réseaux sociaux et la prospection.
 Réponds UNIQUEMENT par un tableau JSON, sans texte autour. Chaque élément :
 {"type": "publication"|"reponse"|"prospection"|"relance"|"appareil"|"autre", "plateforme": un de [${ids}] ou null, "titre": "court", "consigne": "détaillée pour la rédaction", "dans_jours": nombre de jours à partir d'aujourd'hui (0 = aujourd'hui), "heure": heure de publication 0-23}
 Répartis les publications dans le temps si plusieurs sont demandées. Maximum 20 tâches.
-
+${contexte ? `\nContexte de l'entreprise (adapte les sujets à cette niche) :\n${contexte}\n` : ""}
 Demande : ${demande}`;
 }
 

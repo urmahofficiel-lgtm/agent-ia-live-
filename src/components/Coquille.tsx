@@ -1,12 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
-import { Activity, Bot, Link2, ListChecks, LogOut, MessageCircle, Settings, Users } from "lucide-react";
+import { Activity, Bot, Link2, ListChecks, LogOut, MessageCircle, Settings, Target, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase, supabaseConfigure } from "@/lib/supabase";
 import { Connexion } from "./Connexion";
 
 const MENU = [
   { to: "/", label: "Tableau de bord", icone: Bot },
+  { to: "/strategie", label: "Stratégie", icone: Target },
   { to: "/en-direct", label: "En direct", icone: Activity },
   { to: "/taches", label: "Tâches", icone: ListChecks },
   { to: "/messages", label: "Messages", icone: MessageCircle },
