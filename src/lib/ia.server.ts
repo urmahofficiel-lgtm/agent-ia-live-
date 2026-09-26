@@ -5,14 +5,19 @@ const NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 // NVIDIA retire régulièrement des modèles (réponse 404/410) : on essaie une
 // liste dans l'ordre et on passe au suivant si l'un a disparu.
 // NVIDIA_MODELE (variable Vercel) permet d'en imposer un en tête de liste.
+// Ordre : les plus rapides d'abord (la rédaction se fait en direct).
 const MODELES = [
-  "mistralai/mistral-large-2-instruct",
-  "google/gemma-4-31b-it",
   "deepseek-ai/deepseek-v4.1-flash",
+  "openai/gpt-oss-20b",
+  "google/gemma-4-31b-it",
   "nvidia/llama-3.1-nemotron-70b-instruct",
 ];
 
 const MODELE_DISPARU = new Set([404, 410]);
+// Au-delà, on passe au modèle suivant plutôt que de faire attendre l'agent.
+const DELAI_MAX_MS = 45_000;
+// Modèles retirés par NVIDIA : mémorisés le temps de vie du serveur.
+const retires = new Set<string>();
 
 // Lue au moment de la requête : une variable « Sensible » Vercel n'existe pas
 // pendant le build. `agentialive` est le nom sous lequel la clé a été
@@ -43,6 +48,7 @@ const SYSTEME =
 function appelNvidia(cle: string, modele: string, systeme: string, demande: string, maxTokens: number) {
   return fetch(NVIDIA_URL, {
     method: "POST",
+    signal: AbortSignal.timeout(DELAI_MAX_MS),
     headers: { Authorization: `Bearer ${cle}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: modele,
@@ -61,14 +67,22 @@ export async function demanderIA(demande: string, options: { systeme?: string; m
   const cle = cleNvidia();
   if (!cle) throw new Error("Clé NVIDIA absente des variables Vercel.");
 
-  const modeles = [process.env.NVIDIA_MODELE, ...MODELES].filter((m): m is string => Boolean(m));
+  const modeles = [process.env.NVIDIA_MODELE, ...MODELES].filter((m): m is string => Boolean(m) && !retires.has(m!));
   let r: Response | undefined;
   for (const modele of modeles) {
-    r = await appelNvidia(cle, modele, options.systeme ?? SYSTEME, demande, options.maxTokens ?? 800);
+    const debut = Date.now();
+    try {
+      r = await appelNvidia(cle, modele, options.systeme ?? SYSTEME, demande, options.maxTokens ?? 800);
+    } catch {
+      console.warn("NVIDIA : trop lent, modèle suivant", modele, Date.now() - debut, "ms");
+      r = undefined;
+      continue;
+    }
+    console.info("NVIDIA", modele, r.status, Date.now() - debut, "ms");
     if (!MODELE_DISPARU.has(r.status)) break;
-    console.warn("NVIDIA : modèle indisponible", modele, r.status);
+    retires.add(modele);
   }
-  if (!r) throw new Error("Aucun modèle NVIDIA configuré.");
+  if (!r) throw new Error("L'IA NVIDIA n'a pas répondu à temps. Réessayez.");
 
   if (!r.ok) {
     const detail = (await r.text()).slice(0, 300);
@@ -157,11 +171,19 @@ export async function genererImage(prompt: string, plateforme: string | null) {
   const format = formatImage(plateforme);
   let derniere = "";
   for (const modele of [process.env.NVIDIA_MODELE_IMAGE, ...MODELES_IMAGE].filter((m): m is string => Boolean(m))) {
-    const r = await fetch(IMAGE_URL + modele, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${cle}`, "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(corpsImage(modele, prompt, format)),
-    });
+    let r: Response;
+    try {
+      r = await fetch(IMAGE_URL + modele, {
+        method: "POST",
+        signal: AbortSignal.timeout(90_000),
+        headers: { Authorization: `Bearer ${cle}`, "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(corpsImage(modele, prompt, format)),
+      });
+    } catch {
+      derniere = `${modele} : trop lent`;
+      continue;
+    }
+    console.info("NVIDIA image", modele, r.status);
     if (!r.ok) {
       derniere = `${modele} ${r.status}`;
       console.warn("NVIDIA image", modele, r.status, (await r.text()).slice(0, 200));
