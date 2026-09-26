@@ -15,6 +15,7 @@ import { Route as EnDirectRouteImport } from './routes/en-direct'
 import { Route as ParametresRouteImport } from './routes/parametres'
 import { Route as ProspectionRouteImport } from './routes/prospection'
 import { Route as TachesRouteImport } from './routes/taches'
+import { Route as ApiAgentTickRouteImport } from './routes/api/agent/tick'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,6 +47,11 @@ const TachesRoute = TachesRouteImport.update({
   path: '/taches',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentTickRoute = ApiAgentTickRouteImport.update({
+  id: '/api/agent/tick',
+  path: '/api/agent/tick',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
   '/taches': typeof TachesRoute
+  '/api/agent/tick': typeof ApiAgentTickRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByTo {
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
   '/taches': typeof TachesRoute
+  '/api/agent/tick': typeof ApiAgentTickRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,14 +79,27 @@ export interface FileRoutesById {
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
   '/taches': typeof TachesRoute
+  '/api/agent/tick': typeof ApiAgentTickRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/comptes' | '/en-direct' | '/parametres' | '/prospection' | '/taches'
+    | '/'
+    | '/comptes'
+    | '/en-direct'
+    | '/parametres'
+    | '/prospection'
+    | '/taches'
+    | '/api/agent/tick'
   fileRoutesByTo: FileRoutesByTo
   to:
-    '/' | '/comptes' | '/en-direct' | '/parametres' | '/prospection' | '/taches'
+    | '/'
+    | '/comptes'
+    | '/en-direct'
+    | '/parametres'
+    | '/prospection'
+    | '/taches'
+    | '/api/agent/tick'
   id:
     | '__root__'
     | '/'
@@ -87,6 +108,7 @@ export interface FileRouteTypes {
     | '/parametres'
     | '/prospection'
     | '/taches'
+    | '/api/agent/tick'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -96,6 +118,7 @@ export interface RootRouteChildren {
   ParametresRoute: typeof ParametresRoute
   ProspectionRoute: typeof ProspectionRoute
   TachesRoute: typeof TachesRoute
+  ApiAgentTickRoute: typeof ApiAgentTickRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -142,6 +165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TachesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/tick': {
+      id: '/api/agent/tick'
+      path: '/api/agent/tick'
+      fullPath: '/api/agent/tick'
+      preLoaderRoute: typeof ApiAgentTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -152,6 +182,7 @@ const rootRouteChildren: RootRouteChildren = {
   ParametresRoute: ParametresRoute,
   ProspectionRoute: ProspectionRoute,
   TachesRoute: TachesRoute,
+  ApiAgentTickRoute: ApiAgentTickRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

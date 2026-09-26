@@ -4,7 +4,8 @@ import { Carte, Erreur, Titre, bouton, boutonSecondaire, champ } from "@/compone
 import { supabase } from "@/lib/supabase";
 import { useReglages, useRequete, useUserId } from "@/lib/donnees";
 import { PLATEFORMES, nomPlateforme } from "@/lib/plateformes";
-import { genererBrouillon } from "@/lib/ia.functions";
+import { genererBrouillon, publierTache } from "@/lib/agent.functions";
+import { jetonSession } from "@/lib/session";
 import { LIBELLE_STATUT, LIBELLE_TYPE, type StatutTache, type Tache, type TypeTache } from "@/lib/types";
 
 export const Route = createFileRoute("/taches")({ component: Taches });
@@ -28,24 +29,22 @@ function Taches() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [redaction, setRedaction] = useState<string | null>(null);
 
-  async function rediger(id: string) {
+  // Appel serveur commun : affiche l'erreur éventuelle puis recharge la liste.
+  async function action(id: string, appel: (jeton: string) => Promise<{ ok: boolean; erreur?: string }>) {
     setRedaction(id);
     setErreur(null);
-    const { data } = await supabase().auth.getSession();
-    const jeton = data.session?.access_token;
-    if (!jeton) {
-      setRedaction(null);
-      return setErreur("Session expirée, reconnectez-vous.");
-    }
     try {
-      const r = await genererBrouillon({ data: { tacheId: id, jeton } });
-      if (!r.ok) setErreur(r.erreur);
-    } catch {
-      setErreur("Impossible de joindre le serveur. Réessayez.");
+      const r = await appel(await jetonSession());
+      if (!r.ok) setErreur(r.erreur ?? "Erreur");
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Impossible de joindre le serveur. Réessayez.");
     }
     setRedaction(null);
     await liste.recharger();
   }
+
+  const rediger = (id: string) => action(id, (jeton) => genererBrouillon({ data: { tacheId: id, jeton } }));
+  const publierMaintenant = (id: string) => action(id, (jeton) => publierTache({ data: { tacheId: id, jeton } }));
 
   async function creer(e: FormEvent) {
     e.preventDefault();
@@ -141,11 +140,22 @@ function Taches() {
             <div className="flex flex-wrap gap-2">
               {["a_valider", "en_attente"].includes(t.statut) && (
                 <button className={boutonSecondaire} disabled={redaction !== null} onClick={() => rediger(t.id)}>
-                  {redaction === t.id ? "Rédaction…" : t.resultat?.brouillon ? "Réécrire" : "Rédiger avec l'IA"}
+                  {redaction === t.id ? "En cours…" : t.resultat?.brouillon ? "Réécrire" : "Rédiger avec l'IA"}
                 </button>
               )}
-              {t.statut === "a_valider" && (
-                <button className={boutonSecondaire} onClick={() => changerStatut(t.id, "en_attente")}>Valider</button>
+              {t.type === "publication" && t.resultat?.brouillon && ["a_valider", "en_attente"].includes(t.statut) && (
+                <button className={boutonSecondaire} disabled={redaction !== null} onClick={() => publierMaintenant(t.id)}>
+                  Publier maintenant
+                </button>
+              )}
+              {t.statut === "a_valider" && t.resultat?.brouillon && (
+                <button
+                  className={boutonSecondaire}
+                  title="L'agent publiera automatiquement à l'heure prévue (s'il est démarré)"
+                  onClick={() => changerStatut(t.id, "en_attente")}
+                >
+                  Valider
+                </button>
               )}
               {["a_valider", "en_attente"].includes(t.statut) && (
                 <button className={boutonSecondaire} onClick={() => changerStatut(t.id, "annulee")}>Annuler</button>
