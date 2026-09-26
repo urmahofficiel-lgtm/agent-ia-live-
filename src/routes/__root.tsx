@@ -12,7 +12,10 @@ export const Route = createRootRoute({
       { title: "Agent IA Live" },
       { name: "robots", content: "noindex" },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+    ],
   }),
   component: () => (
     <Document>
