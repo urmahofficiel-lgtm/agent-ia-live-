@@ -1,8 +1,14 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // Projet Supabase dédié à Agent IA Live — jamais celui de BTP Ecosystem.
-const URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const CLE = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+//
+// Ces deux valeurs par défaut sont PUBLIQUES par nature (visibles dans le
+// navigateur de toute façon) : la sécurité repose sur les politiques RLS.
+// Les variables d'environnement Vercel, si définies, prennent le dessus.
+const URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || "https://idabdhnsciymoauyogmj.supabase.co";
+const CLE =
+  (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ||
+  "sb_publishable_VvarkoTJdJPMo9CIdSuZOw_o6p_kiff";
 
 let client: SupabaseClient | undefined;
 
