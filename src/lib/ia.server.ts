@@ -6,17 +6,19 @@ const NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 // liste dans l'ordre et on passe au suivant si l'un a disparu.
 // NVIDIA_MODELE (variable Vercel) permet d'en imposer un en tête de liste.
 // Ordre : les plus rapides d'abord (la rédaction se fait en direct).
+// Mesuré en production : gpt-oss-20b répond en 3 à 6 s ; deepseek-v4.1-flash
+// dépasse 45 s.
 const MODELES = [
-  "deepseek-ai/deepseek-v4.1-flash",
   "openai/gpt-oss-20b",
   "google/gemma-4-31b-it",
   "nvidia/llama-3.1-nemotron-70b-instruct",
+  "deepseek-ai/deepseek-v4.1-flash",
 ];
 
 const MODELE_DISPARU = new Set([404, 410]);
 // Au-delà, on passe au modèle suivant plutôt que de faire attendre l'agent.
 const DELAI_MAX_MS = 45_000;
-// Modèles retirés par NVIDIA : mémorisés le temps de vie du serveur.
+// Modèles retirés par NVIDIA ou trop lents : écartés le temps de vie du serveur.
 const retires = new Set<string>();
 
 // Lue au moment de la requête : une variable « Sensible » Vercel n'existe pas
@@ -68,33 +70,39 @@ export async function demanderIA(demande: string, options: { systeme?: string; m
   if (!cle) throw new Error("Clé NVIDIA absente des variables Vercel.");
 
   const modeles = [process.env.NVIDIA_MODELE, ...MODELES].filter((m): m is string => Boolean(m) && !retires.has(m!));
-  let r: Response | undefined;
+  let derniereErreur = "L'IA NVIDIA n'a pas répondu à temps. Réessayez.";
   for (const modele of modeles) {
     const debut = Date.now();
+    let r: Response;
     try {
       r = await appelNvidia(cle, modele, options.systeme ?? SYSTEME, demande, options.maxTokens ?? 800);
     } catch {
       console.warn("NVIDIA : trop lent, modèle suivant", modele, Date.now() - debut, "ms");
-      r = undefined;
+      retires.add(modele);
       continue;
     }
     console.info("NVIDIA", modele, r.status, Date.now() - debut, "ms");
-    if (!MODELE_DISPARU.has(r.status)) break;
-    retires.add(modele);
+    if (MODELE_DISPARU.has(r.status)) {
+      retires.add(modele);
+      continue;
+    }
+    if (!r.ok) {
+      const detail = (await r.text()).slice(0, 300);
+      console.error("NVIDIA", r.status, detail);
+      derniereErreur = `L'IA NVIDIA a refusé la demande (${r.status}).`;
+      if (r.status === 401 || r.status === 403) break; // clé invalide : inutile d'insister
+      continue;
+    }
+    const json = (await r.json()) as { choices?: { message?: { content?: string | null } }[] };
+    // Les modèles « à raisonnement » renvoient parfois leur réflexion entre
+    // balises <think> : on ne garde que la réponse.
+    const texte = json.choices?.[0]?.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    if (texte) return texte;
+    // Réponse vide (souvent : tout le budget passé à « réfléchir ») : modèle suivant.
+    console.warn("NVIDIA : réponse vide", modele);
+    derniereErreur = "Réponse vide de l'IA.";
   }
-  if (!r) throw new Error("L'IA NVIDIA n'a pas répondu à temps. Réessayez.");
-
-  if (!r.ok) {
-    const detail = (await r.text()).slice(0, 300);
-    console.error("NVIDIA", r.status, detail);
-    throw new Error(`L'IA NVIDIA a refusé la demande (${r.status}).`);
-  }
-  const json = (await r.json()) as { choices?: { message?: { content?: string } }[] };
-  // Les modèles « à raisonnement » renvoient parfois leur réflexion entre
-  // balises <think> : on ne garde que la réponse.
-  const texte = json.choices?.[0]?.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-  if (!texte) throw new Error("Réponse vide de l'IA.");
-  return texte;
+  throw new Error(derniereErreur);
 }
 
 export function rediger(t: Consigne, contexte?: string | null): Promise<string> {
@@ -148,7 +156,7 @@ export async function promptImage(texte: string, plateforme: string | null, cont
     ]
       .filter(Boolean)
       .join("\n"),
-    { systeme: "You are an expert art director. You answer with a single image prompt.", maxTokens: 200 },
+    { systeme: "You are an expert art director. You answer with a single image prompt.", maxTokens: 1200 },
   );
   return prompt.replace(/^["'\s]+|["'\s]+$/g, "");
 }
