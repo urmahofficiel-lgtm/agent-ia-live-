@@ -9,6 +9,7 @@ export type Tache = {
   consigne: string;
   statut: StatutTache;
   planifiee_pour: string | null;
+  resultat: { brouillon?: string } | null;
   created_at: string;
 };
 

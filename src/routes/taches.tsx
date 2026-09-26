@@ -4,6 +4,7 @@ import { Carte, Erreur, Titre, bouton, boutonSecondaire, champ } from "@/compone
 import { supabase } from "@/lib/supabase";
 import { useReglages, useRequete, useUserId } from "@/lib/donnees";
 import { PLATEFORMES, nomPlateforme } from "@/lib/plateformes";
+import { genererBrouillon } from "@/lib/ia.functions";
 import { LIBELLE_STATUT, LIBELLE_TYPE, type StatutTache, type Tache, type TypeTache } from "@/lib/types";
 
 export const Route = createFileRoute("/taches")({ component: Taches });
@@ -25,6 +26,26 @@ function Taches() {
   const [consigne, setConsigne] = useState("");
   const [quand, setQuand] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
+  const [redaction, setRedaction] = useState<string | null>(null);
+
+  async function rediger(id: string) {
+    setRedaction(id);
+    setErreur(null);
+    const { data } = await supabase().auth.getSession();
+    const jeton = data.session?.access_token;
+    if (!jeton) {
+      setRedaction(null);
+      return setErreur("Session expirée, reconnectez-vous.");
+    }
+    try {
+      const r = await genererBrouillon({ data: { tacheId: id, jeton } });
+      if (!r.ok) setErreur(r.erreur);
+    } catch {
+      setErreur("Impossible de joindre le serveur. Réessayez.");
+    }
+    setRedaction(null);
+    await liste.recharger();
+  }
 
   async function creer(e: FormEvent) {
     e.preventDefault();
@@ -110,8 +131,19 @@ function Taches() {
                 {t.planifiee_pour && ` · prévu le ${new Date(t.planifiee_pour).toLocaleString("fr-FR")}`}
               </p>
               {t.consigne && <p className="mt-1 text-sm whitespace-pre-wrap">{t.consigne}</p>}
+              {t.resultat?.brouillon && (
+                <div className="mt-3 rounded-lg border border-bord bg-fond p-3">
+                  <p className="mb-1 text-xs font-medium text-accent">Brouillon de l'IA</p>
+                  <p className="text-sm whitespace-pre-wrap">{t.resultat.brouillon}</p>
+                </div>
+              )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              {["a_valider", "en_attente"].includes(t.statut) && (
+                <button className={boutonSecondaire} disabled={redaction !== null} onClick={() => rediger(t.id)}>
+                  {redaction === t.id ? "Rédaction…" : t.resultat?.brouillon ? "Réécrire" : "Rédiger avec l'IA"}
+                </button>
+              )}
               {t.statut === "a_valider" && (
                 <button className={boutonSecondaire} onClick={() => changerStatut(t.id, "en_attente")}>Valider</button>
               )}

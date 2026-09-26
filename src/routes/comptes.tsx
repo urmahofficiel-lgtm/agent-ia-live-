@@ -10,7 +10,7 @@ export const Route = createFileRoute("/comptes")({ component: Comptes });
 type Compte = { id: string; plateforme: string; statut: string };
 
 const LIBELLE: Record<string, string> = {
-  a_connecter: "À connecter",
+  a_connecter: "Choisi, en attente de connexion",
   connecte: "Connecté",
   erreur: "Erreur",
   desactive: "Désactivé",
@@ -36,9 +36,15 @@ function Comptes() {
 
   return (
     <>
-      <Titre sous="Choisissez les comptes que l'agent devra gérer. La connexion réelle (autorisation de chaque réseau) sera branchée à l'étape suivante.">
-        Comptes connectés
-      </Titre>
+      <Titre sous="Choisissez les réseaux que l'agent devra gérer.">Comptes connectés</Titre>
+      <Carte className="mb-4 border-alerte/40 text-sm">
+        <p className="font-medium text-alerte">Connexion réelle pas encore branchée</p>
+        <p className="mt-1 text-doux">
+          Pour l'instant, « Ajouter » enregistre seulement le réseau dans votre liste. La vraie connexion (vous
+          autorisez l'agent sur Facebook, Instagram, LinkedIn…) arrive à l'étape suivante : le bouton ouvrira
+          alors la page d'autorisation du réseau.
+        </p>
+      </Carte>
       <Erreur message={erreur ?? comptes.erreur} />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {PLATEFORMES.map((p) => {
