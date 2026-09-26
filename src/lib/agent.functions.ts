@@ -1,7 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { PLATEFORMES, plateformeParZernio } from "./plateformes";
-import { rediger } from "./redaction.server";
+import { demanderIA, rediger } from "./ia.server";
+import { consignePlanification, datePrevue, lirePlan } from "./commande";
+import { CATEGORIES, lireReponseOverpass, requeteOverpass } from "./osm";
 import { utilisateurDepuisJeton } from "./supabase-serveur";
 import { creerProfil, listerComptes, publier, urlAutorisation, zernioConfigure } from "./zernio.server";
 
@@ -150,6 +152,107 @@ export const synchroniserComptes = createServerFn({ method: "POST" })
         if (!error) connectes++;
       }
       return { ok: true, connectes };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });
+
+// --- Commande en langage courant ---------------------------------------------
+
+export const planifierCommande = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ demande: z.string().min(3).max(2000), jeton }).parse(input))
+  .handler(async ({ data }): Promise<Resultat<{ creees: number }>> => {
+    try {
+      const { sb, user } = await utilisateurDepuisJeton(data.jeton);
+      const maintenant = new Date();
+      const reponse = await demanderIA(consignePlanification(data.demande, maintenant), {
+        systeme: "Tu es un planificateur. Tu réponds uniquement en JSON valide.",
+        maxTokens: 2500,
+      });
+      const plan = lirePlan(reponse);
+      if (plan.length === 0) return { ok: false, erreur: "L'IA n'a pas compris la demande. Reformulez-la." };
+
+      const { data: reglages } = await sb.from("reglages_agent").select("validation_requise").maybeSingle();
+      const validation = reglages?.validation_requise ?? true;
+      const aValider = new Set(["publication", "reponse", "prospection", "relance"]);
+
+      const lignes = plan.map((t) => ({
+        user_id: user.id,
+        type: t.type,
+        plateforme: t.type === "appareil" ? null : (t.plateforme ?? null),
+        titre: t.titre,
+        consigne: t.consigne,
+        statut: validation && aValider.has(t.type) ? "a_valider" : "en_attente",
+        planifiee_pour: datePrevue(t, maintenant)?.toISOString() ?? null,
+      }));
+      const { error } = await sb.from("taches").insert(lignes);
+      if (error) return { ok: false, erreur: error.message };
+      await sb.from("evenements_taches").insert({
+        user_id: user.id,
+        niveau: "action",
+        message: `Commande comprise : ${lignes.length} tâche(s) créée(s). Les brouillons arrivent dans quelques minutes.`,
+      });
+      return { ok: true, creees: lignes.length };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });
+
+// --- Recherche de prospects ---------------------------------------------------
+
+export const trouverProspects = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        categorie: z.enum(CATEGORIES.map((c) => c.id) as [string, ...string[]]),
+        ville: z.string().min(2).max(80),
+        max: z.number().int().min(1).max(200).default(50),
+        jeton,
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }): Promise<Resultat<{ trouves: number; ajoutes: number }>> => {
+    try {
+      const { sb, user } = await utilisateurDepuisJeton(data.jeton);
+      const r = await fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent": "agent-ia-live/0.1 (prospection)",
+          Accept: "application/json",
+        },
+        body: new URLSearchParams({ data: requeteOverpass(data.categorie, data.ville, data.max) }),
+      });
+      if (!r.ok) return { ok: false, erreur: `Service de recherche indisponible (${r.status}). Réessayez.` };
+      const trouves = lireReponseOverpass(await r.text());
+
+      // Ne pas recréer un prospect déjà présent (même nom).
+      const { data: existants } = await sb.from("prospects").select("nom");
+      const deja = new Set((existants ?? []).map((p) => (p.nom as string).toLowerCase()));
+      const categorie = CATEGORIES.find((c) => c.id === data.categorie)!;
+      const nouveaux = trouves
+        .filter((p) => !deja.has(p.nom.toLowerCase()))
+        .map((p) => ({
+          user_id: user.id,
+          type: "entreprise",
+          nom: p.nom,
+          entreprise: p.nom,
+          email: p.email,
+          telephone: p.telephone,
+          site: p.site,
+          source: `OpenStreetMap · ${categorie.nom} · ${data.ville}`,
+          notes: p.adresse,
+        }));
+      if (nouveaux.length) {
+        const { error } = await sb.from("prospects").insert(nouveaux);
+        if (error) return { ok: false, erreur: error.message };
+      }
+      await sb.from("evenements_taches").insert({
+        user_id: user.id,
+        niveau: "info",
+        message: `Prospection : ${trouves.length} ${categorie.nom.toLowerCase()} trouvés à ${data.ville}, ${nouveaux.length} nouveaux ajoutés au CRM.`,
+      });
+      return { ok: true, trouves: trouves.length, ajoutes: nouveaux.length };
     } catch (e) {
       return { ok: false, erreur: message(e) };
     }

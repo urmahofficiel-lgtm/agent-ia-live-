@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PLATEFORMES } from "@/lib/plateformes";
-import { rediger } from "@/lib/redaction.server";
+import { rediger } from "@/lib/ia.server";
 import { clientMoteur } from "@/lib/supabase-serveur";
 import { publier } from "@/lib/zernio.server";
 
@@ -52,6 +52,18 @@ async function tick(secret: string) {
       await maj(t.tache_id, "echouee", null, "erreur", `Échec sur « ${t.titre} » : ${e instanceof Error ? e.message : "erreur"}`);
     }
   }
+
+  // Brouillons à préparer (tâches créées par une commande, par exemple).
+  const { data: aRediger } = await sb.rpc("agent_brouillons_a_faire", { p_secret: secret });
+  for (const t of (aRediger ?? []) as { tache_id: string; type: string; plateforme: string | null; titre: string; consigne: string }[]) {
+    try {
+      const brouillon = await rediger(t);
+      await maj(t.tache_id, null, { brouillon, genere_le: new Date().toISOString() }, "info", `Brouillon prêt pour « ${t.titre} » — à valider.`);
+    } catch (e) {
+      await maj(t.tache_id, null, { essais_brouillon: 3 }, "erreur", `Rédaction impossible pour « ${t.titre} » : ${e instanceof Error ? e.message : "erreur"}`);
+    }
+  }
+
   return traitees;
 }
 

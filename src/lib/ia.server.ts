@@ -37,44 +37,34 @@ const CONSIGNES_TYPE: Record<string, string> = {
 
 export type Consigne = { type: string; plateforme: string | null; titre: string; consigne: string };
 
-function appelNvidia(cle: string, modele: string, t: Consigne) {
+const SYSTEME =
+  "Tu es l'assistant marketing et commercial d'un entrepreneur français. Tu écris en français, de façon naturelle et concrète. Tu ne réponds qu'avec le contenu demandé, sans commentaire autour, sans guillemets englobants.";
+
+function appelNvidia(cle: string, modele: string, systeme: string, demande: string, maxTokens: number) {
   return fetch(NVIDIA_URL, {
     method: "POST",
     headers: { Authorization: `Bearer ${cle}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: modele,
       temperature: 0.7,
-      max_tokens: 800,
+      max_tokens: maxTokens,
       messages: [
-        {
-          role: "system",
-          content:
-            "Tu es l'assistant marketing et commercial d'un entrepreneur français. Tu écris en français, de façon naturelle et concrète. Tu ne réponds qu'avec le contenu demandé, sans commentaire autour, sans guillemets englobants.",
-        },
-        {
-          role: "user",
-          content: [
-            CONSIGNES_TYPE[t.type] ?? CONSIGNES_TYPE.autre,
-            t.plateforme ? `Plateforme : ${nomPlateforme(t.plateforme)}.` : "",
-            `Titre : ${t.titre}`,
-            t.consigne ? `Consigne : ${t.consigne}` : "",
-          ]
-            .filter(Boolean)
-            .join("\n"),
-        },
+        { role: "system", content: systeme },
+        { role: "user", content: demande },
       ],
     }),
   });
 }
 
-export async function rediger(t: Consigne): Promise<string> {
+// Appel générique au cerveau NVIDIA, avec bascule automatique de modèle.
+export async function demanderIA(demande: string, options: { systeme?: string; maxTokens?: number } = {}) {
   const cle = cleNvidia();
   if (!cle) throw new Error("Clé NVIDIA absente des variables Vercel.");
 
   const modeles = [process.env.NVIDIA_MODELE, ...MODELES].filter((m): m is string => Boolean(m));
   let r: Response | undefined;
   for (const modele of modeles) {
-    r = await appelNvidia(cle, modele, t);
+    r = await appelNvidia(cle, modele, options.systeme ?? SYSTEME, demande, options.maxTokens ?? 800);
     if (!MODELE_DISPARU.has(r.status)) break;
     console.warn("NVIDIA : modèle indisponible", modele, r.status);
   }
@@ -91,4 +81,17 @@ export async function rediger(t: Consigne): Promise<string> {
   const texte = json.choices?.[0]?.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
   if (!texte) throw new Error("Réponse vide de l'IA.");
   return texte;
+}
+
+export function rediger(t: Consigne): Promise<string> {
+  return demanderIA(
+    [
+      CONSIGNES_TYPE[t.type] ?? CONSIGNES_TYPE.autre,
+      t.plateforme ? `Plateforme : ${nomPlateforme(t.plateforme)}.` : "",
+      `Titre : ${t.titre}`,
+      t.consigne ? `Consigne : ${t.consigne}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  );
 }

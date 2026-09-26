@@ -4,6 +4,9 @@ import { Carte, Erreur, Titre, bouton, champ } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 import { useRequete, useUserId } from "@/lib/donnees";
 import type { Prospect } from "@/lib/types";
+import { CATEGORIES } from "@/lib/osm";
+import { trouverProspects } from "@/lib/agent.functions";
+import { jetonSession } from "@/lib/session";
 
 export const Route = createFileRoute("/prospection")({ component: Prospection });
 
@@ -25,6 +28,26 @@ function Prospection() {
   );
   const [form, setForm] = useState({ type: "entreprise", nom: "", entreprise: "", email: "", telephone: "", source: "", consentement: false });
   const [erreur, setErreur] = useState<string | null>(null);
+  const [recherche, setRecherche] = useState({ categorie: "restaurant", ville: "" });
+  const [cherche, setCherche] = useState(false);
+  const [resultat, setResultat] = useState<string | null>(null);
+
+  async function chercher(e: FormEvent) {
+    e.preventDefault();
+    setCherche(true);
+    setErreur(null);
+    setResultat(null);
+    try {
+      const r = await trouverProspects({ data: { ...recherche, max: 50, jeton: await jetonSession() } });
+      if (r.ok) setResultat(`${r.trouves} trouvé(s), ${r.ajoutes} nouveau(x) ajouté(s) à votre liste.`);
+      else setErreur(r.erreur);
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Erreur");
+    }
+    setCherche(false);
+    await liste.recharger();
+  }
+
   const maj = (champ: keyof typeof form, valeur: string | boolean) => setForm((f) => ({ ...f, [champ]: valeur }));
 
   async function ajouter(e: FormEvent) {
@@ -55,7 +78,31 @@ function Prospection() {
     <>
       <Titre sous="Votre mini-CRM : qui trouver, qui contacter, qui relancer, qui a répondu.">Prospection</Titre>
 
+      <Carte className="mb-4">
+        <h2 className="mb-3 font-medium">Trouver des entreprises automatiquement</h2>
+        <form onSubmit={chercher} className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+          <label className="text-sm">
+            Activité
+            <select className={champ} value={recherche.categorie} onChange={(e) => setRecherche({ ...recherche, categorie: e.target.value })}>
+              {CATEGORIES.map((c) => (
+                <option key={c.id} value={c.id}>{c.nom}</option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm">
+            Ville
+            <input className={champ} required placeholder="Lyon" value={recherche.ville} onChange={(e) => setRecherche({ ...recherche, ville: e.target.value })} />
+          </label>
+          <div className="flex items-end">
+            <button className={bouton} disabled={cherche}>{cherche ? "Recherche…" : "Chercher"}</button>
+          </div>
+        </form>
+        {resultat && <p className="mt-2 text-sm text-ok">{resultat}</p>}
+        <p className="mt-2 text-xs text-doux">Source : OpenStreetMap (données publiques). Téléphone, site et e-mail quand ils sont renseignés.</p>
+      </Carte>
+
       <Carte className="mb-6">
+        <h2 className="mb-3 font-medium">Ajouter un prospect à la main</h2>
         <form onSubmit={ajouter} className="grid gap-3 md:grid-cols-3">
           <label className="text-sm">
             Type

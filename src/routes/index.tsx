@@ -1,6 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { Power } from "lucide-react";
 import { Carte, Erreur, Titre } from "@/components/ui";
+import { Commande } from "@/components/Commande";
 import { supabase } from "@/lib/supabase";
 import { useReglages, useRequete, useUserId } from "@/lib/donnees";
 import { LIBELLE_STATUT, type StatutTache } from "@/lib/types";
@@ -18,7 +19,9 @@ function TableauDeBord() {
 
   return (
     <>
-      <Titre sous="Vue d'ensemble de votre agent.">Tableau de bord</Titre>
+      <Titre sous="Dites à l'agent ce que vous voulez : il crée les tâches, rédige, et publie après votre validation.">Tableau de bord</Titre>
+
+      <Commande />
 
       <Carte className="mb-4 flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -55,12 +58,6 @@ function TableauDeBord() {
         <p className="text-2xl font-semibold tabular-nums">{prospects.data?.length ?? 0}</p>
       </Carte>
 
-      <Carte className="mt-4 text-sm text-doux">
-        Le moteur de l'agent (IA + exécution sur PC et téléphone) n'est pas encore branché. Pour
-        l'instant, vous pouvez préparer vos <Link to="/taches" className="underline">tâches</Link>, vos{" "}
-        <Link to="/comptes" className="underline">comptes</Link> et vos{" "}
-        <Link to="/prospection" className="underline">prospects</Link>.
-      </Carte>
     </>
   );
 }
