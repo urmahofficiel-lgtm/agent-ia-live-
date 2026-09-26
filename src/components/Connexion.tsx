@@ -19,7 +19,12 @@ export function Connexion() {
     const { error, data } =
       mode === "connexion"
         ? await auth.signInWithPassword({ email, password: motDePasse })
-        : await auth.signUp({ email, password: motDePasse });
+        : await auth.signUp({
+            email,
+            password: motDePasse,
+            // Le lien de confirmation ramène sur le site où l'on s'est inscrit.
+            options: { emailRedirectTo: window.location.origin },
+          });
     setEnvoi(false);
     if (error) return setErreur(error.message);
     if (mode === "inscription" && !data.session) {
