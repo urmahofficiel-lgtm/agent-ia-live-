@@ -2,7 +2,17 @@ import { nomPlateforme } from "./plateformes";
 
 // Cerveau de l'agent : NVIDIA NIM (API compatible OpenAI).
 const NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
-const MODELE_DEFAUT = "meta/llama-3.3-70b-instruct";
+// NVIDIA retire régulièrement des modèles (réponse 404/410) : on essaie une
+// liste dans l'ordre et on passe au suivant si l'un a disparu.
+// NVIDIA_MODELE (variable Vercel) permet d'en imposer un en tête de liste.
+const MODELES = [
+  "mistralai/mistral-large-2-instruct",
+  "google/gemma-4-31b-it",
+  "deepseek-ai/deepseek-v4.1-flash",
+  "nvidia/llama-3.1-nemotron-70b-instruct",
+];
+
+const MODELE_DISPARU = new Set([404, 410]);
 
 // Lue au moment de la requête : une variable « Sensible » Vercel n'existe pas
 // pendant le build. `agentialive` est le nom sous lequel la clé a été
@@ -27,15 +37,12 @@ const CONSIGNES_TYPE: Record<string, string> = {
 
 export type Consigne = { type: string; plateforme: string | null; titre: string; consigne: string };
 
-export async function rediger(t: Consigne): Promise<string> {
-  const cle = cleNvidia();
-  if (!cle) throw new Error("Clé NVIDIA absente des variables Vercel.");
-
-  const r = await fetch(NVIDIA_URL, {
+function appelNvidia(cle: string, modele: string, t: Consigne) {
+  return fetch(NVIDIA_URL, {
     method: "POST",
     headers: { Authorization: `Bearer ${cle}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: process.env.NVIDIA_MODELE || MODELE_DEFAUT,
+      model: modele,
       temperature: 0.7,
       max_tokens: 800,
       messages: [
@@ -58,6 +65,20 @@ export async function rediger(t: Consigne): Promise<string> {
       ],
     }),
   });
+}
+
+export async function rediger(t: Consigne): Promise<string> {
+  const cle = cleNvidia();
+  if (!cle) throw new Error("Clé NVIDIA absente des variables Vercel.");
+
+  const modeles = [process.env.NVIDIA_MODELE, ...MODELES].filter((m): m is string => Boolean(m));
+  let r: Response | undefined;
+  for (const modele of modeles) {
+    r = await appelNvidia(cle, modele, t);
+    if (!MODELE_DISPARU.has(r.status)) break;
+    console.warn("NVIDIA : modèle indisponible", modele, r.status);
+  }
+  if (!r) throw new Error("Aucun modèle NVIDIA configuré.");
 
   if (!r.ok) {
     const detail = (await r.text()).slice(0, 300);
@@ -65,7 +86,9 @@ export async function rediger(t: Consigne): Promise<string> {
     throw new Error(`L'IA NVIDIA a refusé la demande (${r.status}).`);
   }
   const json = (await r.json()) as { choices?: { message?: { content?: string } }[] };
-  const texte = json.choices?.[0]?.message?.content?.trim();
+  // Les modèles « à raisonnement » renvoient parfois leur réflexion entre
+  // balises <think> : on ne garde que la réponse.
+  const texte = json.choices?.[0]?.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
   if (!texte) throw new Error("Réponse vide de l'IA.");
   return texte;
 }
