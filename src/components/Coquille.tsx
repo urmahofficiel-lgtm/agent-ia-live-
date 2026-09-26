@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Activity, Bot, Link2, ListChecks, LogOut, MessageCircle, Settings, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase, supabaseConfigure } from "@/lib/supabase";
@@ -15,8 +15,20 @@ const MENU = [
   { to: "/parametres", label: "Réglages", icone: Settings },
 ] as const;
 
+// Adresse officielle. Chaque déploiement Vercel a aussi sa propre adresse
+// (agent-ia-live-xxxx.vercel.app) figée sur une ancienne version : on y
+// renvoie toujours vers la version à jour.
+const ADRESSE_OFFICIELLE = "agent-ia-live.vercel.app";
+
 export function Coquille({ children }: { children: ReactNode }) {
   const { session, chargement } = useAuth();
+
+  useEffect(() => {
+    const { hostname, pathname, search } = window.location;
+    if (hostname.endsWith(".vercel.app") && hostname !== ADRESSE_OFFICIELLE) {
+      window.location.replace(`https://${ADRESSE_OFFICIELLE}${pathname}${search}`);
+    }
+  }, []);
 
   if (!supabaseConfigure()) {
     return (
