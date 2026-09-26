@@ -18,9 +18,11 @@ Usage personnel pour l'instant ; tout est cloisonné par utilisateur pour pouvoi
 | 3. Connexion réelle des réseaux via **Zernio** (OAuth officiel de chaque réseau) | ✅ — nécessite `ZERNIO_API_KEY` |
 | 4. Publication (bouton « Publier maintenant ») | ✅ |
 | 5. Moteur 24 h/24 : pg_cron (toutes les 5 min) → `/api/agent/tick` → rédige + publie | ✅ |
-| 6. Réponses aux commentaires / messages (API inbox Zernio) | à faire |
-| 7. Recherche de prospects + envoi e-mails | à faire |
-| 8. Contrôle d'écran PC / Android + vue écran en direct | à faire |
+| 6. Commande en langage courant (« Que doit faire l'agent ? ») + brouillons automatiques | ✅ |
+| 7. Réponses aux commentaires / messages privés (page Messages, réponse proposée par l'IA) | ✅ |
+| 8. Recherche de prospects (OpenStreetMap, par activité et ville) | ✅ |
+| 9. Envoi d'e-mails de prospection + relances | à faire |
+| 10. Contrôle d'écran PC / Android + vue écran en direct | à faire |
 
 ## Comment ça marche
 

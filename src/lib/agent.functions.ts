@@ -5,7 +5,17 @@ import { demanderIA, rediger } from "./ia.server";
 import { consignePlanification, datePrevue, lirePlan } from "./commande";
 import { CATEGORIES, lireReponseOverpass, requeteOverpass } from "./osm";
 import { utilisateurDepuisJeton } from "./supabase-serveur";
-import { creerProfil, listerComptes, publier, urlAutorisation, zernioConfigure } from "./zernio.server";
+import {
+  creerProfil,
+  envoyerMessage,
+  listerCommentaires,
+  listerComptes,
+  listerConversations,
+  publier,
+  repondreCommentaire,
+  urlAutorisation,
+  zernioConfigure,
+} from "./zernio.server";
 
 type Resultat<T = object> = ({ ok: true } & T) | { ok: false; erreur: string };
 
@@ -253,6 +263,141 @@ export const trouverProspects = createServerFn({ method: "POST" })
         message: `Prospection : ${trouves.length} ${categorie.nom.toLowerCase()} trouvés à ${data.ville}, ${nouveaux.length} nouveaux ajoutés au CRM.`,
       });
       return { ok: true, trouves: trouves.length, ajoutes: nouveaux.length };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });
+
+// --- Boîte de réception -------------------------------------------------------
+
+export type ElementBoite = {
+  genre: "commentaire" | "message";
+  id: string;
+  plateforme: string;
+  accountId: string;
+  postId?: string;
+  auteur: string;
+  texte: string;
+  contexte?: string;
+  date?: string;
+  lien?: string | null;
+};
+
+export const chargerBoite = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ jeton }).parse(input))
+  .handler(async ({ data }): Promise<Resultat<{ elements: ElementBoite[] }>> => {
+    try {
+      if (!zernioConfigure()) return { ok: false, erreur: "ZERNIO_ABSENT" };
+      const { sb, user } = await utilisateurDepuisJeton(data.jeton);
+      const profil = await profilZernio(sb, user);
+      const [conversations, commentaires] = await Promise.all([
+        listerConversations(profil).catch(() => []),
+        listerCommentaires(profil).catch(() => []),
+      ]);
+      const elements: ElementBoite[] = [
+        ...commentaires.map((c) => ({
+          genre: "commentaire" as const,
+          id: c.id,
+          plateforme: plateformeParZernio(c.platform)?.id ?? c.platform,
+          accountId: c.accountId,
+          postId: c.postId,
+          auteur: c.from?.name || c.from?.username || "Quelqu'un",
+          texte: c.message,
+          contexte: c.post,
+          date: c.createdTime,
+          lien: c.url,
+        })),
+        ...conversations
+          .filter((c) => c.lastMessage)
+          .map((c) => ({
+            genre: "message" as const,
+            id: c.id,
+            plateforme: plateformeParZernio(c.platform)?.id ?? c.platform,
+            accountId: c.accountId,
+            auteur: c.participantName || "Contact",
+            texte: c.lastMessage ?? "",
+            date: c.updatedTime,
+            lien: c.url,
+          })),
+      ].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+      return { ok: true, elements };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });
+
+export const proposerReponse = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        genre: z.enum(["commentaire", "message"]),
+        auteur: z.string().max(200),
+        texte: z.string().max(4000),
+        contexte: z.string().max(1000).optional(),
+        jeton,
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }): Promise<Resultat<{ reponse: string }>> => {
+    try {
+      await utilisateurDepuisJeton(data.jeton);
+      const reponse = await demanderIA(
+        [
+          data.genre === "commentaire"
+            ? "Rédige une réponse courte, chaleureuse et utile à ce commentaire laissé sous une de nos publications."
+            : "Rédige une réponse courte, polie et utile à ce message privé. Si c'est une demande commerciale, propose un échange.",
+          data.contexte ? `Publication concernée : ${data.contexte}` : "",
+          `Auteur : ${data.auteur}`,
+          `Texte reçu : ${data.texte}`,
+          "Réponds dans la langue du texte reçu. Ne réponds qu'avec le texte à envoyer.",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        { maxTokens: 300 },
+      );
+      return { ok: true, reponse };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });
+
+export const envoyerReponse = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        genre: z.enum(["commentaire", "message"]),
+        id: z.string().min(1),
+        accountId: z.string().min(1),
+        postId: z.string().optional(),
+        auteur: z.string().max(200),
+        reponse: z.string().min(1).max(4000),
+        jeton,
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }): Promise<Resultat> => {
+    try {
+      const { sb, user } = await utilisateurDepuisJeton(data.jeton);
+      // Le compte visé doit bien appartenir à l'utilisateur.
+      const { data: compte } = await sb
+        .from("comptes_connectes")
+        .select("id")
+        .eq("compte_externe_id", data.accountId)
+        .maybeSingle();
+      if (!compte) return { ok: false, erreur: "Ce compte n'est pas connecté à votre agent." };
+
+      if (data.genre === "commentaire") {
+        if (!data.postId) return { ok: false, erreur: "Publication inconnue." };
+        await repondreCommentaire(data.postId, data.accountId, data.id, data.reponse);
+      } else {
+        await envoyerMessage(data.id, data.accountId, data.reponse);
+      }
+      await sb.from("evenements_taches").insert({
+        user_id: user.id,
+        niveau: "info",
+        message: `Réponse envoyée à ${data.auteur} (${data.genre}).`,
+      });
+      return { ok: true };
     } catch (e) {
       return { ok: false, erreur: message(e) };
     }

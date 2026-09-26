@@ -62,3 +62,71 @@ export async function publier(plateforme: string, accountId: string, contenu: st
   });
   return r.post;
 }
+
+// --- Boîte de réception (commentaires et messages privés) --------------------
+
+export type Conversation = {
+  id: string;
+  platform: string;
+  accountId: string;
+  participantName?: string;
+  lastMessage?: string;
+  updatedTime?: string;
+  unreadCount?: number | null;
+  url?: string | null;
+};
+
+export async function listerConversations(profileId: string) {
+  const q = new URLSearchParams({ profileId, limit: "30", status: "active" });
+  const r = await appel<{ data: Conversation[] }>(`/inbox/conversations?${q}`);
+  return r.data ?? [];
+}
+
+type PostCommente = { id: string; platform: string; accountId: string; content?: string; commentCount?: number };
+
+export type Commentaire = {
+  id: string;
+  message: string;
+  createdTime?: string;
+  from?: { name?: string; username?: string; isOwner?: boolean };
+  canReply?: boolean;
+  replies?: { from?: { isOwner?: boolean } }[];
+  url?: string | null;
+};
+
+// Commentaires récents des tiers sur nos publications, auxquels on n'a pas
+// encore répondu.
+export async function listerCommentaires(profileId: string) {
+  const q = new URLSearchParams({ profileId, minComments: "1", limit: "8" });
+  const posts = (await appel<{ data: PostCommente[] }>(`/inbox/comments?${q}`)).data ?? [];
+  const resultats: (Commentaire & { postId: string; accountId: string; platform: string; post: string })[] = [];
+  for (const p of posts.slice(0, 6)) {
+    try {
+      const r = await appel<{ comments: Commentaire[] }>(
+        `/inbox/comments/${encodeURIComponent(p.id)}?${new URLSearchParams({ accountId: p.accountId, limit: "20" })}`,
+      );
+      for (const c of r.comments ?? []) {
+        const dejaRepondu = c.replies?.some((x) => x.from?.isOwner);
+        if (c.from?.isOwner || dejaRepondu || c.canReply === false) continue;
+        resultats.push({ ...c, postId: p.id, accountId: p.accountId, platform: p.platform, post: (p.content ?? "").slice(0, 120) });
+      }
+    } catch (e) {
+      console.warn("commentaires", p.id, e);
+    }
+  }
+  return resultats;
+}
+
+export async function repondreCommentaire(postId: string, accountId: string, commentId: string, texte: string) {
+  await appel(`/inbox/comments/${encodeURIComponent(postId)}`, {
+    method: "POST",
+    body: JSON.stringify({ accountId, commentId, message: texte }),
+  });
+}
+
+export async function envoyerMessage(conversationId: string, accountId: string, texte: string) {
+  await appel(`/inbox/conversations/${encodeURIComponent(conversationId)}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ accountId, message: texte }),
+  });
+}

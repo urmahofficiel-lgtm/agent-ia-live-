@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { Activity, Bot, Link2, ListChecks, LogOut, Settings, Users } from "lucide-react";
+import { Activity, Bot, Link2, ListChecks, LogOut, MessageCircle, Settings, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase, supabaseConfigure } from "@/lib/supabase";
 import { Connexion } from "./Connexion";
@@ -9,6 +9,7 @@ const MENU = [
   { to: "/", label: "Tableau de bord", icone: Bot },
   { to: "/en-direct", label: "En direct", icone: Activity },
   { to: "/taches", label: "Tâches", icone: ListChecks },
+  { to: "/messages", label: "Messages", icone: MessageCircle },
   { to: "/comptes", label: "Comptes", icone: Link2 },
   { to: "/prospection", label: "Prospection", icone: Users },
   { to: "/parametres", label: "Réglages", icone: Settings },

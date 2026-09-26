@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ComptesRouteImport } from './routes/comptes'
 import { Route as EnDirectRouteImport } from './routes/en-direct'
+import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as ParametresRouteImport } from './routes/parametres'
 import { Route as ProspectionRouteImport } from './routes/prospection'
 import { Route as TachesRouteImport } from './routes/taches'
@@ -30,6 +31,11 @@ const ComptesRoute = ComptesRouteImport.update({
 const EnDirectRoute = EnDirectRouteImport.update({
   id: '/en-direct',
   path: '/en-direct',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MessagesRoute = MessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ParametresRoute = ParametresRouteImport.update({
@@ -57,6 +63,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/comptes': typeof ComptesRoute
   '/en-direct': typeof EnDirectRoute
+  '/messages': typeof MessagesRoute
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
   '/taches': typeof TachesRoute
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/comptes': typeof ComptesRoute
   '/en-direct': typeof EnDirectRoute
+  '/messages': typeof MessagesRoute
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
   '/taches': typeof TachesRoute
@@ -76,6 +84,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/comptes': typeof ComptesRoute
   '/en-direct': typeof EnDirectRoute
+  '/messages': typeof MessagesRoute
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
   '/taches': typeof TachesRoute
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/comptes'
     | '/en-direct'
+    | '/messages'
     | '/parametres'
     | '/prospection'
     | '/taches'
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/'
     | '/comptes'
     | '/en-direct'
+    | '/messages'
     | '/parametres'
     | '/prospection'
     | '/taches'
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/comptes'
     | '/en-direct'
+    | '/messages'
     | '/parametres'
     | '/prospection'
     | '/taches'
@@ -115,6 +127,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ComptesRoute: typeof ComptesRoute
   EnDirectRoute: typeof EnDirectRoute
+  MessagesRoute: typeof MessagesRoute
   ParametresRoute: typeof ParametresRoute
   ProspectionRoute: typeof ProspectionRoute
   TachesRoute: typeof TachesRoute
@@ -142,6 +155,13 @@ declare module '@tanstack/react-router' {
       path: '/en-direct'
       fullPath: '/en-direct'
       preLoaderRoute: typeof EnDirectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/messages': {
+      id: '/messages'
+      path: '/messages'
+      fullPath: '/messages'
+      preLoaderRoute: typeof MessagesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/parametres': {
@@ -179,6 +199,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ComptesRoute: ComptesRoute,
   EnDirectRoute: EnDirectRoute,
+  MessagesRoute: MessagesRoute,
   ParametresRoute: ParametresRoute,
   ProspectionRoute: ProspectionRoute,
   TachesRoute: TachesRoute,
