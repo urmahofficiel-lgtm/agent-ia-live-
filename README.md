@@ -14,11 +14,28 @@ Usage personnel pour l'instant ; tout est cloisonné par utilisateur pour pouvoi
 | Étape | État |
 |---|---|
 | 1. Bases : site web, connexion, schéma Supabase, tâches, vue en direct, comptes, CRM, réglages | ✅ |
-| 2. Cerveau IA (Gemini / NVIDIA) : transformer une consigne en plan d'actions | à faire |
-| 3. Connexion réelle des comptes (OAuth de chaque réseau, jetons dans Supabase Vault) | à faire |
-| 4. Exécuteur 24 h/24 : worker qui prend les tâches et les exécute | à faire |
-| 5. Contrôle d'écran PC / Android + vue écran en direct | à faire |
-| 6. Recherche de prospects (Google Maps, annuaires…) | à faire |
+| 2. Cerveau IA (NVIDIA NIM) : rédige le contenu d'une tâche | ✅ |
+| 3. Connexion réelle des réseaux via **Zernio** (OAuth officiel de chaque réseau) | ✅ — nécessite `ZERNIO_API_KEY` |
+| 4. Publication (bouton « Publier maintenant ») | ✅ |
+| 5. Moteur 24 h/24 : pg_cron (toutes les 5 min) → `/api/agent/tick` → rédige + publie | ✅ |
+| 6. Réponses aux commentaires / messages (API inbox Zernio) | à faire |
+| 7. Recherche de prospects + envoi e-mails | à faire |
+| 8. Contrôle d'écran PC / Android + vue écran en direct | à faire |
+
+## Comment ça marche
+
+1. **Comptes** → « Connecter » : le site demande à Zernio l'adresse d'autorisation du réseau, vous approuvez sur la page officielle (Facebook, LinkedIn…), puis vous revenez sur `/comptes` et les comptes sont synchronisés.
+2. **Tâches** → vous créez une tâche, « Rédiger avec l'IA » (NVIDIA), puis « Publier maintenant » ou « Valider » (publication automatique à l'heure prévue).
+3. **Moteur** : toutes les 5 minutes, Supabase (pg_cron) appelle `/api/agent/tick` avec un secret partagé (`AGENT_TICK_SECRET` côté Vercel, table `prive.secrets` côté base). Il traite les publications validées des agents démarrés.
+
+## Variables Vercel
+
+| Nom | Rôle |
+|---|---|
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` | projet Supabase (public) |
+| `agentialive` (ou `NVIDIA_API_KEY`) | clé NVIDIA NIM |
+| `ZERNIO_API_KEY` | clé Zernio (zernio.com → API keys) |
+| `AGENT_TICK_SECRET` | secret du moteur (identique à `prive.secrets`) |
 
 ## Garde-fous
 
