@@ -5,15 +5,37 @@ import { useAuth } from "@/lib/auth";
 import { supabase, supabaseConfigure } from "@/lib/supabase";
 import { Connexion } from "./Connexion";
 
+// Menu regroupé par usage : piloter l'agent, gérer les contenus, développer
+// l'activité, paramétrer.
 const MENU = [
-  { to: "/", label: "Tableau de bord", icone: Bot },
-  { to: "/strategie", label: "Stratégie", icone: Target },
-  { to: "/en-direct", label: "En direct", icone: Activity },
-  { to: "/taches", label: "Tâches", icone: ListChecks },
-  { to: "/messages", label: "Messages", icone: MessageCircle },
-  { to: "/comptes", label: "Comptes", icone: Link2 },
-  { to: "/prospection", label: "Prospection", icone: Users },
-  { to: "/parametres", label: "Réglages", icone: Settings },
+  {
+    groupe: "Piloter",
+    liens: [
+      { to: "/", label: "Tableau de bord", icone: Bot },
+      { to: "/en-direct", label: "En direct", icone: Activity },
+    ],
+  },
+  {
+    groupe: "Contenus",
+    liens: [
+      { to: "/taches", label: "Publications", icone: ListChecks },
+      { to: "/messages", label: "Messages", icone: MessageCircle },
+    ],
+  },
+  {
+    groupe: "Croissance",
+    liens: [
+      { to: "/strategie", label: "Stratégie", icone: Target },
+      { to: "/prospection", label: "Prospection", icone: Users },
+    ],
+  },
+  {
+    groupe: "Paramètres",
+    liens: [
+      { to: "/comptes", label: "Comptes", icone: Link2 },
+      { to: "/parametres", label: "Réglages", icone: Settings },
+    ],
+  },
 ] as const;
 
 // Adresse officielle. Chaque déploiement Vercel a aussi sa propre adresse
@@ -46,30 +68,41 @@ export function Coquille({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-dvh md:flex">
-      <nav className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-bord bg-carte p-2 md:h-dvh md:w-56 md:flex-col md:border-r md:border-b-0 md:p-3">
-        <div className="hidden px-3 py-4 text-lg font-semibold md:block">Agent IA Live</div>
-        {MENU.map(({ to, label, icone: Icone }) => (
-          <Link
-            key={to}
-            to={to}
-            activeOptions={{ exact: to === "/" }}
-            className="flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm text-doux hover:bg-bord hover:text-texte"
-            activeProps={{ className: "bg-bord !text-texte" }}
-          >
-            <Icone size={16} aria-hidden />
-            {label}
-          </Link>
+      <nav
+        aria-label="Menu principal"
+        className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-bord bg-fond/95 p-2 backdrop-blur md:h-dvh md:w-60 md:flex-col md:gap-0 md:overflow-y-auto md:border-r md:border-b-0 md:p-4"
+      >
+        <div className="hidden items-center gap-2 px-2 pb-6 pt-1 md:flex">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent font-titre text-sm font-bold text-sur-accent">IA</span>
+          <span className="font-titre text-lg font-bold">Agent IA Live</span>
+        </div>
+        {MENU.map((g) => (
+          <div key={g.groupe} className="flex gap-1 md:mb-5 md:flex-col">
+            <p className="hidden px-3 pb-1 font-mono text-[11px] tracking-wider text-doux/70 uppercase md:block">{g.groupe}</p>
+            {g.liens.map(({ to, label, icone: Icone }) => (
+              <Link
+                key={to}
+                to={to}
+                activeOptions={{ exact: to === "/" }}
+                className="flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-doux transition-colors hover:bg-carte hover:text-texte"
+                activeProps={{ className: "bg-carte !text-texte shadow-[inset_2px_0_0_var(--color-accent)]" }}
+              >
+                <Icone size={16} aria-hidden />
+                {label}
+              </Link>
+            ))}
+          </div>
         ))}
         <button
           type="button"
           onClick={() => supabase().auth.signOut()}
-          className="flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm text-doux hover:bg-bord hover:text-texte md:mt-auto"
+          className="flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-doux hover:bg-carte hover:text-texte md:mt-auto"
         >
           <LogOut size={16} aria-hidden />
           Déconnexion
         </button>
       </nav>
-      <main className="mx-auto w-full max-w-5xl flex-1 p-4 md:p-8">{children}</main>
+      <main className="mx-auto w-full max-w-5xl flex-1 p-4 md:p-10">{children}</main>
     </div>
   );
 }
