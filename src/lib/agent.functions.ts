@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { PLATEFORMES, plateformeParZernio } from "./plateformes";
 import { demanderIA, genererImage } from "./ia.server";
-import { consigneScript, durees, lireScript, scriptDeSecours } from "./video";
+import { consigneScript, durees, imposerScenesProduit, lireScript, scriptDeSecours } from "./video";
 import { monterVideo } from "./video.server";
 import { voixConfiguree, voixOff } from "./voix.server";
 import { pexelsConfigure, photo, sequenceVerticale } from "./pexels.server";
@@ -10,7 +10,7 @@ import { preparer, URL_SITE, type Ecrivain } from "./preparation.server";
 import { consignePlanification, datePrevue, lirePlan } from "./commande";
 import { consigneAnalyse, demandeDepuisStrategie, lireAnalyse, lireProfilDeduit, type Analyse, type Profil } from "./strategie";
 import { consigneProfilDepuisSite } from "./site";
-import { lireSite } from "./site.server";
+import { lireSite, visuelsDuSite } from "./site.server";
 import { CATEGORIES, lireReponseOverpass, requeteOverpass } from "./osm";
 import { utilisateurDepuisJeton } from "./supabase-serveur";
 import { metaConfigure, urlConnexionMeta } from "./meta.server";
@@ -739,6 +739,13 @@ export const creerVideo = createServerFn({ method: "POST" })
       const reseau = PLATEFORMES.find((p) => p.id === t.plateforme)?.nom ?? "TikTok, Reels et Shorts";
       await etatVideo(sb, t.id, { video_etat: "en_cours", video_erreur: null, video_debut: new Date().toISOString() });
 
+      // Vraies captures du produit, lues sur le site de la marque.
+      const { data: pm } = await sb.from("profil_marque").select("site").maybeSingle();
+      const site = (pm?.site as string | undefined) || contexte?.match(/Site \/ lien[^:]*: (\S+)/)?.[1] || "";
+      const visuelsSite = site ? await visuelsDuSite(site).catch(() => []) : [];
+      const captures = visuelsSite.filter((v) => v.source !== "icone");
+      if (captures.length) await journal("info", `🖥️ ${captures.length} visuel(s) de votre site récupéré(s) pour montrer le produit.`);
+
       await journal("action", `🎬 Écriture du script vidéo : « ${t.titre} »`);
       // Budget serré : la fonction entière doit tenir sous les 5 minutes de Vercel.
       const finScript = Date.now() + 80_000;
@@ -746,7 +753,7 @@ export const creerVideo = createServerFn({ method: "POST" })
       for (let essai = 0; essai < 2 && !script && Date.now() < finScript - 10_000; essai++) {
         try {
           script = lireScript(
-            await demanderIA(consigneScript(t, contexte, reseau), {
+            await demanderIA(consigneScript(t, contexte, reseau, captures.length > 0), {
               systeme: "Tu es scénariste de vidéos courtes pour les réseaux sociaux. Tu réponds uniquement en JSON valide.",
               maxTokens: 2000,
               delaiTotal: finScript - Date.now(),
@@ -762,6 +769,7 @@ export const creerVideo = createServerFn({ method: "POST" })
         script = scriptDeSecours({ ...t, brouillon: (t.resultat as { brouillon?: string } | null)?.brouillon }, contexte);
         await journal("info", "IA occupée : script construit à partir du texte de la publication.");
       }
+      if (captures.length) script = imposerScenesProduit(script);
       await journal("info", `Script : ${script.scenes.length} scènes — « ${script.scenes[0].texte_ecran} »`);
 
       let voix = null;
@@ -772,33 +780,57 @@ export const creerVideo = createServerFn({ method: "POST" })
       }
       const d = durees(script.scenes, voix ? voix.duree + 0.6 : undefined);
 
-      // Pour chaque scène : séquence filmée Pexels, sinon photo Pexels, sinon
-      // image IA (FLUX) ; les images sont animées au montage.
+      // Pour chaque scène : une capture du produit (scènes « produit »), sinon
+      // une séquence filmée Pexels différente à chaque fois, sinon une photo
+      // Pexels, sinon une image IA (FLUX) ; les images sont animées au montage.
       const univers = contexte?.match(/Univers visuel[^:]*: (.*)/)?.[1] ?? "";
-      const medias: { image?: Buffer; clip?: Buffer }[] = [];
+      const dejaVus = new Set<number>();
+      // La dernière scène (appel à l'action) prend l'image de partage du site
+      // si elle existe ; les autres scènes produit, les captures dans l'ordre.
+      const partage = captures.find((v) => v.source === "og");
+      const ecrans = captures.filter((v) => v !== partage);
+      let prochainEcran = 0;
+      const visuelProduit = (i: number) => {
+        if (!captures.length) return null;
+        if (i === script.scenes.length - 1 && partage) return partage.donnees;
+        const liste = ecrans.length ? ecrans : captures;
+        return liste[prochainEcran++ % liste.length].donnees;
+      };
+      const medias: { image?: Buffer; clip?: Buffer; cadre?: boolean }[] = [];
       if (pexelsConfigure()) await journal("action", "🎥 Recherche de séquences filmées (Pexels)…");
-      for (let i = 0; i < script.scenes.length; i += 3) {
-        const lot = script.scenes.slice(i, i + 3);
-        const faits = await Promise.all(
-          lot.map(async (s, j) => {
-            if (pexelsConfigure() && s.recherche_stock) {
-              const clip = await sequenceVerticale(s.recherche_stock, d[i + j]).catch(() => null);
-              if (clip) return { clip };
-              // Photo réelle verticale : rapide et toujours cohérente avec la niche.
-              const img = await photo(s.recherche_stock, "portrait").catch(() => null);
-              if (img) return { image: img };
-            }
-            // Image IA en dernier recours, seulement s'il reste du temps
-            // (la fonction doit finir en moins de 5 minutes).
-            if (Date.now() - debutVideo > 170_000) throw new Error("Temps insuffisant pour créer les images des scènes.");
-            const img = await genererImage(`${s.visuel}. ${univers} Vertical 9:16 composition, realistic photo, no text.`, "tiktok");
-            return { image: Buffer.from(img.base64, "base64") };
-          }),
-        );
-        medias.push(...faits);
+      // Scènes traitées une à une : la liste des séquences déjà utilisées doit
+      // être à jour avant de chercher la suivante.
+      for (const [i, s] of script.scenes.entries()) {
+        const produit = s.type_visuel === "produit" ? visuelProduit(i) : null;
+        if (produit) {
+          medias.push({ image: produit, cadre: true });
+          continue;
+        }
+        if (pexelsConfigure() && s.recherche_stock) {
+          const clip = await sequenceVerticale(s.recherche_stock, d[i], dejaVus).catch(() => null);
+          if (clip) {
+            medias.push({ clip });
+            continue;
+          }
+          const img = await photo(s.recherche_stock, "portrait", dejaVus).catch(() => null);
+          if (img) {
+            medias.push({ image: img });
+            continue;
+          }
+        }
+        // Image IA en dernier recours, seulement s'il reste du temps
+        // (la fonction doit finir en moins de 5 minutes).
+        if (Date.now() - debutVideo > 170_000) {
+          const secours = visuelProduit(i);
+          if (!secours) throw new Error("Temps insuffisant pour créer les images des scènes.");
+          medias.push({ image: secours, cadre: true });
+          continue;
+        }
+        const img = await genererImage(`${s.visuel}. ${univers} Vertical 9:16 composition, realistic photo, no text.`, "tiktok");
+        medias.push({ image: Buffer.from(img.base64, "base64") });
       }
       const nbClips = medias.filter((m) => m.clip).length;
-      await journal("info", `Scènes prêtes : ${nbClips} séquence(s) filmée(s), ${medias.length - nbClips} image(s).`);
+      await journal("info", `Scènes prêtes : ${medias.filter((m) => m.cadre).length} vue(s) du produit, ${nbClips} séquence(s) filmée(s), ${medias.length - nbClips - medias.filter((m) => m.cadre).length} image(s).`);
 
       await journal("action", "✂️ Montage de la vidéo (zoom, textes, voix)…");
       const mp4 = await monterVideo(

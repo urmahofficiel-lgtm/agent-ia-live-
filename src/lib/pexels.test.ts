@@ -17,3 +17,15 @@ describe("pexels", () => {
     expect(choix?.id).toBe(3);
   });
 });
+
+describe("pexels : variété", () => {
+  it("écarte les vidéos déjà utilisées", () => {
+    const l = [video(1, 10, [[720, 1280]]), video(2, 10, [[720, 1280]])];
+    expect(choisirVideo(l, 5, new Set([1]))?.id).toBe(2);
+  });
+  it("cherche en français quand les mots-clés sont français", async () => {
+    const { langueRecherche } = await import("./pexels");
+    expect(langueRecherche("artisan sur un chantier")).toBe("fr-FR");
+    expect(langueRecherche("construction worker smartphone")).toBe("en-US");
+  });
+});

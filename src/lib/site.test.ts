@@ -42,3 +42,20 @@ describe("lirePage", () => {
     expect(page.liens).toEqual(["https://martin.fr/a-propos", "https://martin.fr/tarifs"]);
   });
 });
+
+describe("visuelsDePage", () => {
+  it("met les captures du produit en tête, verticales d'abord, et ignore les petites images", async () => {
+    const { visuelsDePage } = await import("./site");
+    const html = `<head><meta property="og:image" content="https://www.x.com/og-image.png"/><link rel="apple-touch-icon" href="/icon-192.png"/></head>
+      <img src="/screenshots/dashboard-desktop.png" alt="Tableau de bord sur ordinateur" width="1344" height="840"/>
+      <img src="/screenshots/dashboard-mobile.png" alt="Tableau de bord sur smartphone" width="390" height="823"/>
+      <img src="/pixel.gif" width="1" height="1"/><img src="/logo.svg"/>`;
+    const v = visuelsDePage(html, new URL("https://www.x.com/"));
+    expect(v.map((x) => x.url)).toEqual([
+      "https://www.x.com/screenshots/dashboard-mobile.png",
+      "https://www.x.com/screenshots/dashboard-desktop.png",
+      "https://www.x.com/og-image.png",
+      "https://www.x.com/icon-192.png",
+    ]);
+  });
+});

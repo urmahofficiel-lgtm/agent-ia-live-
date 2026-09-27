@@ -106,3 +106,52 @@ N'invente rien : si une information n'est pas sur le site, mets une chaîne vide
 
 ${contenu}`;
 }
+
+// --- Visuels du site : captures du produit, image de partage, logo ------------
+
+export type VisuelSite = { url: string; alt: string; largeur: number; hauteur: number; source: "og" | "img" | "icone" };
+
+const MOTS_PRODUIT = /screen|capture|dashboard|tableau de bord|mockup|app|interface|écran|ecran|smartphone|mobile|tablette|tablet|produit|product|demo/i;
+const MOTS_A_EVITER = /logo|avatar|pixel|tracking|sprite|badge|flag|drapeau|emoji|spinner/i;
+
+// Images utiles d'une page, les plus parlantes d'abord : captures du produit
+// (verticales en tête, idéales pour une vidéo 9:16), puis image de partage,
+// puis logo.
+export function visuelsDePage(html: string, base: URL): VisuelSite[] {
+  const absolu = (src: string) => {
+    try {
+      const u = new URL(src.replace(/&amp;/g, "&"), base);
+      return /^https?:$/.test(u.protocol) ? u.toString() : null;
+    } catch {
+      return null;
+    }
+  };
+  const attribut = (balise: string, nom: string) => balise.match(new RegExp(`\\s${nom}=["']([^"']*)["']`, "i"))?.[1] ?? "";
+  const vus = new Set<string>();
+  const liste: (VisuelSite & { score: number })[] = [];
+  const ajouter = (v: VisuelSite, score: number) => {
+    if (vus.has(v.url) || /\.svg(\?|$)/i.test(v.url)) return;
+    vus.add(v.url);
+    liste.push({ ...v, score });
+  };
+
+  for (const m of html.matchAll(/<img\b[^>]*>/gi)) {
+    const b = m[0];
+    const url = absolu(attribut(b, "src") || attribut(b, "data-src"));
+    if (!url) continue;
+    const alt = decoder(attribut(b, "alt"));
+    const largeur = Number(attribut(b, "width")) || 0;
+    const hauteur = Number(attribut(b, "height")) || 0;
+    if ((largeur && largeur < 200) || (hauteur && hauteur < 200) || MOTS_A_EVITER.test(url + " " + alt)) continue;
+    const produit = MOTS_PRODUIT.test(url + " " + alt);
+    const vertical = hauteur > largeur;
+    ajouter({ url, alt, largeur, hauteur, source: "img" }, (produit ? 10 : 2) + (vertical ? 3 : 0));
+  }
+  const og = absolu(meta(html, "og:image") || meta(html, "twitter:image"));
+  if (og) ajouter({ url: og, alt: meta(html, "og:title"), largeur: Number(meta(html, "og:image:width")) || 1200, hauteur: Number(meta(html, "og:image:height")) || 630, source: "og" }, 5);
+  for (const m of html.matchAll(/<link\b[^>]*rel=["'][^"']*(apple-touch-icon|icon)[^"']*["'][^>]*>/gi)) {
+    const url = absolu(attribut(m[0], "href"));
+    if (url) ajouter({ url, alt: "logo", largeur: 0, hauteur: 0, source: "icone" }, 0);
+  }
+  return liste.sort((a, b) => b.score - a.score).map(({ score: _s, ...v }) => v);
+}

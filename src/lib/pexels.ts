@@ -14,10 +14,11 @@ export function choisirFichierVertical(v: VideoPexels): FichierVideo | null {
   return candidats.find((f) => f.width >= 720) ?? candidats[candidats.length - 1] ?? null;
 }
 
-// Première vidéo assez longue pour la scène, avec un fichier vertical utilisable.
-export function choisirVideo(videos: VideoPexels[], dureeMin: number) {
+// Première vidéo assez longue pour la scène, avec un fichier vertical
+// utilisable, et pas déjà utilisée dans la même vidéo.
+export function choisirVideo(videos: VideoPexels[], dureeMin: number, exclus: ReadonlySet<number> = new Set()) {
   for (const v of videos) {
-    if (v.duration < Math.min(dureeMin, 4)) continue;
+    if (exclus.has(v.id) || v.duration < Math.min(dureeMin, 4)) continue;
     const f = choisirFichierVertical(v);
     if (f) return { id: v.id, fichier: f };
   }
@@ -28,4 +29,10 @@ export function lienPhoto(p: PhotoPexels, orientation: "portrait" | "paysage" | 
   if (orientation === "portrait") return p.src.portrait ?? p.src.large2x ?? p.src.large;
   if (orientation === "paysage") return p.src.landscape ?? p.src.large2x ?? p.src.large;
   return p.src.large2x ?? p.src.large;
+}
+
+// Pexels comprend le français si on le lui dit : on précise la langue quand
+// les mots-clés sont en français.
+export function langueRecherche(recherche: string) {
+  return /[àâçéèêëîïôûùüÿœ]|\b(de|des|du|la|le|les|sur|avec|chantier|artisan|maison|bureau|ouvrier)\b/i.test(recherche) ? "fr-FR" : "en-US";
 }

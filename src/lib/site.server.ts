@@ -1,5 +1,5 @@
 import { lookup } from "node:dns/promises";
-import { estAdressePrivee, lirePage, normaliserLien, type PageLue } from "./site";
+import { estAdressePrivee, lirePage, normaliserLien, visuelsDePage, type PageLue, type VisuelSite } from "./site";
 
 const TAILLE_MAX = 1_500_000;
 
@@ -52,4 +52,27 @@ export async function lireSite(saisie: string): Promise<{ url: string; pages: Pa
     throw new Error("La page ne contient pas assez de texte lisible (site en JavaScript pur ?). Remplissez les champs à la main.");
   }
   return { url: url.toString(), pages };
+}
+
+// Images du site (captures du produit, image de partage, logo), téléchargées
+// avec les mêmes garde-fous que les pages. Au plus `max` images.
+export async function visuelsDuSite(saisie: string, max = 4): Promise<(VisuelSite & { donnees: Buffer })[]> {
+  const { url, html } = await telecharger(normaliserLien(saisie));
+  const resultat: (VisuelSite & { donnees: Buffer })[] = [];
+  for (const v of visuelsDePage(html, url)) {
+    if (resultat.length >= max) break;
+    try {
+      const u = new URL(v.url);
+      await verifierHote(u);
+      const r = await fetch(u, { signal: AbortSignal.timeout(12_000), headers: { "User-Agent": "Mozilla/5.0 (compatible; AgentIALive/1.0)" } });
+      const type = r.headers.get("content-type") ?? "";
+      if (!r.ok || !/image\/(png|jpe?g|webp)/.test(type)) continue;
+      const donnees = Buffer.from(await r.arrayBuffer());
+      if (donnees.length < 5_000 || donnees.length > 6_000_000) continue;
+      resultat.push({ ...v, donnees });
+    } catch {
+      /* image illisible : on passe à la suivante */
+    }
+  }
+  return resultat;
 }

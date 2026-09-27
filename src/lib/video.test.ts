@@ -78,3 +78,28 @@ describe("scriptDeSecours", () => {
     expect(s.scenes.some((x) => x.voix.includes("http") || x.voix.includes("#"))).toBe(false);
   });
 });
+
+describe("raccourcir", () => {
+  it("garde une idée complète de 6 mots au plus", async () => {
+    const { raccourcir } = await import("./video");
+    expect(raccourcir("Pas de courbe d'apprentissage, pas de formation à suivre.")).toBe("Pas de courbe d'apprentissage");
+    expect(raccourcir("Devis IA en 2 min")).toBe("Devis IA en 2 min");
+    expect(raccourcir("Générez un devis complet à partir de votre voix et d'une photo")).toBe("Générez un devis complet");
+    expect(raccourcir("Avec BTP Ecosystem, générez un devis complet en 2 minutes à partir de votre voix")).toBe("Générez un devis complet");
+    expect(raccourcir("Gagnez du temps et réduisez les erreurs de saisie.")).toBe("Gagnez du temps");
+  });
+});
+
+describe("scriptDeSecours : images variées", () => {
+  it("utilise un mot-clé d'univers différent par scène et marque des scènes produit", async () => {
+    const { scriptDeSecours } = await import("./video");
+    const s = scriptDeSecours(
+      { titre: "Devis IA", consigne: "", brouillon: "Première phrase assez longue ici. Deuxième phrase assez longue là. Troisième phrase assez longue encore." },
+      "Marque : BTP Ecosystem\nUnivers visuel (décors, personnes, objets à montrer) : chantier de rénovation, artisan avec smartphone, camionnette d'artisan",
+    );
+    const mots = s.scenes.map((x) => x.recherche_stock);
+    expect(new Set(mots.slice(0, 3)).size).toBe(3);
+    expect(s.scenes.at(-1)?.type_visuel).toBe("produit");
+    expect(s.scenes.some((x, i) => i > 0 && i < s.scenes.length - 1 && x.type_visuel === "produit")).toBe(true);
+  });
+});
