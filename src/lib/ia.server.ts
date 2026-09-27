@@ -82,7 +82,7 @@ function rangGemini(nom: string) {
 
 // Les noms de modèles changent souvent : on demande la liste à Google plutôt
 // que de les écrire en dur.
-async function listerGemini(cle: string) {
+export async function listerGemini(cle: string) {
   if (modelesGemini) return modelesGemini;
   const r = await fetch(`${GEMINI}/models?pageSize=200`, { headers: { "x-goog-api-key": cle }, signal: AbortSignal.timeout(10_000) });
   if (!r.ok) throw new Error(`Gemini : liste des modèles indisponible (${r.status}).`);

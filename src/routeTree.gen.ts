@@ -22,6 +22,7 @@ import { Route as StrategieRouteImport } from './routes/strategie'
 import { Route as SuppressionDonneesRouteImport } from './routes/suppression-donnees'
 import { Route as TachesRouteImport } from './routes/taches'
 import { Route as ApiAgentTickRouteImport } from './routes/api/agent/tick'
+import { Route as ApiIaDiagnosticRouteImport } from './routes/api/ia/diagnostic'
 import { Route as ApiInstagramRetourRouteImport } from './routes/api/instagram/retour'
 import { Route as ApiMetaDiagnosticRouteImport } from './routes/api/meta/diagnostic'
 import { Route as ApiMetaRetourRouteImport } from './routes/api/meta/retour'
@@ -92,6 +93,11 @@ const ApiAgentTickRoute = ApiAgentTickRouteImport.update({
   path: '/api/agent/tick',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiIaDiagnosticRoute = ApiIaDiagnosticRouteImport.update({
+  id: '/api/ia/diagnostic',
+  path: '/api/ia/diagnostic',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInstagramRetourRoute = ApiInstagramRetourRouteImport.update({
   id: '/api/instagram/retour',
   path: '/api/instagram/retour',
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
+  '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
   '/api/meta/diagnostic': typeof ApiMetaDiagnosticRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
@@ -146,6 +153,7 @@ export interface FileRoutesByTo {
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
+  '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
   '/api/meta/diagnostic': typeof ApiMetaDiagnosticRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
@@ -166,6 +174,7 @@ export interface FileRoutesById {
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
+  '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
   '/api/meta/diagnostic': typeof ApiMetaDiagnosticRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
@@ -187,6 +196,7 @@ export interface FileRouteTypes {
     | '/suppression-donnees'
     | '/taches'
     | '/api/agent/tick'
+    | '/api/ia/diagnostic'
     | '/api/instagram/retour'
     | '/api/meta/diagnostic'
     | '/api/meta/retour'
@@ -206,6 +216,7 @@ export interface FileRouteTypes {
     | '/suppression-donnees'
     | '/taches'
     | '/api/agent/tick'
+    | '/api/ia/diagnostic'
     | '/api/instagram/retour'
     | '/api/meta/diagnostic'
     | '/api/meta/retour'
@@ -225,6 +236,7 @@ export interface FileRouteTypes {
     | '/suppression-donnees'
     | '/taches'
     | '/api/agent/tick'
+    | '/api/ia/diagnostic'
     | '/api/instagram/retour'
     | '/api/meta/diagnostic'
     | '/api/meta/retour'
@@ -245,6 +257,7 @@ export interface RootRouteChildren {
   SuppressionDonneesRoute: typeof SuppressionDonneesRoute
   TachesRoute: typeof TachesRoute
   ApiAgentTickRoute: typeof ApiAgentTickRoute
+  ApiIaDiagnosticRoute: typeof ApiIaDiagnosticRoute
   ApiInstagramRetourRoute: typeof ApiInstagramRetourRoute
   ApiMetaDiagnosticRoute: typeof ApiMetaDiagnosticRoute
   ApiMetaRetourRoute: typeof ApiMetaRetourRoute
@@ -344,6 +357,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ia/diagnostic': {
+      id: '/api/ia/diagnostic'
+      path: '/api/ia/diagnostic'
+      fullPath: '/api/ia/diagnostic'
+      preLoaderRoute: typeof ApiIaDiagnosticRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/instagram/retour': {
       id: '/api/instagram/retour'
       path: '/api/instagram/retour'
@@ -389,6 +409,7 @@ const rootRouteChildren: RootRouteChildren = {
   SuppressionDonneesRoute: SuppressionDonneesRoute,
   TachesRoute: TachesRoute,
   ApiAgentTickRoute: ApiAgentTickRoute,
+  ApiIaDiagnosticRoute: ApiIaDiagnosticRoute,
   ApiInstagramRetourRoute: ApiInstagramRetourRoute,
   ApiMetaDiagnosticRoute: ApiMetaDiagnosticRoute,
   ApiMetaRetourRoute: ApiMetaRetourRoute,
