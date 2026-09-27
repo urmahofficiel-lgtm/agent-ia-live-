@@ -16,9 +16,12 @@ const MODELES = [
 ];
 
 const MODELE_DISPARU = new Set([404, 410]);
-// Au-delà, on passe au modèle suivant plutôt que de faire attendre l'agent.
-const DELAI_MAX_MS = 45_000;
-// Modèles retirés par NVIDIA ou trop lents : écartés le temps de vie du serveur.
+// Délai laissé à un modèle avant de passer au suivant : proportionnel à la
+// longueur demandée (un script vidéo ou une stratégie prend plus de temps
+// qu'un post).
+const delaiMax = (maxTokens: number) => Math.min(150_000, 30_000 + maxTokens * 25);
+// Modèles retirés par NVIDIA (404/410) : écartés le temps de vie du serveur.
+// Un modèle seulement lent n'est PAS écarté : il sert encore aux demandes courtes.
 const retires = new Set<string>();
 
 // Lue au moment de la requête : une variable « Sensible » Vercel n'existe pas
@@ -50,7 +53,7 @@ const SYSTEME =
 function appelNvidia(cle: string, modele: string, systeme: string, demande: string, maxTokens: number) {
   return fetch(NVIDIA_URL, {
     method: "POST",
-    signal: AbortSignal.timeout(DELAI_MAX_MS),
+    signal: AbortSignal.timeout(delaiMax(maxTokens)),
     headers: { Authorization: `Bearer ${cle}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: modele,
@@ -78,7 +81,7 @@ export async function demanderIA(demande: string, options: { systeme?: string; m
       r = await appelNvidia(cle, modele, options.systeme ?? SYSTEME, demande, options.maxTokens ?? 800);
     } catch {
       console.warn("NVIDIA : trop lent, modèle suivant", modele, Date.now() - debut, "ms");
-      retires.add(modele);
+      derniereErreur = "L'IA a mis trop de temps à répondre. Réessayez dans un instant.";
       continue;
     }
     console.info("NVIDIA", modele, r.status, Date.now() - debut, "ms");
@@ -174,13 +177,23 @@ export async function promptImage(texte: string, plateforme: string | null, cont
 }
 
 const IMAGE_URL = "https://ai.api.nvidia.com/v1/genai/";
-const MODELES_IMAGE = ["black-forest-labs/flux.1-dev", "black-forest-labs/flux.1-schnell", "stabilityai/stable-diffusion-3-medium"];
+// flux.1-dev : meilleure qualité ; flux.1-schnell : 4 étapes, quelques secondes.
+const MODELES_IMAGE = ["black-forest-labs/flux.1-dev", "black-forest-labs/flux.1-schnell", "stabilityai/stable-diffusion-xl"];
 
 function corpsImage(modele: string, prompt: string, [largeur, hauteur]: [number, number]) {
   if (modele.includes("flux.1-schnell")) return { prompt, width: largeur, height: hauteur, steps: 4, seed: 0 };
   if (modele.includes("flux")) return { prompt, mode: "base", width: largeur, height: hauteur, cfg_scale: 3.5, steps: 28, seed: 0 };
-  const ratio = largeur === hauteur ? "1:1" : largeur > hauteur ? "16:9" : "9:16";
-  return { prompt, aspect_ratio: ratio, cfg_scale: 5, steps: 40, seed: 0, negative_prompt: "text, letters, watermark, logo" };
+  // Stable Diffusion XL (format d'appel différent, image carrée).
+  return {
+    text_prompts: [
+      { text: prompt, weight: 1 },
+      { text: "text, letters, watermark, logo, blurry", weight: -1 },
+    ],
+    cfg_scale: 5,
+    sampler: "K_DPM_2_ANCESTRAL",
+    seed: 0,
+    steps: 30,
+  };
 }
 
 // Génère une image (JPEG en base64) avec la clé NVIDIA, en basculant de
@@ -189,23 +202,23 @@ export async function genererImage(prompt: string, plateforme: string | null) {
   const cle = cleNvidia();
   if (!cle) throw new Error("Clé NVIDIA absente des variables Vercel.");
   const format = formatImage(plateforme);
-  let derniere = "";
+  const erreurs: string[] = [];
   for (const modele of [process.env.NVIDIA_MODELE_IMAGE, ...MODELES_IMAGE].filter((m): m is string => Boolean(m))) {
     let r: Response;
     try {
       r = await fetch(IMAGE_URL + modele, {
         method: "POST",
-        signal: AbortSignal.timeout(90_000),
+        signal: AbortSignal.timeout(modele.includes("schnell") ? 45_000 : 60_000),
         headers: { Authorization: `Bearer ${cle}`, "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(corpsImage(modele, prompt, format)),
       });
     } catch {
-      derniere = `${modele} : trop lent`;
+      erreurs.push(`${modele.split("/")[1]} trop lent`);
       continue;
     }
     console.info("NVIDIA image", modele, r.status);
     if (!r.ok) {
-      derniere = `${modele} ${r.status}`;
+      erreurs.push(`${modele.split("/")[1]} ${r.status}`);
       console.warn("NVIDIA image", modele, r.status, (await r.text()).slice(0, 200));
       continue;
     }
@@ -217,7 +230,7 @@ export async function genererImage(prompt: string, plateforme: string | null) {
     const base64 = json.artifacts?.[0]?.base64 ?? json.image;
     const refus = json.artifacts?.[0]?.finishReason === "CONTENT_FILTERED" || json.finish_reason === "CONTENT_FILTERED";
     if (base64 && !refus) return { mime: "image/jpeg", base64 };
-    derniere = `${modele} : image refusée par le filtre`;
+    erreurs.push(`${modele.split("/")[1]} : image refusée par le filtre`);
   }
-  throw new Error(`Création d'image impossible (${derniere}).`);
+  throw new Error(`Création d'image impossible (${erreurs.join(", ")}).`);
 }

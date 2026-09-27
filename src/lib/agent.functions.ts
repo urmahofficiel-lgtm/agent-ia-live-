@@ -5,7 +5,7 @@ import { demanderIA, genererImage } from "./ia.server";
 import { consigneScript, durees, lireScript } from "./video";
 import { monterVideo } from "./video.server";
 import { voixConfiguree, voixOff } from "./voix.server";
-import { pexelsConfigure, sequenceVerticale } from "./pexels.server";
+import { pexelsConfigure, photo, sequenceVerticale } from "./pexels.server";
 import { preparer, URL_SITE, type Ecrivain } from "./preparation.server";
 import { consignePlanification, datePrevue, lirePlan } from "./commande";
 import { consigneAnalyse, demandeDepuisStrategie, lireAnalyse, lireProfilDeduit, type Analyse, type Profil } from "./strategie";
@@ -708,11 +708,14 @@ export const creerVideo = createServerFn({ method: "POST" })
         script = lireScript(
           await demanderIA(consigneScript(t, contexte, reseau), {
             systeme: "Tu es scénariste de vidéos courtes pour les réseaux sociaux. Tu réponds uniquement en JSON valide.",
-            maxTokens: 3000,
+            maxTokens: 2000,
           }),
         );
       }
-      if (!script) return { ok: false, erreur: "Le script vidéo n'a pas pu être écrit. Réessayez." };
+      if (!script) {
+        await journal("erreur", "Le script vidéo n'a pas pu être écrit. Réessayez dans un instant.");
+        return { ok: false, erreur: "Le script vidéo n'a pas pu être écrit. Réessayez." };
+      }
       await journal("info", `Script : ${script.scenes.length} scènes — « ${script.scenes[0].texte_ecran} »`);
 
       let voix = null;
@@ -736,8 +739,17 @@ export const creerVideo = createServerFn({ method: "POST" })
               const clip = await sequenceVerticale(s.recherche_stock, d[i + j]).catch(() => null);
               if (clip) return { clip };
             }
-            const img = await genererImage(`${s.visuel}. ${univers} Vertical 9:16 composition, realistic photo, no text.`, "tiktok");
-            return { image: Buffer.from(img.base64, "base64") };
+            try {
+              const img = await genererImage(`${s.visuel}. ${univers} Vertical 9:16 composition, realistic photo, no text.`, "tiktok");
+              return { image: Buffer.from(img.base64, "base64") };
+            } catch (err) {
+              // Secours : une vraie photo verticale Pexels.
+              const secours = pexelsConfigure()
+                ? await photo(s.recherche_stock || s.visuel.split(/[,.]/)[0], "portrait").catch(() => null)
+                : null;
+              if (secours) return { image: secours };
+              throw err;
+            }
           }),
         );
         medias.push(...faits);
@@ -754,7 +766,10 @@ export const creerVideo = createServerFn({ method: "POST" })
 
       const chemin = `${user.id}/${t.id}-${Date.now()}.mp4`;
       const { error: errStockage } = await sb.storage.from("videos").upload(chemin, mp4, { contentType: "video/mp4" });
-      if (errStockage) return { ok: false, erreur: `Enregistrement de la vidéo impossible : ${errStockage.message}` };
+      if (errStockage) {
+        await journal("erreur", `Enregistrement de la vidéo impossible : ${errStockage.message}`);
+        return { ok: false, erreur: `Enregistrement de la vidéo impossible : ${errStockage.message}` };
+      }
       const video_url = sb.storage.from("videos").getPublicUrl(chemin).data.publicUrl;
 
       const resultat = {
@@ -768,6 +783,17 @@ export const creerVideo = createServerFn({ method: "POST" })
       await journal("info", `✅ Vidéo prête (${Math.round(d.reduce((a, b) => a + b, 0))} s, ${(mp4.length / 1e6).toFixed(1)} Mo) — à valider dans Tâches.`);
       return { ok: true, video_url };
     } catch (e) {
+      try {
+        const { sb, user } = await utilisateurDepuisJeton(data.jeton);
+        await sb.from("evenements_taches").insert({
+          tache_id: data.tacheId,
+          user_id: user.id,
+          niveau: "erreur",
+          message: `La vidéo n'a pas pu être créée : ${message(e)}`,
+        });
+      } catch {
+        /* journal indisponible */
+      }
       return { ok: false, erreur: message(e) };
     }
   });
