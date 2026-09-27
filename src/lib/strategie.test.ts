@@ -47,9 +47,24 @@ describe("demandeDepuisStrategie", () => {
 });
 
 describe("lireProfilDeduit", () => {
-  it("lit le profil et complète les champs manquants", () => {
-    const p = lireProfilDeduit('```json\n{"activite":"SaaS de devis","offre":"Abonnement 29 €","cible":"Artisans"}\n```');
-    expect(p).toMatchObject({ activite: "SaaS de devis", offre: "Abonnement 29 €", zone: "", ton: "" });
+  it("sépare profil et fiche, nettoie les listes et refuse un lien invalide", () => {
+    const r = lireProfilDeduit(
+      '```json\n' +
+        JSON.stringify({
+          nom: "BTP Ecosystem",
+          activite: "SaaS de devis",
+          offre: "Abonnement",
+          fonctionnalites: ["Devis IA", " ", "Factur-X"],
+          preuves: "pas une liste",
+          lien_cta: "javascript:alert(1)",
+        }) +
+        "\n```",
+    );
+    expect(r?.nom).toBe("BTP Ecosystem");
+    expect(r?.profil).toMatchObject({ activite: "SaaS de devis", offre: "Abonnement", zone: "" });
+    expect(r?.fiche.fonctionnalites).toEqual(["Devis IA", "Factur-X"]);
+    expect(r?.fiche.preuves).toEqual([]);
+    expect(r?.fiche.lien_cta).toBe("");
   });
   it("refuse une réponse sans activité", () => {
     expect(lireProfilDeduit('{"offre":"x"}')).toBeNull();

@@ -527,9 +527,13 @@ export const analyserMarche = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<Resultat<{ analyse: Analyse }>> => {
     try {
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
-      const { data: profil } = await sb.from("profil_marque").select("activite, offre, cible, zone, ton, site, objectif").maybeSingle();
+      const { data: profil } = await sb
+        .from("profil_marque")
+        .select("activite, offre, cible, zone, ton, site, objectif, extrait_site")
+        .maybeSingle();
       if (!profil?.activite) return { ok: false, erreur: "Décrivez d'abord votre activité, ou collez le lien de votre site." };
-      return { ok: true, analyse: await lancerAnalyse(sb, user.id, profil as Profil) };
+      const { extrait_site, ...p } = profil;
+      return { ok: true, analyse: await lancerAnalyse(sb, user.id, p as Profil, (extrait_site as string | null) ?? undefined) };
     } catch (e) {
       return { ok: false, erreur: message(e) };
     }
@@ -560,12 +564,22 @@ export const analyserDepuisLien = createServerFn({ method: "POST" })
       }
       if (!deduit) return { ok: false, erreur: "L'IA n'a pas réussi à comprendre le site. Remplissez les champs à la main." };
 
-      const profil: Profil = { ...deduit, site: site.url };
-      const { error } = await sb.from("profil_marque").upsert({ user_id: user.id, ...profil });
+      const profil: Profil = { ...deduit.profil, site: site.url };
+      const extrait = site.pages.map((p) => `${p.titre}\n${p.description}\n${p.texte}`).join("\n\n");
+      const { error } = await sb.from("profil_marque").upsert({
+        user_id: user.id,
+        ...profil,
+        nom: deduit.nom,
+        fiche: { ...deduit.fiche, lien_cta: deduit.fiche.lien_cta || site.url },
+        extrait_site: extrait.slice(0, 12000),
+      });
       if (error) return { ok: false, erreur: error.message };
+      await journal(
+        "info",
+        `Fiche marque : ${deduit.nom || "marque"} — ${deduit.fiche.fonctionnalites.length} fonctionnalités, ${deduit.fiche.preuves.length} preuves relevées sur le site.`,
+      );
       await journal("info", `Activité comprise : ${profil.activite.slice(0, 150)}`);
 
-      const extrait = site.pages.map((p) => `${p.titre}\n${p.description}\n${p.texte}`).join("\n\n");
       const analyse = await lancerAnalyse(sb, user.id, profil, extrait);
       return { ok: true, profil, analyse };
     } catch (e) {

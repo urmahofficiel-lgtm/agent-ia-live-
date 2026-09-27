@@ -96,27 +96,61 @@ export function demandeDepuisStrategie(a: Analyse, connectes: string[], jours: n
 Plateformes à utiliser, avec leur fréquence et leurs horaires : ${plateformes}.
 Alterne ces thèmes :
 ${piliers}
-Chaque tâche est de type "publication", avec une consigne précise (angle, accroche, appel à l'action).`;
+Chaque tâche est de type "publication", avec une consigne précise (angle, accroche, appel à l'action).
+Couvre à tour de rôle les différentes fonctionnalités réelles de la marque listées dans le contexte, pour que chaque post fasse la promotion d'un aspect concret de son offre.`;
 }
 
-const champ = z.string().catch("").transform((x) => x.trim().slice(0, 1000));
-const schemaProfil = z.object({
+const champ = z.string().catch("").transform((x) => x.trim().slice(0, 1500));
+const listeCourte = z
+  .array(z.string())
+  .catch([])
+  .transform((l) => l.map((x) => x.trim()).filter(Boolean).slice(0, 15));
+
+const schemaDeduit = z.object({
+  nom: champ,
+  slogan: champ,
   activite: champ,
   offre: champ,
   cible: champ,
   zone: champ,
   ton: champ,
   objectif: champ,
+  fonctionnalites: listeCourte,
+  benefices: listeCourte,
+  preuves: listeCourte,
+  tarifs: champ,
+  appel_action: champ,
+  lien_cta: champ,
+  univers_visuel: champ,
 });
 
-// Profil déduit d'un site par l'IA.
-export function lireProfilDeduit(reponse: string) {
+export type Fiche = {
+  nom: string;
+  slogan: string;
+  fonctionnalites: string[];
+  benefices: string[];
+  preuves: string[];
+  tarifs: string;
+  appel_action: string;
+  lien_cta: string;
+  univers_visuel: string;
+};
+
+// Profil + fiche marque déduits d'un site par l'IA.
+export function lireProfilDeduit(reponse: string): { profil: Omit<Profil, "site">; nom: string; fiche: Fiche } | null {
   const debut = reponse.indexOf("{");
   const fin = reponse.lastIndexOf("}");
   if (debut === -1 || fin <= debut) return null;
   try {
-    const p = schemaProfil.parse(JSON.parse(reponse.slice(debut, fin + 1)));
-    return p.activite ? p : null;
+    const d = schemaDeduit.parse(JSON.parse(reponse.slice(debut, fin + 1)));
+    if (!d.activite) return null;
+    const { activite, offre, cible, zone, ton, objectif, ...reste } = d;
+    const lien = /^https?:\/\//.test(reste.lien_cta) ? reste.lien_cta : "";
+    return {
+      profil: { activite, offre, cible, zone, ton, objectif },
+      nom: d.nom,
+      fiche: { ...reste, lien_cta: lien },
+    };
   } catch {
     return null;
   }

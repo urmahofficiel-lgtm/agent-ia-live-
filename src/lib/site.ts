@@ -83,10 +83,26 @@ export function consigneProfilDepuisSite(url: string, pages: PageLue[]) {
     .map((p, i) => `--- Page ${i + 1} : ${p.titre}\n${p.description ? `Description : ${p.description}\n` : ""}${p.texte}`)
     .join("\n\n")
     .slice(0, 12000);
-  return `Voici le contenu du site ${url}. Déduis-en le profil de l'entreprise, en français.
+  return `Voici le contenu du site ${url}. Déduis-en le profil de l'entreprise et sa fiche marque, en français.
 Réponds UNIQUEMENT par un objet JSON valide :
-{"activite": "ce que fait l'entreprise, 1-2 phrases précises", "offre": "produits / services, prix si visibles, ce qui la distingue", "cible": "clients visés (particuliers/entreprises, profils, besoins)", "zone": "zone géographique servie (ou 'France entière' / 'international')", "ton": "ton de communication observé", "objectif": "objectif marketing le plus probable (leads, ventes en ligne, notoriété…)"}
-N'invente pas de faits précis absents du site ; reste général si l'information manque.
+{
+ "nom": "nom exact de la marque / du produit tel qu'écrit sur le site",
+ "slogan": "accroche principale du site, recopiée",
+ "activite": "ce que fait l'entreprise, 1-2 phrases précises",
+ "offre": "produits / services, prix si visibles, ce qui la distingue",
+ "cible": "clients visés (particuliers/entreprises, profils, besoins)",
+ "zone": "zone géographique servie (ou 'France entière' / 'international')",
+ "ton": "ton de communication observé",
+ "objectif": "objectif marketing le plus probable (leads, ventes en ligne, notoriété…)",
+ "fonctionnalites": ["chaque fonctionnalité ou produit RÉEL cité sur le site, formulé concrètement"],
+ "benefices": ["bénéfices concrets pour le client, tels que présentés sur le site"],
+ "preuves": ["chiffres, garanties, certifications, avis, nombre de clients… UNIQUEMENT s'ils sont écrits sur le site, recopiés fidèlement"],
+ "tarifs": "résumé des prix et formules visibles, ou chaîne vide",
+ "appel_action": "l'action principale proposée au visiteur (ex. essai gratuit sans carte bancaire)",
+ "lien_cta": "l'adresse à mettre dans les posts (page d'inscription ou d'accueil), URL complète",
+ "univers_visuel": "en anglais : le décor réel, les personnes et objets typiques de cette niche à montrer en image (ex. for a construction SaaS: craftsman on a building site holding a tablet showing a quote)"
+}
+N'invente rien : si une information n'est pas sur le site, mets une chaîne vide ou une liste vide.
 
 ${contenu}`;
 }

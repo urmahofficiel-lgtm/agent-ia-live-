@@ -105,10 +105,20 @@ export async function demanderIA(demande: string, options: { systeme?: string; m
   throw new Error(derniereErreur);
 }
 
+// Règles de rédaction quand on connaît la marque : on écrit POUR elle, à
+// partir de ce que son site dit réellement.
+const REGLES_MARQUE = `Règles impératives :
+- Tu écris pour cette marque précise : nomme-la, et fais la promotion de SON offre (pas d'un produit générique).
+- Chaque post met en avant UNE fonctionnalité ou UN bénéfice réel de la fiche, avec un exemple concret tiré de la vie de la clientèle visée.
+- N'utilise que les faits de la fiche. N'invente AUCUN chiffre, pourcentage, témoignage, nom de client, étude de cas ou garantie qui n'y figure pas.
+- Termine par l'appel à l'action de la fiche et le lien du site, écrit en entier.
+- Le post est un texte accompagné d'une image : si la consigne parle de vidéo, live, PDF ou infographie, transforme-la en post texte sur le même sujet.
+- Hashtags : 3 à 5 maximum, pris dans la liste conseillée quand elle existe.`;
+
 export function rediger(t: Consigne, contexte?: string | null): Promise<string> {
   return demanderIA(
     [
-      contexte ? `Contexte de l'entreprise (à respecter) :\n${contexte}\n` : "",
+      contexte ? `Fiche de la marque (source de vérité) :\n${contexte}\n\n${REGLES_MARQUE}\n` : "",
       CONSIGNES_TYPE[t.type] ?? CONSIGNES_TYPE.autre,
       t.plateforme ? `Plateforme : ${nomPlateforme(t.plateforme)}.` : "",
       `Titre : ${t.titre}`,
@@ -148,8 +158,10 @@ export async function promptImage(texte: string, plateforme: string | null, cont
   const prompt = await demanderIA(
     [
       "Write ONE English prompt for an AI image generator to illustrate this social media post.",
-      "Style: professional, modern, realistic photography or clean editorial illustration, suited to the brand and platform.",
-      "No text, no letters, no logos, no watermark in the image. Max 80 words. Answer with the prompt only.",
+      "The image must show the REAL world of this brand's customers using the product or benefiting from it: the concrete setting, people and objects of the niche (use the 'Univers visuel' line of the brand context when present).",
+      "Illustrate the precise feature or benefit the post talks about, as a realistic scene (e.g. a phone or tablet in the hands of the target customer, in their workplace).",
+      "Avoid generic clichés: no holograms, no floating screens, no abstract AI brains, no corporate glass offices unless the niche is really about that.",
+      "Style: authentic, realistic photography, natural light, suited to the platform. No text, no letters, no logos, no watermark. Max 90 words. Answer with the prompt only.",
       plateforme ? `Platform: ${nomPlateforme(plateforme)}` : "",
       contexte ? `Brand context:\n${contexte}` : "",
       `Post:\n${texte}`,

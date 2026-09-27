@@ -24,6 +24,9 @@ Découpe la demande suivante en tâches concrètes pour un agent qui gère les r
 Réponds UNIQUEMENT par un tableau JSON, sans texte autour. Chaque élément :
 {"type": "publication"|"reponse"|"prospection"|"relance"|"appareil"|"autre", "plateforme": un de [${ids}] ou null, "titre": "court", "consigne": "détaillée pour la rédaction", "dans_jours": nombre de jours à partir d'aujourd'hui (0 = aujourd'hui), "heure": heure de publication 0-23}
 Répartis les publications dans le temps si plusieurs sont demandées. Maximum 20 tâches.
+Contraintes : chaque publication est un post texte + une image (pas de vidéo, live, webinaire, PDF, sondage ni infographie).
+Chaque consigne cite la fonctionnalité ou le bénéfice précis de la marque à mettre en avant, et rappelle de finir par l'appel à l'action avec le lien.
+N'invente aucun chiffre, témoignage, client ou étude de cas absent du contexte.
 ${contexte ? `\nContexte de l'entreprise (adapte les sujets à cette niche) :\n${contexte}\n` : ""}
 Demande : ${demande}`;
 }

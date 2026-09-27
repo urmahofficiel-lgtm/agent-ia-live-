@@ -8,11 +8,11 @@ import { jetonSession } from "@/lib/session";
 import { useRequete, useUserId } from "@/lib/donnees";
 import { nomPlateforme } from "@/lib/plateformes";
 import { analyserDepuisLien, analyserMarche, planifierDepuisStrategie } from "@/lib/agent.functions";
-import type { Analyse, Profil } from "@/lib/strategie";
+import type { Analyse, Fiche, Profil } from "@/lib/strategie";
 
 export const Route = createFileRoute("/strategie")({ component: Strategie });
 
-type Ligne = Profil & { analyse_marche: Analyse | null; analyse_le: string | null };
+type Ligne = Profil & { nom: string; fiche: Fiche | null; analyse_marche: Analyse | null; analyse_le: string | null };
 
 const VIDE: Profil = { activite: "", offre: "", cible: "", zone: "", ton: "", site: "", objectif: "" };
 
@@ -30,7 +30,7 @@ function Strategie() {
   const userId = useUserId();
   const navigate = useNavigate();
   const ligne = useRequete<Ligne>(
-    () => supabase().from("profil_marque").select("activite, offre, cible, zone, ton, site, objectif, analyse_marche, analyse_le").maybeSingle(),
+    () => supabase().from("profil_marque").select("nom, fiche, activite, offre, cible, zone, ton, site, objectif, analyse_marche, analyse_le").maybeSingle(),
     [userId],
   );
   const [profil, setProfil] = useState<Profil>(VIDE);
@@ -103,6 +103,7 @@ function Strategie() {
   }
 
   const a = ligne.data?.analyse_marche;
+  const fiche = ligne.data?.fiche;
 
   return (
     <>
@@ -172,6 +173,40 @@ function Strategie() {
       </details>
       <Erreur message={erreur ?? ligne.erreur} />
       {info && <p className="-mt-3 mb-4 text-sm text-ok" role="status">{info}</p>}
+
+      {ligne.data?.site && !fiche && (
+        <Carte className="mb-4 border-alerte/40 text-sm">
+          <p className="font-medium text-alerte">Relancez « Analyser avec l'IA » sur votre lien</p>
+          <p className="mt-1 text-doux">
+            L'agent récupère maintenant la fiche complète de votre marque (nom, fonctionnalités, preuves, tarifs, lien) pour
+            que chaque publication et chaque image parlent vraiment de votre offre.
+          </p>
+        </Carte>
+      )}
+
+      {fiche && (
+        <Carte className="mb-6">
+          <h2 className="font-medium">Fiche marque{ligne.data?.nom ? ` : ${ligne.data.nom}` : ""}</h2>
+          {fiche.slogan && <p className="mt-1 text-sm text-doux">« {fiche.slogan} »</p>}
+          <p className="mt-1 text-xs text-doux">
+            C'est la source de vérité de l'agent : il ne cite que ces faits, et termine chaque post par votre lien.
+          </p>
+          <div className="mt-3 grid gap-4 text-sm md:grid-cols-2">
+            <ListeFiche titre="Fonctionnalités mises en avant" elements={fiche.fonctionnalites} />
+            <ListeFiche titre="Bénéfices clients" elements={fiche.benefices} />
+            <ListeFiche titre="Preuves relevées sur le site" elements={fiche.preuves} vide="Aucune : l'agent n'utilisera aucun chiffre." />
+            <div className="space-y-2">
+              {fiche.tarifs && <p><span className="text-doux">Tarifs : </span>{fiche.tarifs}</p>}
+              {fiche.appel_action && <p><span className="text-doux">Appel à l'action : </span>{fiche.appel_action}</p>}
+              {fiche.lien_cta && (
+                <p className="truncate"><span className="text-doux">Lien dans les posts : </span>
+                  <a href={fiche.lien_cta} target="_blank" rel="noreferrer" className="text-accent underline">{fiche.lien_cta}</a>
+                </p>
+              )}
+            </div>
+          </div>
+        </Carte>
+      )}
 
       {a && (
         <div className="space-y-4">
@@ -273,5 +308,20 @@ function Bloc({ titre, children }: { titre: string; children: string }) {
       <h2 className="mb-2 font-medium">{titre}</h2>
       <p className="text-sm text-doux">{children}</p>
     </Carte>
+  );
+}
+
+function ListeFiche({ titre, elements, vide }: { titre: string; elements: string[]; vide?: string }) {
+  return (
+    <div>
+      <p className="text-doux">{titre}</p>
+      {elements.length ? (
+        <ul className="mt-1 list-disc space-y-0.5 pl-5">
+          {elements.map((x) => <li key={x}>{x}</li>)}
+        </ul>
+      ) : (
+        <p className="mt-1 text-xs text-doux">{vide ?? "—"}</p>
+      )}
+    </div>
   );
 }
