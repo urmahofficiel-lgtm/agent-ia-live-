@@ -43,7 +43,9 @@ export function lireEtat(etat: string, secret = cles().secret, maintenant = Date
 
 export function urlConnexionMeta(userId: string) {
   const { appId } = cles();
-  return urlDialogue({ appId, retour: RETOUR_META, etat: creerEtat(userId), configId: process.env.META_CONFIG_ID || undefined });
+  // Connexion classique par liste de droits : la configuration « Business »
+  // (META_CONFIG_ID) fait échouer la page de Facebook pour cette app.
+  return urlDialogue({ appId, retour: RETOUR_META, etat: creerEtat(userId) });
 }
 
 // --- Appels à l'API Graph --------------------------------------------------
