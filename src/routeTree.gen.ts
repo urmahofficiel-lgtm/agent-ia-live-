@@ -18,6 +18,7 @@ import { Route as ProspectionRouteImport } from './routes/prospection'
 import { Route as StrategieRouteImport } from './routes/strategie'
 import { Route as TachesRouteImport } from './routes/taches'
 import { Route as ApiAgentTickRouteImport } from './routes/api/agent/tick'
+import { Route as ApiMetaRetourRouteImport } from './routes/api/meta/retour'
 import { Route as ApiVisuelsIdRouteImport } from './routes/api/visuels/$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -65,6 +66,11 @@ const ApiAgentTickRoute = ApiAgentTickRouteImport.update({
   path: '/api/agent/tick',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMetaRetourRoute = ApiMetaRetourRouteImport.update({
+  id: '/api/meta/retour',
+  path: '/api/meta/retour',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVisuelsIdRoute = ApiVisuelsIdRouteImport.update({
   id: '/api/visuels/$id',
   path: '/api/visuels/$id',
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/strategie': typeof StrategieRoute
   '/taches': typeof TachesRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
+  '/api/meta/retour': typeof ApiMetaRetourRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
 export interface FileRoutesByTo {
@@ -93,6 +100,7 @@ export interface FileRoutesByTo {
   '/strategie': typeof StrategieRoute
   '/taches': typeof TachesRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
+  '/api/meta/retour': typeof ApiMetaRetourRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
 export interface FileRoutesById {
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/strategie': typeof StrategieRoute
   '/taches': typeof TachesRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
+  '/api/meta/retour': typeof ApiMetaRetourRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
 export interface FileRouteTypes {
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/strategie'
     | '/taches'
     | '/api/agent/tick'
+    | '/api/meta/retour'
     | '/api/visuels/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/strategie'
     | '/taches'
     | '/api/agent/tick'
+    | '/api/meta/retour'
     | '/api/visuels/$id'
   id:
     | '__root__'
@@ -144,6 +155,7 @@ export interface FileRouteTypes {
     | '/strategie'
     | '/taches'
     | '/api/agent/tick'
+    | '/api/meta/retour'
     | '/api/visuels/$id'
   fileRoutesById: FileRoutesById
 }
@@ -157,6 +169,7 @@ export interface RootRouteChildren {
   StrategieRoute: typeof StrategieRoute
   TachesRoute: typeof TachesRoute
   ApiAgentTickRoute: typeof ApiAgentTickRoute
+  ApiMetaRetourRoute: typeof ApiMetaRetourRoute
   ApiVisuelsIdRoute: typeof ApiVisuelsIdRoute
 }
 
@@ -225,6 +238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/meta/retour': {
+      id: '/api/meta/retour'
+      path: '/api/meta/retour'
+      fullPath: '/api/meta/retour'
+      preLoaderRoute: typeof ApiMetaRetourRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/visuels/$id': {
       id: '/api/visuels/$id'
       path: '/api/visuels/$id'
@@ -245,6 +265,7 @@ const rootRouteChildren: RootRouteChildren = {
   StrategieRoute: StrategieRoute,
   TachesRoute: TachesRoute,
   ApiAgentTickRoute: ApiAgentTickRoute,
+  ApiMetaRetourRoute: ApiMetaRetourRoute,
   ApiVisuelsIdRoute: ApiVisuelsIdRoute,
 }
 export const routeTree = rootRouteImport

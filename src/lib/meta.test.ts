@@ -1,0 +1,42 @@
+import { describe, expect, it } from "vitest";
+import { comptesDepuisPages, urlDialogue } from "./meta";
+import { creerEtat, lireEtat } from "./meta.server";
+
+describe("état signé", () => {
+  it("retrouve l'utilisateur", () => {
+    expect(lireEtat(creerEtat("u1", "s", 0), "s", 1000)).toBe("u1");
+  });
+  it("refuse une signature fausse, un autre secret ou un état expiré", () => {
+    const e = creerEtat("u1", "s", 0);
+    expect(lireEtat(e.replace(/.$/, (c) => (c === "A" ? "B" : "A")), "s", 1000)).toBeNull();
+    expect(lireEtat(e, "autre", 1000)).toBeNull();
+    expect(lireEtat(e, "s", 16 * 60_000)).toBeNull();
+    expect(lireEtat("n'importe quoi", "s", 0)).toBeNull();
+  });
+});
+
+describe("comptesDepuisPages", () => {
+  it("donne Facebook et l'Instagram relié", () => {
+    expect(
+      comptesDepuisPages([
+        { id: "p1", name: "BTP Ecosystem", access_token: "j1", instagram_business_account: { id: "i1", username: "btpecosystem" } },
+        { id: "p2", name: "Autre", access_token: "j2" },
+      ]),
+    ).toEqual([
+      { plateforme: "facebook", externe_id: "p1", nom: "BTP Ecosystem", jeton: "j1" },
+      { plateforme: "instagram", externe_id: "i1", nom: "btpecosystem", jeton: "j1" },
+      { plateforme: "facebook", externe_id: "p2", nom: "Autre", jeton: "j2" },
+    ]);
+  });
+});
+
+describe("urlDialogue", () => {
+  it("demande les droits, ou utilise la configuration si fournie", () => {
+    const u = new URL(urlDialogue({ appId: "1", retour: "https://x/r", etat: "e" }));
+    expect(u.searchParams.get("scope")).toContain("pages_manage_posts");
+    expect(u.searchParams.get("redirect_uri")).toBe("https://x/r");
+    const c = new URL(urlDialogue({ appId: "1", retour: "https://x/r", etat: "e", configId: "42" }));
+    expect(c.searchParams.get("config_id")).toBe("42");
+    expect(c.searchParams.has("scope")).toBe(false);
+  });
+});

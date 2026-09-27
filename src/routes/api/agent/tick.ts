@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PLATEFORMES } from "@/lib/plateformes";
+import { publierSur } from "@/lib/publication.server";
 import { preparer, type Ecrivain } from "@/lib/preparation.server";
 import { clientMoteur } from "@/lib/supabase-serveur";
-import { publier } from "@/lib/zernio.server";
 
 // Moteur de l'agent : appelé toutes les 5 minutes par pg_cron (Supabase).
 // 1. Publie les tâches validées dont l'heure est venue (texte + visuel).
@@ -10,6 +10,7 @@ import { publier } from "@/lib/zernio.server";
 // Chaque étape est racontée dans le journal « en direct ».
 type Due = {
   tache_id: string;
+  user_id: string;
   plateforme: string | null;
   titre: string;
   consigne: string;
@@ -18,6 +19,7 @@ type Due = {
   video_url: string | null;
   compte_externe_id: string | null;
   cible_urn: string | null;
+  fournisseur: string | null;
   contexte: string | null;
 };
 
@@ -50,8 +52,7 @@ async function tick(secret: string) {
   if (error) throw new Error(error.message);
   let traitees = 0;
   for (const t of (data ?? []) as Due[]) {
-    const zernio = PLATEFORMES.find((p) => p.id === t.plateforme)?.zernio;
-    if (!zernio || !t.compte_externe_id) {
+    if (!t.plateforme || !t.compte_externe_id) {
       await maj(t.tache_id, "echouee", null, "erreur", `« ${t.titre} » : réseau non connecté, publication impossible.`);
       continue;
     }
@@ -68,8 +69,8 @@ async function tick(secret: string) {
         : pret.visuel_url
           ? ({ type: "image", url: pret.visuel_url } as const)
           : null;
-      const post = await publier(zernio, t.compte_externe_id, pret.brouillon, media, t.cible_urn);
-      await maj(t.tache_id, "terminee", { post_id: post._id, publie_le: new Date().toISOString() }, "info", `✅ Publié : « ${t.titre} »`);
+      const postId = await publierSur(t.plateforme, t.user_id, { fournisseur: t.fournisseur, compte_externe_id: t.compte_externe_id, cible_urn: t.cible_urn }, pret.brouillon, media);
+      await maj(t.tache_id, "terminee", { post_id: postId, publie_le: new Date().toISOString() }, "info", `✅ Publié : « ${t.titre} »`);
       traitees++;
     } catch (e) {
       await maj(t.tache_id, "echouee", null, "erreur", `Échec sur « ${t.titre} » : ${e instanceof Error ? e.message : "erreur"}`);

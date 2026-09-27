@@ -13,7 +13,14 @@ import { nomPlateforme } from "@/lib/plateformes";
 
 export const Route = createFileRoute("/comptes")({ component: Comptes });
 
-type Compte = { id: string; plateforme: string; statut: string; nom_utilisateur: string | null; compte_externe_id: string | null };
+type Compte = {
+  id: string;
+  plateforme: string;
+  statut: string;
+  nom_utilisateur: string | null;
+  compte_externe_id: string | null;
+  fournisseur: "zernio" | "meta";
+};
 
 // Erreurs renvoyées par Zernio au retour de la page d'autorisation.
 const ERREURS_RETOUR: Record<string, string> = {
@@ -35,7 +42,7 @@ const GROUPES: { titre: string; filtre: (p: Plateforme) => boolean }[] = [
 function Comptes() {
   const userId = useUserId();
   const comptes = useRequete<Compte[]>(
-    () => supabase().from("comptes_connectes").select("id, plateforme, statut, nom_utilisateur, compte_externe_id"),
+    () => supabase().from("comptes_connectes").select("id, plateforme, statut, nom_utilisateur, compte_externe_id, fournisseur"),
     [userId],
   );
   const [erreur, setErreur] = useState<string | null>(null);
@@ -191,12 +198,18 @@ function Comptes() {
         </Carte>
       )}
 
+      <PagesMeta comptes={comptes.data ?? []} onChange={recharger} />
+
       {comptes.data?.find((c) => c.plateforme === "linkedin" && c.statut === "connecte") && (
         <ChoixPageLinkedin
           nomProfil={comptes.data.find((c) => c.plateforme === "linkedin")?.nom_utilisateur ?? null}
         />
       )}
 
+      <p className="mb-2 text-xs text-doux">
+        Facebook et Instagram : connexion directe à Meta, gratuite et sans limite ; elle n'occupe pas de place chez Zernio.
+        Instagram doit être un compte professionnel relié à votre page Facebook.
+      </p>
       <p className="mb-4 text-xs text-doux">
         LinkedIn : la connexion se fait avec votre compte personnel ; choisissez ensuite
         ci-dessus la page entreprise au nom de laquelle publier (il faut en être administrateur).
@@ -209,7 +222,11 @@ function Comptes() {
             <h2 className="mb-3 text-xs font-semibold tracking-wider text-doux uppercase">{g.titre}</h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {liste.map((p) => {
-                const compte = comptes.data?.find((c) => c.plateforme === p.id);
+                // Le compte actif d'abord, la connexion directe Meta avant Zernio.
+                const compte =
+                  comptes.data?.find((c) => c.plateforme === p.id && c.statut === "connecte" && c.fournisseur === "meta") ??
+                  comptes.data?.find((c) => c.plateforme === p.id && c.statut === "connecte") ??
+                  comptes.data?.find((c) => c.plateforme === p.id && c.statut !== "desactive");
                 const connecte = compte?.statut === "connecte";
                 const disponible = p.zernio !== null;
                 return (
@@ -225,7 +242,7 @@ function Comptes() {
                       <p className={`flex items-center gap-1.5 truncate text-xs ${connecte ? "text-ok" : "text-doux"}`}>
                         <span className={`inline-block size-1.5 rounded-full ${connecte ? "bg-ok" : "bg-doux/50"}`} aria-hidden />
                         {connecte
-                          ? compte?.nom_utilisateur ? `@${compte.nom_utilisateur.replace(/^@/, "")}` : "Connecté"
+                          ? `${compte?.nom_utilisateur ? (compte.plateforme === "facebook" ? compte.nom_utilisateur : `@${compte.nom_utilisateur.replace(/^@/, "")}`) : "Connecté"}${compte?.fournisseur === "meta" ? " · direct" : ""}`
                           : compte?.statut === "erreur"
                             ? "Connexion à refaire"
                             : disponible
@@ -255,5 +272,48 @@ function Comptes() {
         );
       })}
     </>
+  );
+}
+
+// Plusieurs pages autorisées chez Meta : choisir celle au nom de laquelle publier.
+function PagesMeta({ comptes, onChange }: { comptes: Compte[]; onChange: () => Promise<void> }) {
+  const [erreur, setErreur] = useState<string | null>(null);
+  const meta = comptes.filter((c) => c.fournisseur === "meta");
+  const plateformes = ["facebook", "instagram"].filter((p) => meta.filter((c) => c.plateforme === p).length > 1);
+  if (plateformes.length === 0) return null;
+
+  async function utiliser(c: Compte) {
+    const sb = supabase();
+    const autres = meta.filter((x) => x.plateforme === c.plateforme && x.id !== c.id).map((x) => x.id);
+    const r1 = await sb.from("comptes_connectes").update({ statut: "desactive" }).in("id", autres);
+    const r2 = await sb.from("comptes_connectes").update({ statut: "connecte" }).eq("id", c.id);
+    setErreur(r1.error?.message ?? r2.error?.message ?? null);
+    await onChange();
+  }
+
+  return (
+    <Carte className="my-4">
+      <h2 className="font-medium">Page utilisée pour publier</h2>
+      <p className="mt-1 text-xs text-doux">Vous avez autorisé plusieurs pages. L'agent publie sur celle qui est cochée.</p>
+      {plateformes.map((p) => (
+        <fieldset key={p} className="mt-3">
+          <legend className="mb-2 flex items-center gap-2 text-sm">
+            <LogoPlateforme id={p} taille={20} />
+            {nomPlateforme(p)}
+          </legend>
+          <div className="space-y-1.5">
+            {meta
+              .filter((c) => c.plateforme === p)
+              .map((c) => (
+                <label key={c.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input type="radio" name={`page-${p}`} checked={c.statut === "connecte"} onChange={() => utiliser(c)} className="accent-accent" />
+                  {c.nom_utilisateur ?? c.compte_externe_id}
+                </label>
+              ))}
+          </div>
+        </fieldset>
+      ))}
+      <Erreur message={erreur} />
+    </Carte>
   );
 }

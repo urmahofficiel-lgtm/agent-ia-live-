@@ -13,6 +13,8 @@ import { consigneProfilDepuisSite } from "./site";
 import { lireSite } from "./site.server";
 import { CATEGORIES, lireReponseOverpass, requeteOverpass } from "./osm";
 import { utilisateurDepuisJeton } from "./supabase-serveur";
+import { metaConfigure, urlConnexionMeta } from "./meta.server";
+import { publierSur, type CompteCible } from "./publication.server";
 import {
   creerProfil,
   deconnecterCompte,
@@ -22,7 +24,6 @@ import {
   listerComptes,
   listerConversations,
   organisationsLinkedin,
-  publier,
   type Media,
   repondreCommentaire,
   urlAutorisation,
@@ -180,14 +181,15 @@ export const publierTache = createServerFn({ method: "POST" })
           : null;
       if (!brouillon) return { ok: false, erreur: "Rédigez d'abord le contenu avec l'IA." };
 
-      const zernio = PLATEFORMES.find((p) => p.id === t.plateforme)?.zernio;
-      if (!zernio) return { ok: false, erreur: "Cette plateforme ne peut pas encore publier." };
+      if (!t.plateforme) return { ok: false, erreur: "Cette tâche n'a pas de réseau." };
+      // Connexion directe Meta en priorité (« meta » < « zernio »).
       const { data: compte } = await sb
         .from("comptes_connectes")
-        .select("compte_externe_id, cible_urn")
+        .select("compte_externe_id, cible_urn, fournisseur")
         .eq("plateforme", t.plateforme)
         .eq("statut", "connecte")
         .not("compte_externe_id", "is", null)
+        .order("fournisseur")
         .limit(1)
         .maybeSingle();
       if (!compte?.compte_externe_id) {
@@ -200,10 +202,10 @@ export const publierTache = createServerFn({ method: "POST" })
       await sb.from("taches").update({ statut: "en_cours" }).eq("id", t.id);
       await journal("action", `🚀 Publication en cours sur ${PLATEFORMES.find((p) => p.id === t.plateforme)?.nom} : « ${t.titre} »`);
       try {
-        const post = await publier(zernio, compte.compte_externe_id, brouillon, media, compte.cible_urn as string | null);
+        const postId = await publierSur(t.plateforme, user.id, compte as CompteCible, brouillon, media);
         await sb
           .from("taches")
-          .update({ statut: "terminee", resultat: { ...(t.resultat as object), post_id: post._id, publie_le: new Date().toISOString() } })
+          .update({ statut: "terminee", resultat: { ...(t.resultat as object), post_id: postId, publie_le: new Date().toISOString() } })
           .eq("id", t.id);
         await journal("info", `✅ Publié : « ${t.titre} »`);
         return { ok: true };
@@ -231,6 +233,11 @@ export const urlConnexion = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ plateforme: z.string(), jeton }).parse(input))
   .handler(async ({ data }): Promise<Resultat<{ url: string }>> => {
     try {
+      // Facebook et Instagram : connexion directe à Meta quand l'app est configurée.
+      if (["facebook", "instagram"].includes(data.plateforme) && metaConfigure()) {
+        const { user } = await utilisateurDepuisJeton(data.jeton);
+        return { ok: true, url: urlConnexionMeta(user.id) };
+      }
       if (!zernioConfigure()) return { ok: false, erreur: "ZERNIO_ABSENT" };
       const p = PLATEFORMES.find((x) => x.id === data.plateforme);
       if (!p?.zernio) return { ok: false, erreur: "Cette plateforme n'est pas encore connectable." };
@@ -273,7 +280,7 @@ export const synchroniserComptes = createServerFn({ method: "POST" })
         if (!error) utilises.add(c._id);
       }
       // Comptes qui n'existent plus chez Zernio : retirés de la liste.
-      const { data: lignes } = await sb.from("comptes_connectes").select("id, compte_externe_id");
+      const { data: lignes } = await sb.from("comptes_connectes").select("id, compte_externe_id").eq("fournisseur", "zernio");
       const ids = new Set(comptes.map((c) => c._id));
       const perimes = (lignes ?? []).filter((l) => l.compte_externe_id && !ids.has(l.compte_externe_id as string)).map((l) => l.id);
       if (perimes.length) await sb.from("comptes_connectes").delete().in("id", perimes);
@@ -299,8 +306,19 @@ export const deconnecter = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ compteExterneId: z.string().min(1), jeton }).parse(input))
   .handler(async ({ data }): Promise<Resultat> => {
     try {
-      if (!zernioConfigure()) return { ok: false, erreur: "ZERNIO_ABSENT" };
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
+      // Connexion directe Meta : rien à libérer ailleurs, on retire la ligne
+      // (le jeton part avec elle).
+      const { data: direct } = await sb
+        .from("comptes_connectes")
+        .select("id")
+        .eq("compte_externe_id", data.compteExterneId)
+        .eq("fournisseur", "meta");
+      if (direct?.length) {
+        const { error } = await sb.from("comptes_connectes").delete().in("id", direct.map((d) => d.id));
+        return error ? { ok: false, erreur: error.message } : { ok: true };
+      }
+      if (!zernioConfigure()) return { ok: false, erreur: "ZERNIO_ABSENT" };
       // Le compte doit appartenir au profil Zernio de cet utilisateur.
       const profil = await profilZernio(sb, user);
       const comptes = await listerComptes(profil);
