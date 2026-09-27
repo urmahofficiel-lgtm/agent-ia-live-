@@ -17,7 +17,6 @@ import { Route as ParametresRouteImport } from './routes/parametres'
 import { Route as ProspectionRouteImport } from './routes/prospection'
 import { Route as StrategieRouteImport } from './routes/strategie'
 import { Route as TachesRouteImport } from './routes/taches'
-import { Route as ApiSanteVideoRouteImport } from './routes/api/sante-video'
 import { Route as ApiAgentTickRouteImport } from './routes/api/agent/tick'
 import { Route as ApiVisuelsIdRouteImport } from './routes/api/visuels/$id'
 
@@ -61,11 +60,6 @@ const TachesRoute = TachesRouteImport.update({
   path: '/taches',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiSanteVideoRoute = ApiSanteVideoRouteImport.update({
-  id: '/api/sante-video',
-  path: '/api/sante-video',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAgentTickRoute = ApiAgentTickRouteImport.update({
   id: '/api/agent/tick',
   path: '/api/agent/tick',
@@ -86,7 +80,6 @@ export interface FileRoutesByFullPath {
   '/prospection': typeof ProspectionRoute
   '/strategie': typeof StrategieRoute
   '/taches': typeof TachesRoute
-  '/api/sante-video': typeof ApiSanteVideoRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
@@ -99,7 +92,6 @@ export interface FileRoutesByTo {
   '/prospection': typeof ProspectionRoute
   '/strategie': typeof StrategieRoute
   '/taches': typeof TachesRoute
-  '/api/sante-video': typeof ApiSanteVideoRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
@@ -113,7 +105,6 @@ export interface FileRoutesById {
   '/prospection': typeof ProspectionRoute
   '/strategie': typeof StrategieRoute
   '/taches': typeof TachesRoute
-  '/api/sante-video': typeof ApiSanteVideoRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
@@ -128,7 +119,6 @@ export interface FileRouteTypes {
     | '/prospection'
     | '/strategie'
     | '/taches'
-    | '/api/sante-video'
     | '/api/agent/tick'
     | '/api/visuels/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -141,7 +131,6 @@ export interface FileRouteTypes {
     | '/prospection'
     | '/strategie'
     | '/taches'
-    | '/api/sante-video'
     | '/api/agent/tick'
     | '/api/visuels/$id'
   id:
@@ -154,7 +143,6 @@ export interface FileRouteTypes {
     | '/prospection'
     | '/strategie'
     | '/taches'
-    | '/api/sante-video'
     | '/api/agent/tick'
     | '/api/visuels/$id'
   fileRoutesById: FileRoutesById
@@ -168,7 +156,6 @@ export interface RootRouteChildren {
   ProspectionRoute: typeof ProspectionRoute
   StrategieRoute: typeof StrategieRoute
   TachesRoute: typeof TachesRoute
-  ApiSanteVideoRoute: typeof ApiSanteVideoRoute
   ApiAgentTickRoute: typeof ApiAgentTickRoute
   ApiVisuelsIdRoute: typeof ApiVisuelsIdRoute
 }
@@ -231,13 +218,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TachesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/sante-video': {
-      id: '/api/sante-video'
-      path: '/api/sante-video'
-      fullPath: '/api/sante-video'
-      preLoaderRoute: typeof ApiSanteVideoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/agent/tick': {
       id: '/api/agent/tick'
       path: '/api/agent/tick'
@@ -264,7 +244,6 @@ const rootRouteChildren: RootRouteChildren = {
   ProspectionRoute: ProspectionRoute,
   StrategieRoute: StrategieRoute,
   TachesRoute: TachesRoute,
-  ApiSanteVideoRoute: ApiSanteVideoRoute,
   ApiAgentTickRoute: ApiAgentTickRoute,
   ApiVisuelsIdRoute: ApiVisuelsIdRoute,
 }

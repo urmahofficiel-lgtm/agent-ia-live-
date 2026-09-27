@@ -9,7 +9,7 @@ export type Tache = {
   consigne: string;
   statut: StatutTache;
   planifiee_pour: string | null;
-  resultat: { brouillon?: string; visuel_url?: string } | null;
+  resultat: { brouillon?: string; visuel_url?: string; video_url?: string } | null;
   created_at: string;
 };
 

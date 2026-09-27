@@ -1,7 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { PLATEFORMES, plateformeParZernio } from "./plateformes";
-import { demanderIA } from "./ia.server";
+import { demanderIA, genererImage } from "./ia.server";
+import { consigneScript, durees, lireScript } from "./video";
+import { monterVideo } from "./video.server";
+import { voixConfiguree, voixOff } from "./voix.server";
 import { preparer, URL_SITE, type Ecrivain } from "./preparation.server";
 import { consignePlanification, datePrevue, lirePlan } from "./commande";
 import { consigneAnalyse, demandeDepuisStrategie, lireAnalyse, lireProfilDeduit, type Analyse, type Profil } from "./strategie";
@@ -16,6 +19,7 @@ import {
   listerComptes,
   listerConversations,
   publier,
+  type Media,
   repondreCommentaire,
   urlAutorisation,
   zernioConfigure,
@@ -159,7 +163,12 @@ export const publierTache = createServerFn({ method: "POST" })
         .single();
       if (!t) return { ok: false, erreur: "Tâche introuvable." };
       const brouillon = (t.resultat as { brouillon?: string } | null)?.brouillon;
-      const visuel = (t.resultat as { visuel_url?: string } | null)?.visuel_url;
+      const r = (t.resultat ?? {}) as { visuel_url?: string; video_url?: string };
+      const media: Media | null = r.video_url
+        ? { type: "video", url: r.video_url }
+        : r.visuel_url
+          ? { type: "image", url: r.visuel_url }
+          : null;
       if (!brouillon) return { ok: false, erreur: "Rédigez d'abord le contenu avec l'IA." };
 
       const zernio = PLATEFORMES.find((p) => p.id === t.plateforme)?.zernio;
@@ -182,7 +191,7 @@ export const publierTache = createServerFn({ method: "POST" })
       await sb.from("taches").update({ statut: "en_cours" }).eq("id", t.id);
       await journal("action", `🚀 Publication en cours sur ${PLATEFORMES.find((p) => p.id === t.plateforme)?.nom} : « ${t.titre} »`);
       try {
-        const post = await publier(zernio, compte.compte_externe_id, brouillon, visuel);
+        const post = await publier(zernio, compte.compte_externe_id, brouillon, media);
         await sb
           .from("taches")
           .update({ statut: "terminee", resultat: { ...(t.resultat as object), post_id: post._id, publie_le: new Date().toISOString() } })
@@ -625,6 +634,81 @@ export const planifierDepuisStrategie = createServerFn({ method: "POST" })
         message: `📅 Calendrier créé : ${plan.length} publications sur ${data.jours} jours, selon votre stratégie.`,
       });
       return { ok: true, creees: plan.length };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });
+
+// --- Vidéo courte verticale (TikTok, Reels, Shorts) ----------------------------
+
+export const creerVideo = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ tacheId: z.string().uuid(), jeton }).parse(input))
+  .handler(async ({ data }): Promise<Resultat<{ video_url: string }>> => {
+    try {
+      const { sb, user } = await utilisateurDepuisJeton(data.jeton);
+      const { data: t } = await sb.from("taches").select("id, plateforme, titre, consigne, resultat").eq("id", data.tacheId).single();
+      if (!t) return { ok: false, erreur: "Tâche introuvable." };
+      const journal = (niveau: string, msg: string, image?: string) =>
+        sb.from("evenements_taches").insert({ tache_id: t.id, user_id: user.id, niveau, message: msg, capture_url: image ?? null });
+      const contexte = await contexteMarque(sb);
+      const reseau = PLATEFORMES.find((p) => p.id === t.plateforme)?.nom ?? "TikTok, Reels et Shorts";
+
+      await journal("action", `🎬 Écriture du script vidéo : « ${t.titre} »`);
+      let script = null;
+      for (let essai = 0; essai < 2 && !script; essai++) {
+        script = lireScript(
+          await demanderIA(consigneScript(t, contexte, reseau), {
+            systeme: "Tu es scénariste de vidéos courtes pour les réseaux sociaux. Tu réponds uniquement en JSON valide.",
+            maxTokens: 3000,
+          }),
+        );
+      }
+      if (!script) return { ok: false, erreur: "Le script vidéo n'a pas pu être écrit. Réessayez." };
+      await journal("info", `Script : ${script.scenes.length} scènes — « ${script.scenes[0].texte_ecran} »`);
+
+      let voix = null;
+      if (voixConfiguree()) {
+        await journal("action", "🎙️ Enregistrement de la voix off (Gemini)…");
+        voix = await voixOff(script.scenes.map((s) => s.voix).join(" "));
+        await journal(voix ? "info" : "erreur", voix ? `Voix off prête (${Math.round(voix.duree)} s).` : "Voix off impossible : vidéo sans voix.");
+      }
+      const d = durees(script.scenes, voix ? voix.duree + 0.6 : undefined);
+
+      await journal("action", `🖼️ Création des ${script.scenes.length} images des scènes…`);
+      const images: Buffer[] = [];
+      const univers = contexte?.match(/Univers visuel[^:]*: (.*)/)?.[1] ?? "";
+      for (let i = 0; i < script.scenes.length; i += 3) {
+        const lot = script.scenes.slice(i, i + 3);
+        const faits = await Promise.all(
+          lot.map((s) =>
+            genererImage(`${s.visuel}. ${univers} Vertical 9:16 composition, realistic photo, no text.`, "tiktok"),
+          ),
+        );
+        images.push(...faits.map((f) => Buffer.from(f.base64, "base64")));
+      }
+
+      await journal("action", "✂️ Montage de la vidéo (zoom, textes, voix)…");
+      const mp4 = await monterVideo(
+        script.scenes.map((s, i) => ({ image: images[i], texte_ecran: s.texte_ecran })),
+        d,
+        voix ?? undefined,
+      );
+
+      const chemin = `${user.id}/${t.id}-${Date.now()}.mp4`;
+      const { error: errStockage } = await sb.storage.from("videos").upload(chemin, mp4, { contentType: "video/mp4" });
+      if (errStockage) return { ok: false, erreur: `Enregistrement de la vidéo impossible : ${errStockage.message}` };
+      const video_url = sb.storage.from("videos").getPublicUrl(chemin).data.publicUrl;
+
+      const resultat = {
+        ...((t.resultat as object | null) ?? {}),
+        brouillon: script.legende || (t.resultat as { brouillon?: string } | null)?.brouillon,
+        video_url,
+        video_script: script,
+        video_le: new Date().toISOString(),
+      };
+      await sb.from("taches").update({ resultat }).eq("id", t.id);
+      await journal("info", `✅ Vidéo prête (${Math.round(d.reduce((a, b) => a + b, 0))} s, ${(mp4.length / 1e6).toFixed(1)} Mo) — à valider dans Tâches.`);
+      return { ok: true, video_url };
     } catch (e) {
       return { ok: false, erreur: message(e) };
     }

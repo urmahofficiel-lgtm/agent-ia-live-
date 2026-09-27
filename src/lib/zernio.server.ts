@@ -51,14 +51,16 @@ export async function listerComptes(profileId: string) {
   });
 }
 
-export async function publier(plateforme: string, accountId: string, contenu: string, imageUrl?: string | null) {
+export type Media = { type: "image" | "video"; url: string };
+
+export async function publier(plateforme: string, accountId: string, contenu: string, media?: Media | null) {
   const r = await appel<{ post: { _id: string; status: string } }>("/posts", {
     method: "POST",
     body: JSON.stringify({
       content: contenu,
       publishNow: true,
       platforms: [{ platform: plateforme, accountId }],
-      ...(imageUrl ? { mediaItems: [{ type: "image", url: imageUrl }] } : {}),
+      ...(media ? { mediaItems: [{ type: media.type, url: media.url }] } : {}),
     }),
   });
   return r.post;

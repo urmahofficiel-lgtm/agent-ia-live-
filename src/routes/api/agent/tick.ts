@@ -15,6 +15,7 @@ type Due = {
   consigne: string;
   brouillon: string | null;
   visuel_url: string | null;
+  video_url: string | null;
   compte_externe_id: string | null;
   contexte: string | null;
 };
@@ -61,7 +62,12 @@ async function tick(secret: string) {
         ecrivainMoteur(t.tache_id),
       );
       await maj(t.tache_id, null, null, "action", `🚀 Publication sur ${PLATEFORMES.find((p) => p.id === t.plateforme)?.nom}…`);
-      const post = await publier(zernio, t.compte_externe_id, pret.brouillon, pret.visuel_url);
+      const media = t.video_url
+        ? ({ type: "video", url: t.video_url } as const)
+        : pret.visuel_url
+          ? ({ type: "image", url: pret.visuel_url } as const)
+          : null;
+      const post = await publier(zernio, t.compte_externe_id, pret.brouillon, media);
       await maj(t.tache_id, "terminee", { post_id: post._id, publie_le: new Date().toISOString() }, "info", `✅ Publié : « ${t.titre} »`);
       traitees++;
     } catch (e) {
