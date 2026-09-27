@@ -41,3 +41,18 @@ describe("urlDialogue", () => {
     expect(c.searchParams.get("override_default_response_type")).toBe("true");
   });
 });
+
+describe("connexion Instagram directe", () => {
+  it("construit la page d'autorisation Instagram", async () => {
+    const { urlDialogueInstagram } = await import("./meta");
+    const u = new URL(urlDialogueInstagram({ appId: "9", retour: "https://x/i", etat: "e" }));
+    expect(u.hostname).toBe("www.instagram.com");
+    expect(u.searchParams.get("scope")).toContain("instagram_business_content_publish");
+  });
+  it("lit le jeton court sous ses deux formes", async () => {
+    const { lireJetonInstagram } = await import("./meta");
+    expect(lireJetonInstagram({ access_token: "a", user_id: 12 })).toEqual({ jeton: "a", userId: "12" });
+    expect(lireJetonInstagram({ data: [{ access_token: "b", user_id: "34" }] })).toEqual({ jeton: "b", userId: "34" });
+    expect(lireJetonInstagram({ error_message: "x" })).toBeNull();
+  });
+});

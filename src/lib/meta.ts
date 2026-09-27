@@ -44,3 +44,31 @@ export function urlDialogue(p: { appId: string; retour: string; etat: string; co
   else q.set("scope", PERMISSIONS_META.join(","));
   return `https://www.facebook.com/${VERSION_GRAPH}/dialog/oauth?${q}`;
 }
+
+// --- Connexion Instagram directe (compte pro, sans page Facebook) -----------
+
+export const PERMISSIONS_INSTAGRAM = [
+  "instagram_business_basic",
+  "instagram_business_content_publish",
+  "instagram_business_manage_comments",
+  "instagram_business_manage_messages",
+];
+
+export function urlDialogueInstagram(p: { appId: string; retour: string; etat: string }) {
+  const q = new URLSearchParams({
+    client_id: p.appId,
+    redirect_uri: p.retour,
+    response_type: "code",
+    scope: PERMISSIONS_INSTAGRAM.join(","),
+    state: p.etat,
+    enable_fb_login: "0",
+  });
+  return `https://www.instagram.com/oauth/authorize?${q}`;
+}
+
+// Le jeton court arrive soit à plat, soit dans `data[0]` selon les versions.
+export function lireJetonInstagram(json: unknown): { jeton: string; userId: string } | null {
+  const j = json as { access_token?: string; user_id?: string | number; data?: { access_token?: string; user_id?: string | number }[] };
+  const d = j?.access_token ? j : j?.data?.[0];
+  return d?.access_token && d.user_id != null ? { jeton: d.access_token, userId: String(d.user_id) } : null;
+}

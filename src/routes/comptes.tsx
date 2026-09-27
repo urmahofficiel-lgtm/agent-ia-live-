@@ -19,7 +19,7 @@ type Compte = {
   statut: string;
   nom_utilisateur: string | null;
   compte_externe_id: string | null;
-  fournisseur: "zernio" | "meta";
+  fournisseur: "zernio" | "meta" | "instagram";
 };
 
 // Erreurs renvoyées par Zernio au retour de la page d'autorisation.
@@ -208,7 +208,7 @@ function Comptes() {
 
       <p className="mb-2 text-xs text-doux">
         Facebook et Instagram : connexion directe à Meta, gratuite et sans limite ; elle n'occupe pas de place chez Zernio.
-        Instagram doit être un compte professionnel relié à votre page Facebook.
+        Instagram doit être un compte professionnel ou créateur (réglage gratuit dans l'app Instagram : Paramètres → Type de compte).
       </p>
       <p className="mb-4 text-xs text-doux">
         LinkedIn : la connexion se fait avec votre compte personnel ; choisissez ensuite
@@ -224,7 +224,7 @@ function Comptes() {
               {liste.map((p) => {
                 // Le compte actif d'abord, la connexion directe Meta avant Zernio.
                 const compte =
-                  comptes.data?.find((c) => c.plateforme === p.id && c.statut === "connecte" && c.fournisseur === "meta") ??
+                  comptes.data?.find((c) => c.plateforme === p.id && c.statut === "connecte" && c.fournisseur !== "zernio") ??
                   comptes.data?.find((c) => c.plateforme === p.id && c.statut === "connecte") ??
                   comptes.data?.find((c) => c.plateforme === p.id && c.statut !== "desactive");
                 const connecte = compte?.statut === "connecte";
@@ -242,7 +242,7 @@ function Comptes() {
                       <p className={`flex items-center gap-1.5 truncate text-xs ${connecte ? "text-ok" : "text-doux"}`}>
                         <span className={`inline-block size-1.5 rounded-full ${connecte ? "bg-ok" : "bg-doux/50"}`} aria-hidden />
                         {connecte
-                          ? `${compte?.nom_utilisateur ? (compte.plateforme === "facebook" ? compte.nom_utilisateur : `@${compte.nom_utilisateur.replace(/^@/, "")}`) : "Connecté"}${compte?.fournisseur === "meta" ? " · direct" : ""}`
+                          ? `${compte?.nom_utilisateur ? (compte.plateforme === "facebook" ? compte.nom_utilisateur : `@${compte.nom_utilisateur.replace(/^@/, "")}`) : "Connecté"}${compte?.fournisseur !== "zernio" ? " · direct" : ""}`
                           : compte?.statut === "erreur"
                             ? "Connexion à refaire"
                             : disponible

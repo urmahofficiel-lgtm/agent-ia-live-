@@ -14,6 +14,7 @@ import { lireSite } from "./site.server";
 import { CATEGORIES, lireReponseOverpass, requeteOverpass } from "./osm";
 import { utilisateurDepuisJeton } from "./supabase-serveur";
 import { metaConfigure, urlConnexionMeta } from "./meta.server";
+import { instagramConfigure, urlConnexionInstagram } from "./instagram.server";
 import { publierSur, type CompteCible } from "./publication.server";
 import {
   creerProfil,
@@ -189,7 +190,7 @@ export const publierTache = createServerFn({ method: "POST" })
         .eq("plateforme", t.plateforme)
         .eq("statut", "connecte")
         .not("compte_externe_id", "is", null)
-        .order("fournisseur")
+        .order("fournisseur") // « instagram » et « meta » passent avant « zernio »
         .limit(1)
         .maybeSingle();
       if (!compte?.compte_externe_id) {
@@ -234,6 +235,11 @@ export const urlConnexion = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<Resultat<{ url: string }>> => {
     try {
       // Facebook et Instagram : connexion directe à Meta quand l'app est configurée.
+      // Instagram : connexion Instagram directe (compte pro, sans page Facebook).
+      if (data.plateforme === "instagram" && instagramConfigure()) {
+        const { user } = await utilisateurDepuisJeton(data.jeton);
+        return { ok: true, url: urlConnexionInstagram(user.id) };
+      }
       if (["facebook", "instagram"].includes(data.plateforme) && metaConfigure()) {
         const { user } = await utilisateurDepuisJeton(data.jeton);
         return { ok: true, url: urlConnexionMeta(user.id) };
@@ -313,7 +319,7 @@ export const deconnecter = createServerFn({ method: "POST" })
         .from("comptes_connectes")
         .select("id")
         .eq("compte_externe_id", data.compteExterneId)
-        .eq("fournisseur", "meta");
+        .in("fournisseur", ["meta", "instagram"]);
       if (direct?.length) {
         const { error } = await sb.from("comptes_connectes").delete().in("id", direct.map((d) => d.id));
         return error ? { ok: false, erreur: error.message } : { ok: true };

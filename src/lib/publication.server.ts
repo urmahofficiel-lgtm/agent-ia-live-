@@ -1,25 +1,33 @@
 import { PLATEFORMES } from "./plateformes";
 import { clientMoteur } from "./supabase-serveur";
 import { publierFacebook, publierInstagram } from "./meta.server";
+import { prolongerJetonInstagram, publierInstagramDirect } from "./instagram.server";
 import { publier, type Media } from "./zernio.server";
 
 export type CompteCible = { fournisseur: string | null; compte_externe_id: string; cible_urn: string | null };
 
-// Publie par le bon canal : connexion directe Meta si elle existe, sinon Zernio.
-// Renvoie l'identifiant du post chez le réseau (ou chez Zernio).
+// Publie par le bon canal : connexion directe (Meta ou Instagram) si elle
+// existe, sinon Zernio. Renvoie l'identifiant du post.
 export async function publierSur(plateforme: string, userId: string, compte: CompteCible, texte: string, media: Media | null) {
-  if (compte.fournisseur === "meta") {
+  if (compte.fournisseur === "meta" || compte.fournisseur === "instagram") {
     const secret = process.env.AGENT_TICK_SECRET ?? "";
-    const { data: jeton, error } = await clientMoteur().rpc("meta_jeton", {
-      p_secret: secret,
-      p_user: userId,
-      p_externe: compte.compte_externe_id,
-    });
-    if (error || !jeton) throw new Error("Connexion Facebook introuvable : reconnectez le compte (page Comptes).");
+    const sb = clientMoteur();
+    const { data, error } = await sb.rpc("compte_jeton", { p_secret: secret, p_user: userId, p_externe: compte.compte_externe_id });
+    if (error || !data) throw new Error("Connexion introuvable : reconnectez le compte (page Comptes).");
+    let jeton = data as string;
+
+    if (compte.fournisseur === "instagram") {
+      const neuf = await prolongerJetonInstagram(jeton);
+      if (neuf && neuf !== jeton) {
+        jeton = neuf;
+        await sb.rpc("compte_maj_jeton", { p_secret: secret, p_user: userId, p_externe: compte.compte_externe_id, p_jeton: neuf });
+      }
+      return (await publierInstagramDirect(compte.compte_externe_id, jeton, texte, media)).id;
+    }
     const post =
       plateforme === "instagram"
-        ? await publierInstagram(compte.compte_externe_id, jeton as string, texte, media)
-        : await publierFacebook(compte.compte_externe_id, jeton as string, texte, media);
+        ? await publierInstagram(compte.compte_externe_id, jeton, texte, media)
+        : await publierFacebook(compte.compte_externe_id, jeton, texte, media);
     return post.id;
   }
   const zernio = PLATEFORMES.find((p) => p.id === plateforme)?.zernio;
