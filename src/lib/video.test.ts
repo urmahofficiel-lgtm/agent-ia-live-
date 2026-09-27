@@ -59,3 +59,22 @@ describe("dureeWav", async () => {
     expect(dureeWav(Buffer.concat([entete, donnees]))).toBeCloseTo(3, 5);
   });
 });
+
+describe("scriptDeSecours", () => {
+  it("construit au moins 4 scènes avec l'appel à l'action de la marque", async () => {
+    const { scriptDeSecours } = await import("./video");
+    const s = scriptDeSecours(
+      {
+        titre: "Devis IA en 2 min",
+        consigne: "",
+        brouillon:
+          "**Devis IA en 2 min**\nVous êtes sur un chantier et vous n'avez qu'une minute ? Avec BTP Ecosystem, générez un devis complet en 2 minutes. 👉 https://btp-ecosystem.com #BTP #Devis",
+      },
+      "Marque : BTP Ecosystem\nSite / lien à mettre dans les posts : https://btp-ecosystem.com",
+    );
+    expect(s.scenes.length).toBeGreaterThanOrEqual(4);
+    expect(s.scenes.at(-1)?.voix).toBe("Découvrez BTP Ecosystem sur btp-ecosystem.com.");
+    expect(s.scenes.every((x) => x.texte_ecran.split(" ").length <= 6)).toBe(true);
+    expect(s.scenes.some((x) => x.voix.includes("http") || x.voix.includes("#"))).toBe(false);
+  });
+});

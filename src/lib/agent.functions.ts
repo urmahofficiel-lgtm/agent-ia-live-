@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { PLATEFORMES, plateformeParZernio } from "./plateformes";
 import { demanderIA, genererImage } from "./ia.server";
-import { consigneScript, durees, lireScript } from "./video";
+import { consigneScript, durees, lireScript, scriptDeSecours } from "./video";
 import { monterVideo } from "./video.server";
 import { voixConfiguree, voixOff } from "./voix.server";
 import { pexelsConfigure, photo, sequenceVerticale } from "./pexels.server";
@@ -734,24 +734,34 @@ export const creerVideo = createServerFn({ method: "POST" })
       if (!t) return { ok: false, erreur: "Tâche introuvable." };
       const journal = (niveau: string, msg: string, image?: string) =>
         sb.from("evenements_taches").insert({ tache_id: t.id, user_id: user.id, niveau, message: msg, capture_url: image ?? null });
+      const debutVideo = Date.now();
       const contexte = await contexteMarque(sb);
       const reseau = PLATEFORMES.find((p) => p.id === t.plateforme)?.nom ?? "TikTok, Reels et Shorts";
       await etatVideo(sb, t.id, { video_etat: "en_cours", video_erreur: null, video_debut: new Date().toISOString() });
 
       await journal("action", `🎬 Écriture du script vidéo : « ${t.titre} »`);
       // Budget serré : la fonction entière doit tenir sous les 5 minutes de Vercel.
-      const finScript = Date.now() + 100_000;
+      const finScript = Date.now() + 80_000;
       let script = null;
       for (let essai = 0; essai < 2 && !script && Date.now() < finScript - 10_000; essai++) {
-        script = lireScript(
-          await demanderIA(consigneScript(t, contexte, reseau), {
-            systeme: "Tu es scénariste de vidéos courtes pour les réseaux sociaux. Tu réponds uniquement en JSON valide.",
-            maxTokens: 2000,
-            delaiTotal: finScript - Date.now(),
-          }),
-        );
+        try {
+          script = lireScript(
+            await demanderIA(consigneScript(t, contexte, reseau), {
+              systeme: "Tu es scénariste de vidéos courtes pour les réseaux sociaux. Tu réponds uniquement en JSON valide.",
+              maxTokens: 2000,
+              delaiTotal: finScript - Date.now(),
+            }),
+          );
+        } catch (err) {
+          console.warn("Script vidéo : IA indisponible", err instanceof Error ? err.message : err);
+          break;
+        }
       }
-      if (!script) throw new Error("Le script vidéo n'a pas pu être écrit.");
+      if (!script) {
+        // IA saturée : script tiré du texte de la publication, la vidéo se fait quand même.
+        script = scriptDeSecours({ ...t, brouillon: (t.resultat as { brouillon?: string } | null)?.brouillon }, contexte);
+        await journal("info", "IA occupée : script construit à partir du texte de la publication.");
+      }
       await journal("info", `Script : ${script.scenes.length} scènes — « ${script.scenes[0].texte_ecran} »`);
 
       let voix = null;
@@ -762,8 +772,8 @@ export const creerVideo = createServerFn({ method: "POST" })
       }
       const d = durees(script.scenes, voix ? voix.duree + 0.6 : undefined);
 
-      // Pour chaque scène : une vraie séquence filmée Pexels si possible,
-      // sinon une image IA (FLUX) animée.
+      // Pour chaque scène : séquence filmée Pexels, sinon photo Pexels, sinon
+      // image IA (FLUX) ; les images sont animées au montage.
       const univers = contexte?.match(/Univers visuel[^:]*: (.*)/)?.[1] ?? "";
       const medias: { image?: Buffer; clip?: Buffer }[] = [];
       if (pexelsConfigure()) await journal("action", "🎥 Recherche de séquences filmées (Pexels)…");
@@ -774,24 +784,21 @@ export const creerVideo = createServerFn({ method: "POST" })
             if (pexelsConfigure() && s.recherche_stock) {
               const clip = await sequenceVerticale(s.recherche_stock, d[i + j]).catch(() => null);
               if (clip) return { clip };
+              // Photo réelle verticale : rapide et toujours cohérente avec la niche.
+              const img = await photo(s.recherche_stock, "portrait").catch(() => null);
+              if (img) return { image: img };
             }
-            try {
-              const img = await genererImage(`${s.visuel}. ${univers} Vertical 9:16 composition, realistic photo, no text.`, "tiktok");
-              return { image: Buffer.from(img.base64, "base64") };
-            } catch (err) {
-              // Secours : une vraie photo verticale Pexels.
-              const secours = pexelsConfigure()
-                ? await photo(s.recherche_stock || s.visuel.split(/[,.]/)[0], "portrait").catch(() => null)
-                : null;
-              if (secours) return { image: secours };
-              throw err;
-            }
+            // Image IA en dernier recours, seulement s'il reste du temps
+            // (la fonction doit finir en moins de 5 minutes).
+            if (Date.now() - debutVideo > 170_000) throw new Error("Temps insuffisant pour créer les images des scènes.");
+            const img = await genererImage(`${s.visuel}. ${univers} Vertical 9:16 composition, realistic photo, no text.`, "tiktok");
+            return { image: Buffer.from(img.base64, "base64") };
           }),
         );
         medias.push(...faits);
       }
       const nbClips = medias.filter((m) => m.clip).length;
-      await journal("info", `Scènes prêtes : ${nbClips} séquence(s) filmée(s), ${medias.length - nbClips} image(s) IA.`);
+      await journal("info", `Scènes prêtes : ${nbClips} séquence(s) filmée(s), ${medias.length - nbClips} image(s).`);
 
       await journal("action", "✂️ Montage de la vidéo (zoom, textes, voix)…");
       const mp4 = await monterVideo(

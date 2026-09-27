@@ -80,3 +80,39 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 ${lignes.join("\n")}
 `;
 }
+
+// Script construit sans IA à partir du texte de la publication : utilisé
+// quand les IA gratuites sont saturées, pour que la vidéo se fasse quand même.
+export function scriptDeSecours(t: { titre: string; consigne: string; brouillon?: string | null }, contexte: string | null): ScriptVideo {
+  const ligne = (etiquette: string) => contexte?.match(new RegExp(`${etiquette}[^:\\n]*: (.+)`))?.[1]?.trim() ?? "";
+  const marque = ligne("Marque");
+  const lien = ligne("Site / lien").replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const source = (t.brouillon || t.consigne || t.titre)
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/#[\p{L}\d_]+/gu, " ")
+    .replace(/[*_`>]+/g, " ")
+    .replace(/\p{Extended_Pictographic}/gu, " ");
+  const phrases = source
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((p) => p.replace(/\s+/g, " ").trim())
+    .filter((p) => p.length >= 20 && p.toLowerCase() !== t.titre.toLowerCase())
+    .map((p) => (p.length > 170 ? `${p.slice(0, 167).replace(/\s\S*$/, "")}…` : p))
+    .slice(0, 5);
+  const courte = (p: string) => p.replace(/[.!?…:;,]+$/, "").split(" ").slice(0, 6).join(" ");
+  const cle = t.titre.replace(/[^\p{L}\d\s-]/gu, " ").trim();
+
+  const scenes = [
+    { texte_ecran: courte(t.titre), voix: phrases[0] ?? t.titre, visuel: t.titre, recherche_stock: cle },
+    ...phrases.slice(1).map((p) => ({ texte_ecran: courte(p), voix: p, visuel: p, recherche_stock: cle })),
+  ];
+  while (scenes.length < 3) {
+    scenes.push({ texte_ecran: courte(t.consigne || t.titre), voix: t.consigne || t.titre, visuel: t.titre, recherche_stock: cle });
+  }
+  scenes.push({
+    texte_ecran: marque || "Essayez maintenant",
+    voix: `${marque ? `Découvrez ${marque}` : "Découvrez-le"}${lien ? ` sur ${lien}` : ""}.`,
+    visuel: t.titre,
+    recherche_stock: cle,
+  });
+  return { titre: t.titre, scenes: scenes.slice(0, 8), legende: t.brouillon || t.titre };
+}

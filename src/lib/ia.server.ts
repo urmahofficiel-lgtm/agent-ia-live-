@@ -92,20 +92,25 @@ export async function listerGemini(cle: string) {
     .map((m) => m.name)
     .filter((n) => /gemini-[\d.]+-flash/.test(n) && !/tts|image|audio|live|embed|thinking|native/.test(n))
     .sort((a, b) => rangGemini(b) - rangGemini(a))
-    .slice(0, 3);
+    .slice(0, 6); // les « lite » en fin de liste : plus disponibles quand Google sature
   return modelesGemini;
 }
 
 async function demanderGemini(cle: string, systeme: string, demande: string, echeance: number) {
   let derniere = "Gemini n'a pas répondu.";
-  for (const modele of await listerGemini(cle)) {
+  const modeles = await listerGemini(cle);
+  // Surcharge (503) ou quota (429) : un second essai sur le premier modèle,
+  // après une courte pause, avant de passer aux suivants.
+  const essais = modeles.length ? [modeles[0], ...modeles] : [];
+  for (const [i, modele] of essais.entries()) {
+    if (i === 1) await new Promise((r) => setTimeout(r, 2500));
     const reste = echeance - Date.now();
     if (reste < 5_000) break;
     const debut = Date.now();
     try {
       const r = await fetch(`${GEMINI}/${modele}:generateContent`, {
         method: "POST",
-        signal: AbortSignal.timeout(Math.min(90_000, reste)),
+        signal: AbortSignal.timeout(Math.min(60_000, reste)),
         headers: { "x-goog-api-key": cle, "Content-Type": "application/json" },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systeme }] },
@@ -134,6 +139,8 @@ async function demanderGemini(cle: string, systeme: string, demande: string, ech
 }
 
 async function demanderNvidia(cle: string, systeme: string, demande: string, maxTokens: number, echeance: number) {
+  // Chaque modèle a au plus la moitié du temps restant : un modèle lent ne
+  // doit pas empêcher d'essayer les suivants.
   const modeles = [process.env.NVIDIA_MODELE, ...MODELES].filter((m): m is string => Boolean(m) && !retires.has(m!));
   let derniereErreur = "L'IA NVIDIA n'a pas répondu à temps. Réessayez.";
   for (const modele of modeles) {
@@ -142,7 +149,7 @@ async function demanderNvidia(cle: string, systeme: string, demande: string, max
     const debut = Date.now();
     let r: Response;
     try {
-      r = await appelNvidia(cle, modele, systeme, demande, maxTokens, Math.min(delaiMax(maxTokens), reste));
+      r = await appelNvidia(cle, modele, systeme, demande, maxTokens, Math.min(delaiMax(maxTokens), Math.max(25_000, reste / 2), reste));
     } catch {
       console.warn("NVIDIA : trop lent, modèle suivant", modele, Date.now() - debut, "ms");
       derniereErreur = "L'IA a mis trop de temps à répondre. Réessayez dans un instant.";
