@@ -10,7 +10,8 @@ import { creerVideo, genererBrouillon, publierTache, regenererVisuel } from "@/l
 import { jetonSession } from "@/lib/session";
 import { STATUTS } from "@/lib/statuts";
 import { LIBELLE_TYPE, type StatutTache, type Tache } from "@/lib/types";
-import { supprimerPublications } from "@/lib/publications";
+import { creerCopies, supprimerPublications } from "@/lib/publications";
+import { ChoixReseaux } from "@/components/ChoixReseaux";
 
 export const Route = createFileRoute("/taches")({ component: Publications });
 
@@ -376,7 +377,8 @@ function versChampDate(iso: string | null) {
 // Modification manuelle : sujet, réseau, date et heure, texte, médias.
 function EditeurPublication({ tache: t, onFini }: { tache: Tache; onFini: (enregistre: boolean) => void }) {
   const [titre, setTitre] = useState(t.titre);
-  const [plateforme, setPlateforme] = useState(t.plateforme ?? "");
+  const userId = useUserId();
+  const [reseaux, setReseaux] = useState<string[]>(t.plateforme ? [t.plateforme] : []);
   const [quand, setQuand] = useState(versChampDate(t.planifiee_pour));
   const [texte, setTexte] = useState(t.resultat?.brouillon ?? "");
   const [consigne, setConsigne] = useState(t.consigne);
@@ -395,18 +397,23 @@ function EditeurPublication({ tache: t, onFini }: { tache: Tache; onFini: (enreg
     else delete resultat.brouillon;
     if (sansVideo) for (const k of ["video_url", "video_script", "video_le", "video_etat", "video_erreur", "video_debut"]) delete resultat[k];
     if (sansImage) delete resultat.visuel_url;
+    const commun = {
+      titre: titre.trim() || t.titre,
+      consigne,
+      planifiee_pour: quand ? new Date(quand).toISOString() : null,
+    };
+    // Cette publication garde le premier réseau choisi (le sien s'il est
+    // toujours coché) ; les autres réseaux reçoivent chacun une copie.
+    const principal = t.plateforme && reseaux.includes(t.plateforme) ? t.plateforme : (reseaux[0] ?? null);
     const { error } = await supabase()
       .from("taches")
-      .update({
-        titre: titre.trim() || t.titre,
-        consigne,
-        plateforme: plateforme || null,
-        planifiee_pour: quand ? new Date(quand).toISOString() : null,
-        resultat,
-      })
+      .update({ ...commun, plateforme: principal, resultat })
       .eq("id", t.id);
+    const autres = reseaux.filter((r) => r !== principal);
+    const erreurCopies =
+      !error && autres.length && userId ? await creerCopies(userId, { ...commun, statut: t.statut, resultat }, autres) : null;
     setEnvoi(false);
-    if (error) return setErreur(error.message);
+    if (error || erreurCopies) return setErreur(error?.message ?? erreurCopies);
     onFini(true);
   }
 
@@ -418,17 +425,9 @@ function EditeurPublication({ tache: t, onFini }: { tache: Tache; onFini: (enreg
           <input className={`${champ} mt-1`} value={titre} onChange={(e) => setTitre(e.target.value)} required />
         </label>
         {estPublication && (
-          <label className="text-sm">
-            Réseau
-            <select className={`${champ} mt-1`} value={plateforme} onChange={(e) => setPlateforme(e.target.value)}>
-              <option value="">— Choisir —</option>
-              {PLATEFORMES.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nom}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="sm:col-span-2">
+            <ChoixReseaux valeur={reseaux} onChange={setReseaux} />
+          </div>
         )}
         <label className="text-sm">
           Date et heure de publication
@@ -544,7 +543,7 @@ function Apercu({ video, image, titre, enCours }: { video?: string; image?: stri
 function NouvelleTache({ onCree }: { onCree: () => Promise<void> }) {
   const userId = useUserId();
   const { reglages } = useReglages();
-  const [plateforme, setPlateforme] = useState("linkedin");
+  const [reseaux, setReseaux] = useState<string[]>([]);
   const [titre, setTitre] = useState("");
   const [consigne, setConsigne] = useState("");
   const [quand, setQuand] = useState("");
@@ -553,35 +552,23 @@ function NouvelleTache({ onCree }: { onCree: () => Promise<void> }) {
   async function creer(e: FormEvent) {
     e.preventDefault();
     if (!userId) return;
+    if (reseaux.length === 0) return setErreur("Choisissez au moins un réseau.");
     const statut: StatutTache = reglages.validation_requise ? "a_valider" : "en_attente";
-    const { error } = await supabase()
-      .from("taches")
-      .insert({
-        user_id: userId,
-        type: "publication",
-        plateforme,
-        titre,
-        consigne,
-        statut,
-        planifiee_pour: quand ? new Date(quand).toISOString() : null,
-      });
-    setErreur(error?.message ?? null);
-    if (!error) await onCree();
+    const erreur = await creerCopies(
+      userId,
+      { titre, consigne, statut, planifiee_pour: quand ? new Date(quand).toISOString() : null, resultat: null },
+      reseaux,
+    );
+    setErreur(erreur);
+    if (!erreur) await onCree();
   }
 
   return (
     <Carte className="mb-6">
       <form onSubmit={creer} className="grid gap-3 md:grid-cols-2">
-        <label className="text-sm md:col-span-2">
-          Réseau
-          <select className={champ} value={plateforme} onChange={(e) => setPlateforme(e.target.value)}>
-            {PLATEFORMES.filter((p) => p.categorie === "reseau" || p.categorie === "local").map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nom}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="md:col-span-2">
+          <ChoixReseaux valeur={reseaux} onChange={setReseaux} />
+        </div>
         <label className="text-sm md:col-span-2">
           Sujet
           <input className={champ} required value={titre} onChange={(e) => setTitre(e.target.value)} placeholder="Ex. : Devis en 2 minutes depuis le chantier" />
