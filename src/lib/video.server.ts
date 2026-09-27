@@ -33,7 +33,8 @@ async function dossierPolices() {
   return dossier;
 }
 
-export type SceneMontage = { image: Buffer; texte_ecran: string };
+// Une scène = une image (animée par zoom) ou une vraie séquence vidéo.
+export type SceneMontage = { image?: Buffer; clip?: Buffer; texte_ecran: string };
 
 // Monte la vidéo : chaque image s'anime (zoom lent, type « Ken Burns »), les
 // textes s'affichent en sous-titres stylés, la voix off est ajoutée si fournie.
@@ -41,12 +42,25 @@ export async function monterVideo(scenes: SceneMontage[], d: number[], voix?: { 
   const dossier = await mkdtemp(path.join(tmpdir(), "video-"));
   try {
     const polices = await dossierPolices();
-    await Promise.all(scenes.map((s, i) => writeFile(path.join(dossier, `s${i}.jpg`), s.image)));
+    await Promise.all(
+      scenes.map((s, i) =>
+        s.clip ? writeFile(path.join(dossier, `s${i}.mp4`), s.clip) : writeFile(path.join(dossier, `s${i}.jpg`), s.image ?? Buffer.alloc(0)),
+      ),
+    );
     await writeFile(path.join(dossier, "textes.ass"), sousTitresAss(scenes, d, LARGEUR, HAUTEUR));
 
     const entrees: string[] = [];
     const filtres: string[] = [];
-    scenes.forEach((_, i) => {
+    scenes.forEach((s, i) => {
+      if (s.clip) {
+        // Séquence réelle : recadrée en vertical, bouclée si trop courte.
+        entrees.push("-stream_loop", "-1", "-t", String(d[i]), "-i", `s${i}.mp4`);
+        filtres.push(
+          `[${i}:v]scale=${LARGEUR}:${HAUTEUR}:force_original_aspect_ratio=increase,crop=${LARGEUR}:${HAUTEUR},` +
+            `fps=${IMAGES_PAR_SECONDE},trim=duration=${d[i]},setpts=PTS-STARTPTS,setsar=1[v${i}]`,
+        );
+        return;
+      }
       entrees.push("-loop", "1", "-t", String(d[i]), "-i", `s${i}.jpg`);
       const images = Math.ceil(d[i] * IMAGES_PAR_SECONDE);
       // Zoom avant ou arrière en alternance, pour du mouvement.

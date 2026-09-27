@@ -5,6 +5,7 @@ import { demanderIA, genererImage } from "./ia.server";
 import { consigneScript, durees, lireScript } from "./video";
 import { monterVideo } from "./video.server";
 import { voixConfiguree, voixOff } from "./voix.server";
+import { pexelsConfigure, sequenceVerticale } from "./pexels.server";
 import { preparer, URL_SITE, type Ecrivain } from "./preparation.server";
 import { consignePlanification, datePrevue, lirePlan } from "./commande";
 import { consigneAnalyse, demandeDepuisStrategie, lireAnalyse, lireProfilDeduit, type Analyse, type Profil } from "./strategie";
@@ -674,22 +675,31 @@ export const creerVideo = createServerFn({ method: "POST" })
       }
       const d = durees(script.scenes, voix ? voix.duree + 0.6 : undefined);
 
-      await journal("action", `🖼️ Création des ${script.scenes.length} images des scènes…`);
-      const images: Buffer[] = [];
+      // Pour chaque scène : une vraie séquence filmée Pexels si possible,
+      // sinon une image IA (FLUX) animée.
       const univers = contexte?.match(/Univers visuel[^:]*: (.*)/)?.[1] ?? "";
+      const medias: { image?: Buffer; clip?: Buffer }[] = [];
+      if (pexelsConfigure()) await journal("action", "🎥 Recherche de séquences filmées (Pexels)…");
       for (let i = 0; i < script.scenes.length; i += 3) {
         const lot = script.scenes.slice(i, i + 3);
         const faits = await Promise.all(
-          lot.map((s) =>
-            genererImage(`${s.visuel}. ${univers} Vertical 9:16 composition, realistic photo, no text.`, "tiktok"),
-          ),
+          lot.map(async (s, j) => {
+            if (pexelsConfigure() && s.recherche_stock) {
+              const clip = await sequenceVerticale(s.recherche_stock, d[i + j]).catch(() => null);
+              if (clip) return { clip };
+            }
+            const img = await genererImage(`${s.visuel}. ${univers} Vertical 9:16 composition, realistic photo, no text.`, "tiktok");
+            return { image: Buffer.from(img.base64, "base64") };
+          }),
         );
-        images.push(...faits.map((f) => Buffer.from(f.base64, "base64")));
+        medias.push(...faits);
       }
+      const nbClips = medias.filter((m) => m.clip).length;
+      await journal("info", `Scènes prêtes : ${nbClips} séquence(s) filmée(s), ${medias.length - nbClips} image(s) IA.`);
 
       await journal("action", "✂️ Montage de la vidéo (zoom, textes, voix)…");
       const mp4 = await monterVideo(
-        script.scenes.map((s, i) => ({ image: images[i], texte_ecran: s.texte_ecran })),
+        script.scenes.map((s, i) => ({ ...medias[i], texte_ecran: s.texte_ecran })),
         d,
         voix ?? undefined,
       );

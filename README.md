@@ -38,6 +38,8 @@ Usage personnel pour l'instant ; tout est cloisonné par utilisateur pour pouvoi
 | `agentialive` (ou `NVIDIA_API_KEY`) | clé NVIDIA NIM |
 | `ZERNIO_API_KEY` | clé Zernio (zernio.com → API keys) |
 | `AGENT_TICK_SECRET` | secret du moteur (identique à `prive.secrets`) |
+| `GEMINI_API_KEY` | voix off des vidéos (facultatif, Google AI Studio gratuit) |
+| `PEXELS_API_KEY` | vraies séquences filmées dans les vidéos + photo de secours (facultatif, gratuit) |
 
 ## Garde-fous
 

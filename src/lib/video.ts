@@ -8,7 +8,7 @@ const texte = z.string().catch("").transform((x) => x.trim());
 const schemaScript = z.object({
   titre: texte,
   scenes: z
-    .array(z.object({ texte_ecran: texte, voix: texte, visuel: texte }))
+    .array(z.object({ texte_ecran: texte, voix: texte, visuel: texte, recherche_stock: texte }))
     .catch([])
     .transform((l) => l.filter((s) => s.voix || s.texte_ecran).slice(0, 8)),
   legende: texte,
@@ -22,7 +22,7 @@ Sujet : ${t.titre}
 ${t.consigne ? `Consigne : ${t.consigne}\n` : ""}${contexte ? `\nFiche de la marque (source de vérité, n'invente aucun fait, chiffre ni témoignage) :\n${contexte}\n` : ""}
 Structure : scène 1 = accroche forte qui arrête le défilement ; scènes du milieu = un problème concret du client puis la fonctionnalité réelle de la marque qui le résout ; dernière scène = appel à l'action avec le nom de la marque.
 Réponds UNIQUEMENT par un objet JSON valide :
-{"titre": "titre court", "scenes": [{"texte_ecran": "6 mots maximum, percutant", "voix": "1 à 2 phrases parlées, naturelles", "visuel": "English prompt: realistic vertical photo of the scene, the niche's real setting and people, no text"}], "legende": "texte du post qui accompagne la vidéo, avec l'appel à l'action, le lien du site et 3 à 5 hashtags"}
+{"titre": "titre court", "scenes": [{"texte_ecran": "6 mots maximum, percutant", "voix": "1 à 2 phrases parlées, naturelles", "visuel": "English prompt: realistic vertical photo of the scene, the niche's real setting and people, no text", "recherche_stock": "2 to 4 English keywords to find a matching real stock video (e.g. construction worker tablet)"}], "legende": "texte du post qui accompagne la vidéo, avec l'appel à l'action, le lien du site et 3 à 5 hashtags"}
 Entre 5 et 7 scènes.`;
 }
 

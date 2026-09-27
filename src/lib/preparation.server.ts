@@ -1,5 +1,6 @@
 import { nomPlateforme } from "./plateformes";
 import { genererImage, promptImage, rediger, type Consigne } from "./ia.server";
+import { photo, pexelsConfigure } from "./pexels.server";
 
 export const URL_SITE = "https://agent-ia-live.vercel.app";
 export const urlVisuel = (id: string) => `${URL_SITE}/api/visuels/${id}`;
@@ -34,7 +35,23 @@ export async function preparer(t: TacheAPreparer, contexte: string | null, e: Ec
       const prompt = await promptImage(brouillon, t.plateforme, contexte);
       await e.journal("info", `Idée de visuel : ${prompt.slice(0, 160)}`);
       await e.journal("action", "🖼️ Génération de l'image (NVIDIA FLUX)…");
-      const image = await genererImage(prompt, t.plateforme);
+      let image: { mime: string; base64: string };
+      try {
+        image = await genererImage(prompt, t.plateforme);
+      } catch (err) {
+        // Secours : une vraie photo libre de droits (Pexels).
+        const orientation = ["pinterest", "tiktok", "snapchat"].includes(t.plateforme ?? "")
+          ? "portrait"
+          : t.plateforme === "instagram" || t.plateforme === "threads"
+            ? "carre"
+            : "paysage";
+        // Recherche : le début de la description (en anglais) de l'image voulue.
+        const motsCles = prompt.split(/[,.:]/)[0].split(/\s+/).slice(0, 8).join(" ");
+        const secours = pexelsConfigure() ? await photo(motsCles, orientation).catch(() => null) : null;
+        if (!secours) throw err;
+        await e.journal("info", "Image IA indisponible : photo réelle Pexels utilisée à la place.");
+        image = { mime: "image/jpeg", base64: secours.toString("base64") };
+      }
       const id = await e.ajouterVisuel(image.mime, image.base64, prompt);
       visuel_url = urlVisuel(id);
       await e.enregistrer({ visuel_id: id, visuel_url, visuel_prompt: prompt });
