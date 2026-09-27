@@ -17,6 +17,7 @@ type Due = {
   visuel_url: string | null;
   video_url: string | null;
   compte_externe_id: string | null;
+  cible_urn: string | null;
   contexte: string | null;
 };
 
@@ -67,7 +68,7 @@ async function tick(secret: string) {
         : pret.visuel_url
           ? ({ type: "image", url: pret.visuel_url } as const)
           : null;
-      const post = await publier(zernio, t.compte_externe_id, pret.brouillon, media);
+      const post = await publier(zernio, t.compte_externe_id, pret.brouillon, media, t.cible_urn);
       await maj(t.tache_id, "terminee", { post_id: post._id, publie_le: new Date().toISOString() }, "info", `✅ Publié : « ${t.titre} »`);
       traitees++;
     } catch (e) {

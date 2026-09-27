@@ -21,6 +21,7 @@ import {
   listerCommentaires,
   listerComptes,
   listerConversations,
+  organisationsLinkedin,
   publier,
   type Media,
   repondreCommentaire,
@@ -183,7 +184,7 @@ export const publierTache = createServerFn({ method: "POST" })
       if (!zernio) return { ok: false, erreur: "Cette plateforme ne peut pas encore publier." };
       const { data: compte } = await sb
         .from("comptes_connectes")
-        .select("compte_externe_id")
+        .select("compte_externe_id, cible_urn")
         .eq("plateforme", t.plateforme)
         .eq("statut", "connecte")
         .not("compte_externe_id", "is", null)
@@ -199,7 +200,7 @@ export const publierTache = createServerFn({ method: "POST" })
       await sb.from("taches").update({ statut: "en_cours" }).eq("id", t.id);
       await journal("action", `🚀 Publication en cours sur ${PLATEFORMES.find((p) => p.id === t.plateforme)?.nom} : « ${t.titre} »`);
       try {
-        const post = await publier(zernio, compte.compte_externe_id, brouillon, media);
+        const post = await publier(zernio, compte.compte_externe_id, brouillon, media, compte.cible_urn as string | null);
         await sb
           .from("taches")
           .update({ statut: "terminee", resultat: { ...(t.resultat as object), post_id: post._id, publie_le: new Date().toISOString() } })
@@ -766,6 +767,51 @@ export const creerVideo = createServerFn({ method: "POST" })
       await sb.from("taches").update({ resultat }).eq("id", t.id);
       await journal("info", `✅ Vidéo prête (${Math.round(d.reduce((a, b) => a + b, 0))} s, ${(mp4.length / 1e6).toFixed(1)} Mo) — à valider dans Tâches.`);
       return { ok: true, video_url };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });
+
+// --- LinkedIn : profil personnel ou page entreprise ----------------------------
+
+export const pagesLinkedin = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ jeton }).parse(input))
+  .handler(async ({ data }): Promise<Resultat<{ pages: { urn: string; nom: string }[]; cible: string | null }>> => {
+    try {
+      const { sb } = await utilisateurDepuisJeton(data.jeton);
+      const { data: compte } = await sb
+        .from("comptes_connectes")
+        .select("compte_externe_id, cible_urn")
+        .eq("plateforme", "linkedin")
+        .eq("statut", "connecte")
+        .maybeSingle();
+      if (!compte?.compte_externe_id) return { ok: false, erreur: "LinkedIn n'est pas connecté." };
+      const orgs = await organisationsLinkedin(compte.compte_externe_id as string);
+      return {
+        ok: true,
+        pages: orgs.map((o) => ({ urn: `urn:li:organization:${o.id}`, nom: o.localizedName || o.name || o.vanityName || o.id })),
+        cible: (compte.cible_urn as string | null) ?? null,
+      };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });
+
+export const choisirPageLinkedin = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ urn: z.string().regex(/^urn:li:organization:\d+$/).nullable(), nom: z.string().max(200).nullable(), jeton }).parse(input),
+  )
+  .handler(async ({ data }): Promise<Resultat> => {
+    try {
+      const { sb } = await utilisateurDepuisJeton(data.jeton);
+      if (data.urn) {
+        // La page doit faire partie de celles que ce compte administre.
+        const { data: compte } = await sb.from("comptes_connectes").select("compte_externe_id").eq("plateforme", "linkedin").maybeSingle();
+        const orgs = compte?.compte_externe_id ? await organisationsLinkedin(compte.compte_externe_id as string) : [];
+        if (!orgs.some((o) => `urn:li:organization:${o.id}` === data.urn)) return { ok: false, erreur: "Page non autorisée pour ce compte." };
+      }
+      const { error } = await sb.from("comptes_connectes").update({ cible_urn: data.urn, cible_nom: data.nom }).eq("plateforme", "linkedin");
+      return error ? { ok: false, erreur: error.message } : { ok: true };
     } catch (e) {
       return { ok: false, erreur: message(e) };
     }

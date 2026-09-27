@@ -67,13 +67,26 @@ export async function listerComptes(profileId: string) {
 
 export type Media = { type: "image" | "video"; url: string };
 
-export async function publier(plateforme: string, accountId: string, contenu: string, media?: Media | null) {
+export async function publier(
+  plateforme: string,
+  accountId: string,
+  contenu: string,
+  media?: Media | null,
+  organisationUrn?: string | null,
+) {
   const r = await appel<{ post: { _id: string; status: string } }>("/posts", {
     method: "POST",
     body: JSON.stringify({
       content: contenu,
       publishNow: true,
-      platforms: [{ platform: plateforme, accountId }],
+      platforms: [
+        {
+          platform: plateforme,
+          accountId,
+          // LinkedIn : publier au nom d'une page entreprise.
+          ...(organisationUrn ? { platformSpecificData: { organizationUrn: organisationUrn } } : {}),
+        },
+      ],
       ...(media ? { mediaItems: [{ type: media.type, url: media.url }] } : {}),
     }),
   });
@@ -155,4 +168,12 @@ export async function deconnecterCompte(accountId: string) {
     if (e instanceof ErreurZernio && e.statut === 404) return; // déjà déconnecté
     throw e;
   }
+}
+
+export type OrganisationLinkedin = { id: string; name?: string; localizedName?: string; vanityName?: string };
+
+// Pages entreprise LinkedIn dont le compte connecté est administrateur.
+export async function organisationsLinkedin(accountId: string) {
+  const r = await appel<{ organizations: OrganisationLinkedin[] }>(`/accounts/${encodeURIComponent(accountId)}/linkedin-organizations`);
+  return r.organizations ?? [];
 }

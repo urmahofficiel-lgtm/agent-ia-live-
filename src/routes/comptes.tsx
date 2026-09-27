@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CircleCheck, LoaderCircle, RefreshCw } from "lucide-react";
 import { Carte, Erreur, Titre, bouton, boutonSecondaire } from "@/components/ui";
 import { LogoPlateforme } from "@/components/LogoPlateforme";
+import { ChoixPageLinkedin } from "@/components/ChoixPageLinkedin";
 import { supabase } from "@/lib/supabase";
 import { jetonSession } from "@/lib/session";
 import { useRequete, useUserId } from "@/lib/donnees";
@@ -190,9 +191,15 @@ function Comptes() {
         </Carte>
       )}
 
+      {comptes.data?.find((c) => c.plateforme === "linkedin" && c.statut === "connecte") && (
+        <ChoixPageLinkedin
+          nomProfil={comptes.data.find((c) => c.plateforme === "linkedin")?.nom_utilisateur ?? null}
+        />
+      )}
+
       <p className="mb-4 text-xs text-doux">
-        LinkedIn : pour publier au nom d'une page entreprise, choisissez la page (et non votre profil) à l'étape de sélection.
-        Il faut être administrateur de la page sur LinkedIn.
+        LinkedIn : la connexion se fait avec votre compte personnel ; choisissez ensuite
+        ci-dessus la page entreprise au nom de laquelle publier (il faut en être administrateur).
       </p>
 
       {GROUPES.map((g) => {
