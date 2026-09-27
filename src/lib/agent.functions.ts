@@ -15,6 +15,8 @@ import { CATEGORIES, lireReponseOverpass, requeteOverpass } from "./osm";
 import { utilisateurDepuisJeton } from "./supabase-serveur";
 import {
   creerProfil,
+  deconnecterCompte,
+  ErreurZernio,
   envoyerMessage,
   listerCommentaires,
   listerComptes,
@@ -28,7 +30,12 @@ import {
 
 type Resultat<T = object> = ({ ok: true } & T) | { ok: false; erreur: string };
 
-const message = (e: unknown) => (e instanceof Error ? e.message : "Erreur inattendue.");
+const message = (e: unknown) => {
+  if (e instanceof ErreurZernio && e.raison === "free_tier_exceeded") {
+    return `LIMITE_GRATUITE|${e.lienTableau ?? "https://zernio.com/dashboard/billing"}`;
+  }
+  return e instanceof Error ? e.message : "Erreur inattendue.";
+};
 const jeton = z.string().min(10);
 
 // --- Préparation (texte + visuel) --------------------------------------------
@@ -235,31 +242,71 @@ export const urlConnexion = createServerFn({ method: "POST" })
     }
   });
 
+export type CompteDistant = { id: string; plateforme: string; nom: string | null; actif: boolean; utilise: boolean };
+
 export const synchroniserComptes = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ jeton }).parse(input))
-  .handler(async ({ data }): Promise<Resultat<{ connectes: number }>> => {
+  .handler(async ({ data }): Promise<Resultat<{ connectes: number; distants: CompteDistant[] }>> => {
     try {
       if (!zernioConfigure()) return { ok: false, erreur: "ZERNIO_ABSENT" };
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
       const profil = await profilZernio(sb, user);
-      const comptes = await listerComptes(profil);
+      // Le plus récent d'abord : c'est le compte qu'on vient de connecter.
+      const comptes = (await listerComptes(profil)).sort((x, y) => (y.createdAt ?? "").localeCompare(x.createdAt ?? ""));
 
-      let connectes = 0;
+      const utilises = new Set<string>();
       for (const c of comptes) {
         const p = plateformeParZernio(c.platform);
-        if (!p) continue;
-        const ligne = {
-          user_id: user.id,
-          plateforme: p.id,
-          libelle: "principal",
-          statut: c.isActive === false ? "erreur" : "connecte",
-          compte_externe_id: c._id,
-          nom_utilisateur: c.username ?? c.displayName ?? null,
-        };
-        const { error } = await sb.from("comptes_connectes").upsert(ligne, { onConflict: "user_id,plateforme,libelle" });
-        if (!error) connectes++;
+        if (!p || [...utilises].some((id) => comptes.find((x) => x._id === id)?.platform === c.platform)) continue;
+        const { error } = await sb.from("comptes_connectes").upsert(
+          {
+            user_id: user.id,
+            plateforme: p.id,
+            libelle: "principal",
+            statut: c.isActive === false ? "erreur" : "connecte",
+            compte_externe_id: c._id,
+            nom_utilisateur: c.username ?? c.displayName ?? null,
+          },
+          { onConflict: "user_id,plateforme,libelle" },
+        );
+        if (!error) utilises.add(c._id);
       }
-      return { ok: true, connectes };
+      // Comptes qui n'existent plus chez Zernio : retirés de la liste.
+      const { data: lignes } = await sb.from("comptes_connectes").select("id, compte_externe_id");
+      const ids = new Set(comptes.map((c) => c._id));
+      const perimes = (lignes ?? []).filter((l) => l.compte_externe_id && !ids.has(l.compte_externe_id as string)).map((l) => l.id);
+      if (perimes.length) await sb.from("comptes_connectes").delete().in("id", perimes);
+
+      return {
+        ok: true,
+        connectes: utilises.size,
+        distants: comptes.map((c) => ({
+          id: c._id,
+          plateforme: plateformeParZernio(c.platform)?.id ?? c.platform,
+          nom: c.username ?? c.displayName ?? null,
+          actif: c.isActive !== false,
+          utilise: utilises.has(c._id),
+        })),
+      };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });
+
+// Déconnecte un compte chez Zernio (libère une place) et chez nous.
+export const deconnecter = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ compteExterneId: z.string().min(1), jeton }).parse(input))
+  .handler(async ({ data }): Promise<Resultat> => {
+    try {
+      if (!zernioConfigure()) return { ok: false, erreur: "ZERNIO_ABSENT" };
+      const { sb, user } = await utilisateurDepuisJeton(data.jeton);
+      // Le compte doit appartenir au profil Zernio de cet utilisateur.
+      const profil = await profilZernio(sb, user);
+      const comptes = await listerComptes(profil);
+      if (!comptes.some((c) => c._id === data.compteExterneId)) return { ok: false, erreur: "Compte introuvable." };
+      await deconnecterCompte(data.compteExterneId);
+      await sb.from("comptes_connectes").delete().eq("compte_externe_id", data.compteExterneId);
+      return { ok: true };
     } catch (e) {
       return { ok: false, erreur: message(e) };
     }

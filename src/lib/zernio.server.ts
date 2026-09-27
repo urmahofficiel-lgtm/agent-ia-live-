@@ -6,6 +6,19 @@ export function zernioConfigure() {
   return Boolean(process.env.ZERNIO_API_KEY);
 }
 
+// Erreur Zernio avec ses détails (code, raison, lien vers le tableau de bord).
+export class ErreurZernio extends Error {
+  constructor(
+    message: string,
+    readonly statut: number,
+    readonly code?: string,
+    readonly raison?: string,
+    readonly lienTableau?: string,
+  ) {
+    super(message);
+  }
+}
+
 async function appel<T>(chemin: string, init: RequestInit = {}): Promise<T> {
   const cle = process.env.ZERNIO_API_KEY;
   if (!cle) throw new Error("Clé ZERNIO_API_KEY absente des variables Vercel.");
@@ -15,7 +28,7 @@ async function appel<T>(chemin: string, init: RequestInit = {}): Promise<T> {
   });
   const texte = await r.text();
   const json = texte ? JSON.parse(texte) : {};
-  if (!r.ok) throw new Error(json.error || `Zernio ${r.status}`);
+  if (!r.ok) throw new ErreurZernio(json.error || `Zernio ${r.status}`, r.status, json.code, json.reason, json.dashboard_url);
   return json as T;
 }
 
@@ -39,6 +52,7 @@ export type CompteZernio = {
   username?: string;
   displayName?: string;
   isActive?: boolean;
+  createdAt?: string;
   profileId?: string | { _id: string };
 };
 
@@ -132,4 +146,13 @@ export async function envoyerMessage(conversationId: string, accountId: string, 
     method: "POST",
     body: JSON.stringify({ accountId, message: texte }),
   });
+}
+
+export async function deconnecterCompte(accountId: string) {
+  try {
+    await appel(`/accounts/${encodeURIComponent(accountId)}`, { method: "DELETE" });
+  } catch (e) {
+    if (e instanceof ErreurZernio && e.statut === 404) return; // déjà déconnecté
+    throw e;
+  }
 }
