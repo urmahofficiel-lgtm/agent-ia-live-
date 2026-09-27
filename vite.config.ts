@@ -13,7 +13,12 @@ export default defineConfig(({ command }) => ({
     tanstackStart(),
     // 300 s : le moteur rédige et crée des images, ce qui dépasse la durée par défaut.
     ...(command === "build"
-      ? [nitro({ preset: process.env.NITRO_BUILD_PRESET || "vercel", vercel: { functions: { maxDuration: 300 } } })]
+      ? [nitro({
+          preset: process.env.NITRO_BUILD_PRESET || "vercel",
+          vercel: { functions: { maxDuration: 300 } },
+          // Le binaire ffmpeg (montage vidéo) doit être copié tel quel.
+          traceDeps: ["ffmpeg-static*"],
+        })]
       : []),
     viteReact(),
   ],
