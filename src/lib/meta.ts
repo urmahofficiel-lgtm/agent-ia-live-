@@ -35,7 +35,12 @@ export function comptesDepuisPages(pages: PageMeta[]): CompteMeta[] {
 export function urlDialogue(p: { appId: string; retour: string; etat: string; configId?: string }) {
   const q = new URLSearchParams({ client_id: p.appId, redirect_uri: p.retour, state: p.etat, response_type: "code" });
   // « Facebook Login for Business » : les droits viennent d'une configuration.
-  if (p.configId) q.set("config_id", p.configId);
+  // Avec une configuration, Meta renvoie un jeton par défaut : il faut
+  // demander explicitement un code.
+  if (p.configId) {
+    q.set("config_id", p.configId);
+    q.set("override_default_response_type", "true");
+  }
   else q.set("scope", PERMISSIONS_META.join(","));
   return `https://www.facebook.com/${VERSION_GRAPH}/dialog/oauth?${q}`;
 }

@@ -38,5 +38,6 @@ describe("urlDialogue", () => {
     const c = new URL(urlDialogue({ appId: "1", retour: "https://x/r", etat: "e", configId: "42" }));
     expect(c.searchParams.get("config_id")).toBe("42");
     expect(c.searchParams.has("scope")).toBe(false);
+    expect(c.searchParams.get("override_default_response_type")).toBe("true");
   });
 });
