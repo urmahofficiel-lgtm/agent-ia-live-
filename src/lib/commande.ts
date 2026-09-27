@@ -7,7 +7,8 @@ import { PLATEFORMES } from "./plateformes";
 export const TYPES_TACHE = ["publication", "reponse", "prospection", "relance", "appareil", "autre"] as const;
 
 const tachePlanifiee = z.object({
-  type: z.enum(TYPES_TACHE).catch("autre"),
+  // L'agent ne traite que des publications : tout le plan en devient.
+  type: z.enum(TYPES_TACHE).catch("publication").transform(() => "publication" as const),
   plateforme: z.string().nullable().optional(),
   titre: z.string().min(1).max(200),
   consigne: z.string().max(2000).default(""),
@@ -20,9 +21,9 @@ export type TachePlanifiee = z.infer<typeof tachePlanifiee>;
 export function consignePlanification(demande: string, maintenant: Date, contexte?: string | null) {
   const ids = PLATEFORMES.map((p) => p.id).join(", ");
   return `Nous sommes le ${maintenant.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}.
-Découpe la demande suivante en tâches concrètes pour un agent qui gère les réseaux sociaux et la prospection.
+Découpe la demande suivante en publications pour les réseaux sociaux.
 Réponds UNIQUEMENT par un tableau JSON, sans texte autour. Chaque élément :
-{"type": "publication"|"reponse"|"prospection"|"relance"|"appareil"|"autre", "plateforme": un de [${ids}] ou null, "titre": "court", "consigne": "détaillée pour la rédaction", "dans_jours": nombre de jours à partir d'aujourd'hui (0 = aujourd'hui), "heure": heure de publication 0-23}
+{"type": "publication", "plateforme": un de [${ids}], "titre": "court", "consigne": "détaillée pour la rédaction", "dans_jours": nombre de jours à partir d'aujourd'hui (0 = aujourd'hui), "heure": heure de publication 0-23}
 Répartis les publications dans le temps si plusieurs sont demandées. Maximum 20 tâches.
 Contraintes : chaque publication est un post texte + une image (pas de vidéo, live, webinaire, PDF, sondage ni infographie).
 Chaque consigne cite la fonctionnalité ou le bénéfice précis de la marque à mettre en avant, et rappelle de finir par l'appel à l'action avec le lien.

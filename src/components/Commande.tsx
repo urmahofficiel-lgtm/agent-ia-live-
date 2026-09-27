@@ -8,7 +8,7 @@ import { jetonSession } from "@/lib/session";
 const EXEMPLES = [
   "Publie 3 posts LinkedIn cette semaine pour présenter mon activité",
   "Un post Instagram et un post Facebook demain matin sur notre offre du moment",
-  "Prépare un message de prospection pour les restaurants",
+  "Prépare 4 posts pour annoncer notre nouvelle fonctionnalité, un par semaine",
 ];
 
 // Le point d'entrée principal : on dit ce qu'on veut, l'agent s'organise.

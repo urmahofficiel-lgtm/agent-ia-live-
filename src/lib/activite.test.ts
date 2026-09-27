@@ -18,7 +18,7 @@ describe("etapeDe", () => {
     expect(etapeDe("🎬 Écriture du script vidéo : « X »")).toBe("video");
     expect(etapeDe("🚀 Publication en cours sur LinkedIn")).toBe("publication");
     expect(etapeDe("🔎 Analyse de votre niche et de votre marché…")).toBe("strategie");
-    expect(etapeDe("✅ Terminé. Les publications sont prêtes à valider dans Tâches.")).toBeNull();
+    expect(etapeDe("✅ Terminé. Les publications sont prêtes à valider dans Publications.")).toBeNull();
     expect(etapeDe("✅ Publié : « Devis »")).toBe("publication");
   });
 });

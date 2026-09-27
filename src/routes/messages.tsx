@@ -36,7 +36,7 @@ function Messages() {
 
   return (
     <>
-      <Titre sous="Commentaires sous vos publications et messages privés reçus. L'IA propose une réponse, vous l'envoyez en un clic.">
+      <Titre sous="Commentaires et messages privés reçus sur les réseaux connectés via Zernio. L'IA propose une réponse, vous l'envoyez en un clic.">
         Messages
       </Titre>
       <button className={`${boutonSecondaire} mb-4`} disabled={chargement} onClick={charger}>

@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { AlertTriangle, Clapperboard, ImageIcon, LoaderCircle, PenLine, Plus, RotateCcw, Send, SlidersHorizontal, X } from "lucide-react";
+import { AlertTriangle, Clapperboard, ImageIcon, LoaderCircle, PenLine, Plus, RotateCcw, Send, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { Carte, Erreur, Pastille, Titre, bouton, boutonSecondaire, champ } from "@/components/ui";
 import { LogoPlateforme } from "@/components/LogoPlateforme";
 import { supabase } from "@/lib/supabase";
@@ -9,13 +9,10 @@ import { PLATEFORMES, nomPlateforme } from "@/lib/plateformes";
 import { creerVideo, genererBrouillon, publierTache, regenererVisuel } from "@/lib/agent.functions";
 import { jetonSession } from "@/lib/session";
 import { STATUTS } from "@/lib/statuts";
-import { LIBELLE_TYPE, type StatutTache, type Tache, type TypeTache } from "@/lib/types";
+import { LIBELLE_TYPE, type StatutTache, type Tache } from "@/lib/types";
+import { supprimerPublications } from "@/lib/publications";
 
 export const Route = createFileRoute("/taches")({ component: Publications });
-
-// Types qui produisent quelque chose de visible par d'autres : ils passent par
-// « à valider » tant que la validation est activée.
-const TYPES_A_VALIDER: TypeTache[] = ["publication", "reponse", "prospection", "relance"];
 
 const ONGLETS: { id: string; libelle: string; statuts: StatutTache[]; vide: string }[] = [
   { id: "valider", libelle: "À valider", statuts: ["a_valider"], vide: "Rien à valider. L'agent déposera ici ses prochains brouillons." },
@@ -73,7 +70,18 @@ function Publications() {
     publier: (id) => action({ id, quoi: "publication" }, (jeton) => publierTache({ data: { tacheId: id, jeton } })),
     statut: changerStatut,
     recharger: liste.recharger,
+    supprimer: async (t) => {
+      if (!window.confirm(`Supprimer définitivement « ${t.titre} » ? Son texte, son image et sa vidéo seront effacés.`)) return;
+      setErreur(await supprimerPublications([t]));
+      await liste.recharger();
+    },
   };
+
+  async function viderOnglet(liste_: Tache[], libelle: string) {
+    if (!window.confirm(`Supprimer définitivement les ${liste_.length} publications « ${libelle} » ? Textes, images et vidéos seront effacés.`)) return;
+    setErreur(await supprimerPublications(liste_));
+    await liste.recharger();
+  }
 
   const taches = liste.data ?? [];
   // Une vidéo se crée en arrière-plan (1 à 3 min) : la liste se met à jour
@@ -132,6 +140,18 @@ function Publications() {
 
       <Erreur message={erreur ?? liste.erreur} />
 
+      {(courant.id === "annulees" || courant.id === "echouees") && visibles.length > 1 && (
+        <div className="mb-3 flex justify-end">
+          <button
+            className={`${boutonSecondaire} flex items-center gap-2 hover:border-erreur/60 hover:text-erreur`}
+            onClick={() => viderOnglet(visibles, courant.libelle)}
+          >
+            <Trash2 size={15} aria-hidden />
+            Tout supprimer ({visibles.length})
+          </button>
+        </div>
+      )}
+
       {liste.data && visibles.length === 0 ? (
         <Carte className="text-sm text-doux">{courant.vide}</Carte>
       ) : (
@@ -155,6 +175,7 @@ type Actions = {
   publier: (id: string) => void;
   statut: (id: string, s: StatutTache) => void;
   recharger: () => Promise<void>;
+  supprimer: (t: Tache) => void;
 };
 
 // État réel de la vidéo : une création « en cours » depuis plus de 6 minutes a
@@ -172,7 +193,7 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
   const [deplie, setDeplie] = useState(false);
   const [edition, setEdition] = useState(false);
   const modifiable = ["a_valider", "en_attente"].includes(t.statut);
-  const editable = modifiable || t.statut === "echouee";
+  const editable = modifiable || t.statut === "echouee" || t.statut === "annulee";
   const brouillon = t.resultat?.brouillon;
   const video = t.resultat?.video_url;
   const image = t.resultat?.visuel_url;
@@ -282,7 +303,7 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
           </div>
         )}
 
-        {(principale || editable) && !edition && (
+        {(principale || editable || t.statut === "terminee") && !edition && (
           <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-bord pt-3">
             {principale}
             {editable && (
@@ -325,6 +346,16 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
             {modifiable && (
               <button className="ml-auto text-sm text-doux hover:text-erreur disabled:opacity-50" disabled={occupe} onClick={() => a.statut(t.id, "annulee")}>
                 Annuler
+              </button>
+            )}
+            {(t.statut === "annulee" || t.statut === "echouee" || t.statut === "terminee") && (
+              <button
+                className="ml-auto flex items-center gap-1.5 text-sm text-doux hover:text-erreur disabled:opacity-50"
+                disabled={occupe}
+                onClick={() => a.supprimer(t)}
+              >
+                <Trash2 size={14} aria-hidden />
+                Supprimer
               </button>
             )}
           </div>
@@ -513,7 +544,6 @@ function Apercu({ video, image, titre, enCours }: { video?: string; image?: stri
 function NouvelleTache({ onCree }: { onCree: () => Promise<void> }) {
   const userId = useUserId();
   const { reglages } = useReglages();
-  const [type, setType] = useState<TypeTache>("publication");
   const [plateforme, setPlateforme] = useState("linkedin");
   const [titre, setTitre] = useState("");
   const [consigne, setConsigne] = useState("");
@@ -523,13 +553,13 @@ function NouvelleTache({ onCree }: { onCree: () => Promise<void> }) {
   async function creer(e: FormEvent) {
     e.preventDefault();
     if (!userId) return;
-    const statut: StatutTache = reglages.validation_requise && TYPES_A_VALIDER.includes(type) ? "a_valider" : "en_attente";
+    const statut: StatutTache = reglages.validation_requise ? "a_valider" : "en_attente";
     const { error } = await supabase()
       .from("taches")
       .insert({
         user_id: userId,
-        type,
-        plateforme: type === "appareil" ? null : plateforme,
+        type: "publication",
+        plateforme,
         titre,
         consigne,
         statut,
@@ -542,28 +572,16 @@ function NouvelleTache({ onCree }: { onCree: () => Promise<void> }) {
   return (
     <Carte className="mb-6">
       <form onSubmit={creer} className="grid gap-3 md:grid-cols-2">
-        <label className="text-sm">
-          Type
-          <select className={champ} value={type} onChange={(e) => setType(e.target.value as TypeTache)}>
-            {Object.entries(LIBELLE_TYPE).map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
+        <label className="text-sm md:col-span-2">
+          Réseau
+          <select className={champ} value={plateforme} onChange={(e) => setPlateforme(e.target.value)}>
+            {PLATEFORMES.filter((p) => p.categorie === "reseau" || p.categorie === "local").map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nom}
               </option>
             ))}
           </select>
         </label>
-        {type !== "appareil" && (
-          <label className="text-sm">
-            Réseau
-            <select className={champ} value={plateforme} onChange={(e) => setPlateforme(e.target.value)}>
-              {PLATEFORMES.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nom}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
         <label className="text-sm md:col-span-2">
           Sujet
           <input className={champ} required value={titre} onChange={(e) => setTitre(e.target.value)} placeholder="Ex. : Devis en 2 minutes depuis le chantier" />

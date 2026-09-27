@@ -25,7 +25,7 @@ function Parametres() {
 
   return (
     <>
-      <Titre sous="Comment l'agent doit se comporter.">Réglages</Titre>
+      <Titre sous="Comment l'agent doit se comporter, et votre compte.">Réglages</Titre>
       <Carte className="max-w-xl space-y-5">
         <label className="flex items-start gap-3 text-sm">
           <input type="checkbox" className="mt-1" checked={form.validation_requise} onChange={(e) => setForm({ ...form, validation_requise: e.target.checked })} />
@@ -33,34 +33,6 @@ function Parametres() {
             <span className="font-medium">Me demander de valider avant de publier ou d'envoyer</span>
             <span className="block text-doux">Recommandé au début, le temps de vérifier la qualité du travail de l'agent.</span>
           </span>
-        </label>
-
-        <fieldset className="text-sm">
-          <legend className="mb-2 font-medium">Mode</legend>
-          <label className="mb-2 flex items-start gap-3">
-            <input type="radio" name="mode" className="mt-1" checked={form.mode === "prudent"} onChange={() => setForm({ ...form, mode: "prudent" })} />
-            <span>
-              Prudent <span className="block text-doux">Accès officiels des réseaux, rythme humain. Pas de risque de blocage des comptes.</span>
-            </span>
-          </label>
-          <label className="flex items-start gap-3">
-            <input type="radio" name="mode" className="mt-1" checked={form.mode === "agressif"} onChange={() => setForm({ ...form, mode: "agressif" })} />
-            <span>
-              Agressif <span className="block text-doux">Plus de volume, contrôle de l'écran. Les réseaux peuvent bloquer ou bannir les comptes.</span>
-            </span>
-          </label>
-        </fieldset>
-
-        <label className="block text-sm">
-          <span className="font-medium">Nombre maximum de contacts par jour</span>
-          <input
-            className={`${champ} mt-1 max-w-32`}
-            type="number"
-            min={0}
-            max={1000}
-            value={form.limite_contacts_jour}
-            onChange={(e) => setForm({ ...form, limite_contacts_jour: Number(e.target.value) })}
-          />
         </label>
 
         <button className={bouton} onClick={sauver}>Enregistrer</button>

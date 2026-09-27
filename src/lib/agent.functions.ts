@@ -83,14 +83,14 @@ async function preparerPourUtilisateur(sb: Sb, userId: string, t: TacheLue, cont
       titre: t.titre,
       consigne: t.consigne,
       brouillon: options.refaireTexte ? null : (r.brouillon as string | undefined),
-      visuel_url: options.refaireTexte || options.refaireImage ? null : (r.visuel_url as string | undefined),
+      visuel_url: options.refaireImage ? null : (r.visuel_url as string | undefined),
     },
     contexte,
     ecrivainUtilisateur(sb, userId, t.id, r),
   );
 }
 
-// Rédige (ou réécrit) le texte ET crée le visuel d'une tâche.
+// Rédige (ou réécrit) le texte ; crée le visuel seulement s'il manque.
 export const genererBrouillon = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ tacheId: z.string().uuid(), jeton }).parse(input))
   .handler(async ({ data }): Promise<Resultat<{ brouillon: string }>> => {
@@ -113,8 +113,12 @@ export const regenererVisuel = createServerFn({ method: "POST" })
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
       const { data: t } = await sb.from("taches").select("id, type, plateforme, titre, consigne, resultat").eq("id", data.tacheId).single();
       if (!t) return { ok: false, erreur: "Tâche introuvable." };
+      const ancien = (t.resultat as { visuel_id?: string } | null)?.visuel_id;
       const r = await preparerPourUtilisateur(sb, user.id, t as TacheLue, await contexteMarque(sb), { refaireImage: true });
-      return r.visuel_url ? { ok: true } : { ok: false, erreur: "L'image n'a pas pu être créée (voir En direct)." };
+      if (!r.visuel_url) return { ok: false, erreur: "L'image n'a pas pu être créée (voir En direct)." };
+      // L'ancienne image ne sert plus : on libère la place.
+      if (ancien) await sb.from("visuels").delete().eq("id", ancien);
+      return { ok: true };
     } catch (e) {
       return { ok: false, erreur: message(e) };
     }
@@ -153,7 +157,7 @@ export const travaillerMaintenant = createServerFn({ method: "POST" })
           await journal("erreur", `« ${t.titre} » : ${message(e)}`);
         }
       }
-      await journal("info", "✅ Terminé. Les publications sont prêtes à valider dans Tâches.");
+      await journal("info", "✅ Terminé. Les publications sont prêtes à valider dans Publications.");
       return { ok: true, traitees: aFaire.length };
     } catch (e) {
       return { ok: false, erreur: message(e) };
@@ -357,10 +361,13 @@ export const planifierCommande = createServerFn({ method: "POST" })
       const validation = reglages?.validation_requise ?? true;
       const aValider = new Set(["publication", "reponse", "prospection", "relance"]);
 
-      const lignes = plan.map((t) => ({
+      const { data: comptes } = await sb.from("comptes_connectes").select("plateforme").eq("statut", "connecte");
+      const connectes = [...new Set((comptes ?? []).map((c) => c.plateforme as string))];
+      const lignes = plan.map((t, i) => ({
         user_id: user.id,
         type: t.type,
-        plateforme: t.type === "appareil" ? null : (t.plateforme ?? null),
+        // Réseau oublié par l'IA : on répartit sur les réseaux connectés.
+        plateforme: t.plateforme ?? (connectes.length ? connectes[i % connectes.length] : null),
         titre: t.titre,
         consigne: t.consigne,
         statut: validation && aValider.has(t.type) ? "a_valider" : "en_attente",
@@ -852,7 +859,7 @@ export const creerVideo = createServerFn({ method: "POST" })
         video_etat: "prete",
         video_erreur: null,
       });
-      await journal("info", `✅ Vidéo prête (${Math.round(d.reduce((a, b) => a + b, 0))} s, ${(mp4.length / 1e6).toFixed(1)} Mo) — à valider dans Tâches.`);
+      await journal("info", `✅ Vidéo prête (${Math.round(d.reduce((a, b) => a + b, 0))} s, ${(mp4.length / 1e6).toFixed(1)} Mo) — à valider dans Publications.`);
       return { ok: true, video_url };
     } catch (e) {
       try {

@@ -215,7 +215,14 @@ function CarteSeance({ seance: s, tache }: { seance: Seance; tache?: TacheResume
           ) : (
             image && (
               <a href={image} target="_blank" rel="noreferrer" className="mt-3 inline-block">
-                <img src={image} alt={`Visuel de « ${titre} »`} loading="lazy" className="h-40 rounded-lg border border-bord object-cover" />
+                <img
+                  src={image}
+                  alt={`Visuel de « ${titre} »`}
+                  loading="lazy"
+                  // Image remplacée ou supprimée depuis : on n'affiche pas d'icône cassée.
+                  onError={(e) => (e.currentTarget.parentElement!.style.display = "none")}
+                  className="h-40 rounded-lg border border-bord object-cover"
+                />
               </a>
             )
           )}

@@ -11,9 +11,9 @@ describe("lirePlan", () => {
     expect(plan[0]).toMatchObject({ type: "publication", plateforme: "linkedin", dans_jours: 1, heure: 9 });
   });
 
-  it("neutralise une plateforme inconnue et un type inconnu", () => {
+  it("neutralise une plateforme inconnue et un type inconnu (devient une publication)", () => {
     const [t] = lirePlan('[{"type":"danse","plateforme":"myspace","titre":"A"}]');
-    expect(t.type).toBe("autre");
+    expect(t.type).toBe("publication"); // l'agent ne traite que des publications
     expect(t.plateforme).toBeNull();
   });
 
