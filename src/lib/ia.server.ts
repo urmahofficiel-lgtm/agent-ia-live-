@@ -50,10 +50,10 @@ export type Consigne = { type: string; plateforme: string | null; titre: string;
 const SYSTEME =
   "Tu es l'assistant marketing et commercial d'un entrepreneur français. Tu écris en français, de façon naturelle et concrète. Tu ne réponds qu'avec le contenu demandé, sans commentaire autour, sans guillemets englobants.";
 
-function appelNvidia(cle: string, modele: string, systeme: string, demande: string, maxTokens: number) {
+function appelNvidia(cle: string, modele: string, systeme: string, demande: string, maxTokens: number, delai: number) {
   return fetch(NVIDIA_URL, {
     method: "POST",
-    signal: AbortSignal.timeout(delaiMax(maxTokens)),
+    signal: AbortSignal.timeout(delai),
     headers: { Authorization: `Bearer ${cle}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: modele,
@@ -67,18 +67,82 @@ function appelNvidia(cle: string, modele: string, systeme: string, demande: stri
   });
 }
 
-// Appel générique au cerveau NVIDIA, avec bascule automatique de modèle.
-export async function demanderIA(demande: string, options: { systeme?: string; maxTokens?: number } = {}) {
-  const cle = cleNvidia();
-  if (!cle) throw new Error("Clé NVIDIA absente des variables Vercel.");
+// --- Gemini (Google AI Studio, offre gratuite) --------------------------------
+// Rapide et fiable sur les réponses longues (script vidéo, calendrier) : il
+// passe en premier pour celles-ci, et sert de secours pour le reste.
+const GEMINI = "https://generativelanguage.googleapis.com/v1beta";
+let modelesGemini: string[] | null = null;
 
+// Rang d'un modèle : version la plus récente, « flash » complet avant « lite »,
+// version stable avant « preview ».
+function rangGemini(nom: string) {
+  const version = Number(nom.match(/gemini-(\d+(?:\.\d+)?)/)?.[1] ?? 0);
+  return version * 10 - (nom.includes("lite") ? 3 : 0) - (/preview|exp/.test(nom) ? 1 : 0);
+}
+
+// Les noms de modèles changent souvent : on demande la liste à Google plutôt
+// que de les écrire en dur.
+async function listerGemini(cle: string) {
+  if (modelesGemini) return modelesGemini;
+  const r = await fetch(`${GEMINI}/models?pageSize=200`, { headers: { "x-goog-api-key": cle }, signal: AbortSignal.timeout(10_000) });
+  if (!r.ok) throw new Error(`Gemini : liste des modèles indisponible (${r.status}).`);
+  const json = (await r.json()) as { models?: { name: string; supportedGenerationMethods?: string[] }[] };
+  modelesGemini = (json.models ?? [])
+    .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
+    .map((m) => m.name)
+    .filter((n) => /gemini-[\d.]+-flash/.test(n) && !/tts|image|audio|live|embed|thinking|native/.test(n))
+    .sort((a, b) => rangGemini(b) - rangGemini(a))
+    .slice(0, 3);
+  return modelesGemini;
+}
+
+async function demanderGemini(cle: string, systeme: string, demande: string, echeance: number) {
+  let derniere = "Gemini n'a pas répondu.";
+  for (const modele of await listerGemini(cle)) {
+    const reste = echeance - Date.now();
+    if (reste < 5_000) break;
+    const debut = Date.now();
+    try {
+      const r = await fetch(`${GEMINI}/${modele}:generateContent`, {
+        method: "POST",
+        signal: AbortSignal.timeout(Math.min(90_000, reste)),
+        headers: { "x-goog-api-key": cle, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systeme }] },
+          contents: [{ role: "user", parts: [{ text: demande }] }],
+          generationConfig: { temperature: 0.7 },
+        }),
+      });
+      console.info("Gemini", modele, r.status, Date.now() - debut, "ms");
+      if (!r.ok) {
+        derniere = `Gemini a refusé la demande (${r.status}).`;
+        continue;
+      }
+      const json = (await r.json()) as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[] };
+      const texte = (json.candidates?.[0]?.content?.parts ?? [])
+        .filter((p) => !p.thought)
+        .map((p) => p.text ?? "")
+        .join("")
+        .trim();
+      if (texte) return texte;
+      derniere = "Réponse vide de Gemini.";
+    } catch {
+      derniere = "Gemini a mis trop de temps à répondre.";
+    }
+  }
+  throw new Error(derniere);
+}
+
+async function demanderNvidia(cle: string, systeme: string, demande: string, maxTokens: number, echeance: number) {
   const modeles = [process.env.NVIDIA_MODELE, ...MODELES].filter((m): m is string => Boolean(m) && !retires.has(m!));
   let derniereErreur = "L'IA NVIDIA n'a pas répondu à temps. Réessayez.";
   for (const modele of modeles) {
+    const reste = echeance - Date.now();
+    if (reste < 5_000) break;
     const debut = Date.now();
     let r: Response;
     try {
-      r = await appelNvidia(cle, modele, options.systeme ?? SYSTEME, demande, options.maxTokens ?? 800);
+      r = await appelNvidia(cle, modele, systeme, demande, maxTokens, Math.min(delaiMax(maxTokens), reste));
     } catch {
       console.warn("NVIDIA : trop lent, modèle suivant", modele, Date.now() - debut, "ms");
       derniereErreur = "L'IA a mis trop de temps à répondre. Réessayez dans un instant.";
@@ -106,6 +170,38 @@ export async function demanderIA(demande: string, options: { systeme?: string; m
     derniereErreur = "Réponse vide de l'IA.";
   }
   throw new Error(derniereErreur);
+}
+
+// Appel générique à l'IA : NVIDIA et Gemini, chacun en secours de l'autre.
+// Les réponses longues (≥ 1500 jetons) passent d'abord par Gemini, plus
+// rapide sur ce type de demande. `delaiTotal` borne l'ensemble des essais
+// pour rester sous la limite d'exécution de Vercel.
+export async function demanderIA(
+  demande: string,
+  options: { systeme?: string; maxTokens?: number; delaiTotal?: number; gemini?: "d'abord" | "secours" } = {},
+) {
+  const maxTokens = options.maxTokens ?? 800;
+  const systeme = options.systeme ?? SYSTEME;
+  const echeance = Date.now() + (options.delaiTotal ?? 170_000);
+  const cleN = cleNvidia();
+  const cleG = process.env.GEMINI_API_KEY ?? "";
+  if (!cleN && !cleG) throw new Error("Aucune clé d'IA (NVIDIA ou Gemini) dans les variables Vercel.");
+
+  const nvidia = () => demanderNvidia(cleN, systeme, demande, maxTokens, echeance);
+  const gemini = () => demanderGemini(cleG, systeme, demande, echeance);
+  const ordre = (options.gemini ?? (maxTokens >= 1500 ? "d'abord" : "secours")) === "d'abord" ? [gemini, nvidia] : [nvidia, gemini];
+  const essais = ordre.filter((f) => (f === gemini ? cleG : cleN));
+
+  let erreur: unknown = null;
+  for (const essai of essais) {
+    try {
+      return await essai();
+    } catch (e) {
+      erreur = e;
+      console.warn("IA : bascule vers l'autre fournisseur", e instanceof Error ? e.message : e);
+    }
+  }
+  throw erreur instanceof Error ? erreur : new Error("L'IA n'a pas répondu. Réessayez.");
 }
 
 // Règles de rédaction quand on connaît la marque : on écrit POUR elle, à

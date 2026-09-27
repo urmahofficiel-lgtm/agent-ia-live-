@@ -690,10 +690,11 @@ export const planifierDepuisStrategie = createServerFn({ method: "POST" })
       const { data: reglages } = await sb.from("reglages_agent").select("validation_requise").maybeSingle();
       const validation = reglages?.validation_requise ?? true;
       const { error } = await sb.from("taches").insert(
-        plan.map((t) => ({
+        plan.map((t, i) => ({
           user_id: user.id,
           type: t.type,
-          plateforme: t.plateforme ?? null,
+          // Réseau oublié par l'IA : on répartit sur les réseaux connectés.
+          plateforme: t.plateforme ?? (connectes.length ? connectes[i % connectes.length] : null),
           titre: t.titre,
           consigne: t.consigne,
           statut: validation ? "a_valider" : "en_attente",
@@ -714,6 +715,16 @@ export const planifierDepuisStrategie = createServerFn({ method: "POST" })
 
 // --- Vidéo courte verticale (TikTok, Reels, Shorts) ----------------------------
 
+// Fusionne l'état de la vidéo dans le résultat de la tâche (relu à chaque fois :
+// l'utilisateur a pu modifier le texte entre-temps).
+async function etatVideo(sb: Sb, tacheId: string, champs: Record<string, unknown>) {
+  const { data } = await sb.from("taches").select("resultat").eq("id", tacheId).single();
+  await sb
+    .from("taches")
+    .update({ resultat: { ...((data?.resultat as object | null) ?? {}), ...champs } })
+    .eq("id", tacheId);
+}
+
 export const creerVideo = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ tacheId: z.string().uuid(), jeton }).parse(input))
   .handler(async ({ data }): Promise<Resultat<{ video_url: string }>> => {
@@ -725,21 +736,22 @@ export const creerVideo = createServerFn({ method: "POST" })
         sb.from("evenements_taches").insert({ tache_id: t.id, user_id: user.id, niveau, message: msg, capture_url: image ?? null });
       const contexte = await contexteMarque(sb);
       const reseau = PLATEFORMES.find((p) => p.id === t.plateforme)?.nom ?? "TikTok, Reels et Shorts";
+      await etatVideo(sb, t.id, { video_etat: "en_cours", video_erreur: null, video_debut: new Date().toISOString() });
 
       await journal("action", `🎬 Écriture du script vidéo : « ${t.titre} »`);
+      // Budget serré : la fonction entière doit tenir sous les 5 minutes de Vercel.
+      const finScript = Date.now() + 100_000;
       let script = null;
-      for (let essai = 0; essai < 2 && !script; essai++) {
+      for (let essai = 0; essai < 2 && !script && Date.now() < finScript - 10_000; essai++) {
         script = lireScript(
           await demanderIA(consigneScript(t, contexte, reseau), {
             systeme: "Tu es scénariste de vidéos courtes pour les réseaux sociaux. Tu réponds uniquement en JSON valide.",
             maxTokens: 2000,
+            delaiTotal: finScript - Date.now(),
           }),
         );
       }
-      if (!script) {
-        await journal("erreur", "Le script vidéo n'a pas pu être écrit. Réessayez dans un instant.");
-        return { ok: false, erreur: "Le script vidéo n'a pas pu être écrit. Réessayez." };
-      }
+      if (!script) throw new Error("Le script vidéo n'a pas pu être écrit.");
       await journal("info", `Script : ${script.scenes.length} scènes — « ${script.scenes[0].texte_ecran} »`);
 
       let voix = null;
@@ -790,25 +802,23 @@ export const creerVideo = createServerFn({ method: "POST" })
 
       const chemin = `${user.id}/${t.id}-${Date.now()}.mp4`;
       const { error: errStockage } = await sb.storage.from("videos").upload(chemin, mp4, { contentType: "video/mp4" });
-      if (errStockage) {
-        await journal("erreur", `Enregistrement de la vidéo impossible : ${errStockage.message}`);
-        return { ok: false, erreur: `Enregistrement de la vidéo impossible : ${errStockage.message}` };
-      }
+      if (errStockage) throw new Error(`Enregistrement de la vidéo impossible : ${errStockage.message}`);
       const video_url = sb.storage.from("videos").getPublicUrl(chemin).data.publicUrl;
 
-      const resultat = {
-        ...((t.resultat as object | null) ?? {}),
-        brouillon: script.legende || (t.resultat as { brouillon?: string } | null)?.brouillon,
+      await etatVideo(sb, t.id, {
+        brouillon: (t.resultat as { brouillon?: string } | null)?.brouillon || script.legende,
         video_url,
         video_script: script,
         video_le: new Date().toISOString(),
-      };
-      await sb.from("taches").update({ resultat }).eq("id", t.id);
+        video_etat: "prete",
+        video_erreur: null,
+      });
       await journal("info", `✅ Vidéo prête (${Math.round(d.reduce((a, b) => a + b, 0))} s, ${(mp4.length / 1e6).toFixed(1)} Mo) — à valider dans Tâches.`);
       return { ok: true, video_url };
     } catch (e) {
       try {
         const { sb, user } = await utilisateurDepuisJeton(data.jeton);
+        await etatVideo(sb, data.tacheId, { video_etat: "echec", video_erreur: message(e) });
         await sb.from("evenements_taches").insert({
           tache_id: data.tacheId,
           user_id: user.id,

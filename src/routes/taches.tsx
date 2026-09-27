@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { useState, type FormEvent, type ReactNode } from "react";
-import { Clapperboard, ImageIcon, LoaderCircle, PenLine, Plus, Send, X } from "lucide-react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { AlertTriangle, Clapperboard, ImageIcon, LoaderCircle, PenLine, Plus, RotateCcw, Send, SlidersHorizontal, X } from "lucide-react";
 import { Carte, Erreur, Pastille, Titre, bouton, boutonSecondaire, champ } from "@/components/ui";
 import { LogoPlateforme } from "@/components/LogoPlateforme";
 import { supabase } from "@/lib/supabase";
@@ -72,9 +72,20 @@ function Publications() {
     video: (id) => action({ id, quoi: "video" }, (jeton) => creerVideo({ data: { tacheId: id, jeton } })),
     publier: (id) => action({ id, quoi: "publication" }, (jeton) => publierTache({ data: { tacheId: id, jeton } })),
     statut: changerStatut,
+    recharger: liste.recharger,
   };
 
   const taches = liste.data ?? [];
+  // Une vidéo se crée en arrière-plan (1 à 3 min) : la liste se met à jour
+  // seule tant qu'une création est en cours, même si la page a été rechargée.
+  const videoEnCours = taches.some((t) => etatVideo(t) === "en_cours");
+  const recharger = liste.recharger;
+  useEffect(() => {
+    if (!videoEnCours) return;
+    const id = setInterval(() => void recharger(), 8000);
+    return () => clearInterval(id);
+  }, [videoEnCours, recharger]);
+
   const courant = ONGLETS.find((o) => o.id === onglet) ?? ONGLETS[0];
   const visibles = taches.filter((t) => courant.statuts.includes(t.statut));
 
@@ -143,17 +154,33 @@ type Actions = {
   video: (id: string) => void;
   publier: (id: string) => void;
   statut: (id: string, s: StatutTache) => void;
+  recharger: () => Promise<void>;
 };
+
+// État réel de la vidéo : une création « en cours » depuis plus de 6 minutes a
+// été interrompue (limite d'exécution du serveur).
+function etatVideo(t: Tache): "en_cours" | "echec" | "prete" | null {
+  const r = t.resultat;
+  if (r?.video_etat === "en_cours") {
+    const depuis = Date.now() - new Date(r.video_debut ?? 0).getTime();
+    return depuis > 6 * 60_000 ? "echec" : "en_cours";
+  }
+  return r?.video_etat ?? (r?.video_url ? "prete" : null);
+}
 
 function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Actions }) {
   const [deplie, setDeplie] = useState(false);
+  const [edition, setEdition] = useState(false);
   const modifiable = ["a_valider", "en_attente"].includes(t.statut);
+  const editable = modifiable || t.statut === "echouee";
   const brouillon = t.resultat?.brouillon;
   const video = t.resultat?.video_url;
   const image = t.resultat?.visuel_url;
   const occupe = a.travail !== null;
   const ici = a.travail?.id === t.id ? a.travail.quoi : null;
   const estPublication = t.type === "publication";
+  const sansReseau = estPublication && !t.plateforme;
+  const video_etat = ici === "video" ? "en_cours" : etatVideo(t);
 
   // Une seule action principale, selon l'état de la publication.
   let principale: ReactNode = null;
@@ -171,7 +198,7 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
     );
   } else if (t.statut === "en_attente" && estPublication) {
     principale = (
-      <BoutonAction principal occupe={occupe} enCours={ici === "publication"} onClick={() => a.publier(t.id)} icone={<Send size={15} />}>
+      <BoutonAction principal occupe={occupe || sansReseau} enCours={ici === "publication"} onClick={() => a.publier(t.id)} icone={<Send size={15} />}>
         Publier maintenant
       </BoutonAction>
     );
@@ -185,22 +212,37 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
 
   return (
     <article className="flex flex-col gap-4 rounded-2xl border border-bord bg-carte p-4 sm:flex-row">
-      <Apercu video={video} image={image} titre={t.titre} enCours={ici === "image" || ici === "video"} />
+      <Apercu video={video} image={image} titre={t.titre} enCours={ici === "image" || video_etat === "en_cours"} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {t.plateforme && <LogoPlateforme id={t.plateforme} taille={22} />}
           <h3 className="font-semibold">{t.titre}</h3>
           <Pastille ton={STATUTS[t.statut].ton}>{STATUTS[t.statut].libelle}</Pastille>
+          {video && video_etat !== "en_cours" && <Pastille ton="plan">Vidéo</Pastille>}
+          {sansReseau && (
+            <Pastille ton="alerte">
+              <AlertTriangle size={12} aria-hidden />
+              Réseau à choisir
+            </Pastille>
+          )}
         </div>
         <p className="mt-1 text-xs text-doux">
-          {estPublication ? nomPlateforme(t.plateforme) : LIBELLE_TYPE[t.type]}
+          {estPublication ? (t.plateforme ? nomPlateforme(t.plateforme) : "Réseau non choisi") : LIBELLE_TYPE[t.type]}
           {t.planifiee_pour
             ? ` · prévue le ${new Date(t.planifiee_pour).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })}`
             : ` · créée le ${new Date(t.created_at).toLocaleDateString("fr-FR")}`}
         </p>
 
-        {brouillon ? (
+        {edition ? (
+          <EditeurPublication
+            tache={t}
+            onFini={async (enregistre) => {
+              setEdition(false);
+              if (enregistre) await a.recharger();
+            }}
+          />
+        ) : brouillon ? (
           <div className="mt-3">
             <p className={`text-sm whitespace-pre-wrap ${deplie ? "" : "line-clamp-4"}`}>{brouillon}</p>
             {brouillon.length > 240 && (
@@ -215,20 +257,47 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
           </p>
         )}
 
-        {ici && (
-          <p className="mt-3 text-xs text-accent" aria-live="polite">
-            {EN_COURS[ici]}{" "}
+        {(ici || video_etat === "en_cours") && (
+          <p className="mt-3 flex items-center gap-2 text-xs text-accent" aria-live="polite">
+            <LoaderCircle size={14} className="animate-spin" aria-hidden />
+            {EN_COURS[ici ?? "video"]}
             <Link to="/en-direct" className="underline">
               Suivre en direct
             </Link>
           </p>
         )}
 
-        {(principale || modifiable) && (
+        {video_etat === "echec" && !ici && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-erreur/10 px-3 py-2 text-sm text-erreur" role="status">
+            <span>
+              La vidéo n'a pas pu être créée
+              {t.resultat?.video_erreur ? ` : ${t.resultat.video_erreur}` : " : création interrompue."}
+            </span>
+            {modifiable && (
+              <button className="inline-flex items-center gap-1.5 font-medium underline disabled:opacity-50" disabled={occupe} onClick={() => a.video(t.id)}>
+                <RotateCcw size={14} aria-hidden />
+                Réessayer
+              </button>
+            )}
+          </div>
+        )}
+
+        {(principale || editable) && !edition && (
           <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-bord pt-3">
             {principale}
+            {editable && (
+              <BoutonAction occupe={occupe} enCours={false} onClick={() => setEdition(true)} icone={<SlidersHorizontal size={15} />}>
+                Modifier
+              </BoutonAction>
+            )}
             {brouillon && t.statut === "a_valider" && estPublication && (
-              <BoutonAction occupe={occupe} enCours={ici === "publication"} onClick={() => a.publier(t.id)} icone={<Send size={15} />}>
+              <BoutonAction
+                occupe={occupe || sansReseau}
+                enCours={ici === "publication"}
+                onClick={() => a.publier(t.id)}
+                icone={<Send size={15} />}
+                titre={sansReseau ? "Choisissez d'abord un réseau (Modifier)" : undefined}
+              >
                 Publier maintenant
               </BoutonAction>
             )}
@@ -244,8 +313,8 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
             )}
             {modifiable && estPublication && (
               <BoutonAction
-                occupe={occupe}
-                enCours={ici === "video"}
+                occupe={occupe || video_etat === "en_cours"}
+                enCours={video_etat === "en_cours"}
                 onClick={() => a.video(t.id)}
                 icone={<Clapperboard size={15} />}
                 titre="Vidéo verticale de 30 à 45 s : script, séquences filmées, textes à l'écran et voix off"
@@ -262,6 +331,127 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
         )}
       </div>
     </article>
+  );
+}
+
+// Date ISO → valeur d'un champ datetime-local (heure locale).
+function versChampDate(iso: string | null) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// Modification manuelle : sujet, réseau, date et heure, texte, médias.
+function EditeurPublication({ tache: t, onFini }: { tache: Tache; onFini: (enregistre: boolean) => void }) {
+  const [titre, setTitre] = useState(t.titre);
+  const [plateforme, setPlateforme] = useState(t.plateforme ?? "");
+  const [quand, setQuand] = useState(versChampDate(t.planifiee_pour));
+  const [texte, setTexte] = useState(t.resultat?.brouillon ?? "");
+  const [consigne, setConsigne] = useState(t.consigne);
+  const [sansVideo, setSansVideo] = useState(false);
+  const [sansImage, setSansImage] = useState(false);
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const estPublication = t.type === "publication";
+
+  async function enregistrer(e: FormEvent) {
+    e.preventDefault();
+    setEnvoi(true);
+    setErreur(null);
+    const resultat: Record<string, unknown> = { ...(t.resultat ?? {}) };
+    if (texte.trim()) resultat.brouillon = texte;
+    else delete resultat.brouillon;
+    if (sansVideo) for (const k of ["video_url", "video_script", "video_le", "video_etat", "video_erreur", "video_debut"]) delete resultat[k];
+    if (sansImage) delete resultat.visuel_url;
+    const { error } = await supabase()
+      .from("taches")
+      .update({
+        titre: titre.trim() || t.titre,
+        consigne,
+        plateforme: plateforme || null,
+        planifiee_pour: quand ? new Date(quand).toISOString() : null,
+        resultat,
+      })
+      .eq("id", t.id);
+    setEnvoi(false);
+    if (error) return setErreur(error.message);
+    onFini(true);
+  }
+
+  return (
+    <form onSubmit={enregistrer} className="mt-3 space-y-3 rounded-xl border border-bord bg-fond/60 p-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="text-sm sm:col-span-2">
+          Sujet
+          <input className={`${champ} mt-1`} value={titre} onChange={(e) => setTitre(e.target.value)} required />
+        </label>
+        {estPublication && (
+          <label className="text-sm">
+            Réseau
+            <select className={`${champ} mt-1`} value={plateforme} onChange={(e) => setPlateforme(e.target.value)}>
+              <option value="">— Choisir —</option>
+              {PLATEFORMES.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nom}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label className="text-sm">
+          Date et heure de publication
+          <input className={`${champ} mt-1`} type="datetime-local" value={quand} onChange={(e) => setQuand(e.target.value)} />
+          <span className="mt-1 block text-xs text-doux">Vide : dès que vous validez.</span>
+        </label>
+      </div>
+      <label className="block text-sm">
+        Texte publié
+        <textarea
+          className={`${champ} mt-1 min-h-40 leading-relaxed`}
+          value={texte}
+          onChange={(e) => setTexte(e.target.value)}
+          placeholder="Laissez vide pour que l'agent le rédige."
+        />
+        <span className="mt-1 block text-right text-xs text-doux tabular-nums">{texte.length} caractères</span>
+      </label>
+      <label className="block text-sm">
+        Consigne pour l'agent
+        <textarea
+          className={`${champ} mt-1 min-h-16`}
+          value={consigne}
+          onChange={(e) => setConsigne(e.target.value)}
+          placeholder="Utilisée quand vous cliquez sur « Réécrire » ou « Créer une vidéo »."
+        />
+      </label>
+      {(t.resultat?.video_url || t.resultat?.visuel_url) && (
+        <fieldset className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+          <legend className="sr-only">Médias</legend>
+          {t.resultat?.video_url && (
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={sansVideo} onChange={(e) => setSansVideo(e.target.checked)} />
+              Retirer la vidéo (l'image sera publiée)
+            </label>
+          )}
+          {t.resultat?.visuel_url && (
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={sansImage} onChange={(e) => setSansImage(e.target.checked)} />
+              Retirer l'image
+            </label>
+          )}
+        </fieldset>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <button className={`${bouton} flex items-center gap-2`} disabled={envoi}>
+          {envoi && <LoaderCircle size={15} className="animate-spin" aria-hidden />}
+          Enregistrer
+        </button>
+        <button type="button" className={boutonSecondaire} onClick={() => onFini(false)}>
+          Annuler les modifications
+        </button>
+      </div>
+      <Erreur message={erreur} />
+    </form>
   );
 }
 
