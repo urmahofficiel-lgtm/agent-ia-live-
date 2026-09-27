@@ -74,3 +74,22 @@ h3 {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Pages légales : titres de section et listes lisibles. */
+.legal h2 {
+  margin-top: 2.25rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-texte);
+}
+.legal ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+.legal li + li {
+  margin-top: 0.35rem;
+}
+.legal a {
+  color: var(--color-accent);
+  text-decoration: underline;
+}

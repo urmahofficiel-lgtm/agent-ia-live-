@@ -11,11 +11,15 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ComptesRouteImport } from './routes/comptes'
+import { Route as ConditionsRouteImport } from './routes/conditions'
+import { Route as ConfidentialiteRouteImport } from './routes/confidentialite'
+import { Route as ConnexionRouteImport } from './routes/connexion'
 import { Route as EnDirectRouteImport } from './routes/en-direct'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as ParametresRouteImport } from './routes/parametres'
 import { Route as ProspectionRouteImport } from './routes/prospection'
 import { Route as StrategieRouteImport } from './routes/strategie'
+import { Route as SuppressionDonneesRouteImport } from './routes/suppression-donnees'
 import { Route as TachesRouteImport } from './routes/taches'
 import { Route as ApiAgentTickRouteImport } from './routes/api/agent/tick'
 import { Route as ApiInstagramRetourRouteImport } from './routes/api/instagram/retour'
@@ -31,6 +35,21 @@ const IndexRoute = IndexRouteImport.update({
 const ComptesRoute = ComptesRouteImport.update({
   id: '/comptes',
   path: '/comptes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConditionsRoute = ConditionsRouteImport.update({
+  id: '/conditions',
+  path: '/conditions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfidentialiteRoute = ConfidentialiteRouteImport.update({
+  id: '/confidentialite',
+  path: '/confidentialite',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConnexionRoute = ConnexionRouteImport.update({
+  id: '/connexion',
+  path: '/connexion',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EnDirectRoute = EnDirectRouteImport.update({
@@ -56,6 +75,11 @@ const ProspectionRoute = ProspectionRouteImport.update({
 const StrategieRoute = StrategieRouteImport.update({
   id: '/strategie',
   path: '/strategie',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SuppressionDonneesRoute = SuppressionDonneesRouteImport.update({
+  id: '/suppression-donnees',
+  path: '/suppression-donnees',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TachesRoute = TachesRouteImport.update({
@@ -92,11 +116,15 @@ const ApiVisuelsIdRoute = ApiVisuelsIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/comptes': typeof ComptesRoute
+  '/conditions': typeof ConditionsRoute
+  '/confidentialite': typeof ConfidentialiteRoute
+  '/connexion': typeof ConnexionRoute
   '/en-direct': typeof EnDirectRoute
   '/messages': typeof MessagesRoute
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
   '/strategie': typeof StrategieRoute
+  '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
@@ -107,11 +135,15 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/comptes': typeof ComptesRoute
+  '/conditions': typeof ConditionsRoute
+  '/confidentialite': typeof ConfidentialiteRoute
+  '/connexion': typeof ConnexionRoute
   '/en-direct': typeof EnDirectRoute
   '/messages': typeof MessagesRoute
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
   '/strategie': typeof StrategieRoute
+  '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
@@ -123,11 +155,15 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/comptes': typeof ComptesRoute
+  '/conditions': typeof ConditionsRoute
+  '/confidentialite': typeof ConfidentialiteRoute
+  '/connexion': typeof ConnexionRoute
   '/en-direct': typeof EnDirectRoute
   '/messages': typeof MessagesRoute
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
   '/strategie': typeof StrategieRoute
+  '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
@@ -140,11 +176,15 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/comptes'
+    | '/conditions'
+    | '/confidentialite'
+    | '/connexion'
     | '/en-direct'
     | '/messages'
     | '/parametres'
     | '/prospection'
     | '/strategie'
+    | '/suppression-donnees'
     | '/taches'
     | '/api/agent/tick'
     | '/api/instagram/retour'
@@ -155,11 +195,15 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/comptes'
+    | '/conditions'
+    | '/confidentialite'
+    | '/connexion'
     | '/en-direct'
     | '/messages'
     | '/parametres'
     | '/prospection'
     | '/strategie'
+    | '/suppression-donnees'
     | '/taches'
     | '/api/agent/tick'
     | '/api/instagram/retour'
@@ -170,11 +214,15 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/comptes'
+    | '/conditions'
+    | '/confidentialite'
+    | '/connexion'
     | '/en-direct'
     | '/messages'
     | '/parametres'
     | '/prospection'
     | '/strategie'
+    | '/suppression-donnees'
     | '/taches'
     | '/api/agent/tick'
     | '/api/instagram/retour'
@@ -186,11 +234,15 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ComptesRoute: typeof ComptesRoute
+  ConditionsRoute: typeof ConditionsRoute
+  ConfidentialiteRoute: typeof ConfidentialiteRoute
+  ConnexionRoute: typeof ConnexionRoute
   EnDirectRoute: typeof EnDirectRoute
   MessagesRoute: typeof MessagesRoute
   ParametresRoute: typeof ParametresRoute
   ProspectionRoute: typeof ProspectionRoute
   StrategieRoute: typeof StrategieRoute
+  SuppressionDonneesRoute: typeof SuppressionDonneesRoute
   TachesRoute: typeof TachesRoute
   ApiAgentTickRoute: typeof ApiAgentTickRoute
   ApiInstagramRetourRoute: typeof ApiInstagramRetourRoute
@@ -213,6 +265,27 @@ declare module '@tanstack/react-router' {
       path: '/comptes'
       fullPath: '/comptes'
       preLoaderRoute: typeof ComptesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/conditions': {
+      id: '/conditions'
+      path: '/conditions'
+      fullPath: '/conditions'
+      preLoaderRoute: typeof ConditionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/confidentialite': {
+      id: '/confidentialite'
+      path: '/confidentialite'
+      fullPath: '/confidentialite'
+      preLoaderRoute: typeof ConfidentialiteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/connexion': {
+      id: '/connexion'
+      path: '/connexion'
+      fullPath: '/connexion'
+      preLoaderRoute: typeof ConnexionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/en-direct': {
@@ -248,6 +321,13 @@ declare module '@tanstack/react-router' {
       path: '/strategie'
       fullPath: '/strategie'
       preLoaderRoute: typeof StrategieRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/suppression-donnees': {
+      id: '/suppression-donnees'
+      path: '/suppression-donnees'
+      fullPath: '/suppression-donnees'
+      preLoaderRoute: typeof SuppressionDonneesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/taches': {
@@ -298,11 +378,15 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ComptesRoute: ComptesRoute,
+  ConditionsRoute: ConditionsRoute,
+  ConfidentialiteRoute: ConfidentialiteRoute,
+  ConnexionRoute: ConnexionRoute,
   EnDirectRoute: EnDirectRoute,
   MessagesRoute: MessagesRoute,
   ParametresRoute: ParametresRoute,
   ProspectionRoute: ProspectionRoute,
   StrategieRoute: StrategieRoute,
+  SuppressionDonneesRoute: SuppressionDonneesRoute,
   TachesRoute: TachesRoute,
   ApiAgentTickRoute: ApiAgentTickRoute,
   ApiInstagramRetourRoute: ApiInstagramRetourRoute,

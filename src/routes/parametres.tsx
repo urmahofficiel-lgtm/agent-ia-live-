@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Carte, Erreur, Titre, bouton, champ } from "@/components/ui";
+import { supprimerCompte } from "@/lib/agent.functions";
+import { jetonSession } from "@/lib/session";
+import { supabase } from "@/lib/supabase";
 import { useReglages } from "@/lib/donnees";
 import type { Reglages } from "@/lib/types";
 
@@ -64,6 +67,57 @@ function Parametres() {
         <Erreur message={erreur} />
         {message && <p className="text-sm text-ok">{message}</p>}
       </Carte>
+
+      <ZoneSuppression />
     </>
+  );
+}
+
+// Suppression définitive : demande de taper un mot pour éviter les erreurs.
+function ZoneSuppression() {
+  const [confirmation, setConfirmation] = useState("");
+  const [enCours, setEnCours] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  async function supprimer() {
+    setEnCours(true);
+    setErreur(null);
+    try {
+      const r = await supprimerCompte({ data: { jeton: await jetonSession(), confirmation: "SUPPRIMER" } });
+      if (!r.ok) {
+        setErreur(r.erreur);
+        setEnCours(false);
+        return;
+      }
+      await supabase().auth.signOut();
+      window.location.assign("/");
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Erreur");
+      setEnCours(false);
+    }
+  }
+
+  return (
+    <section aria-labelledby="zone-suppression" className="mt-10 max-w-xl rounded-2xl border border-erreur/40 p-5">
+      <h2 id="zone-suppression" className="text-lg font-semibold text-erreur">
+        Supprimer mon compte
+      </h2>
+      <p className="mt-2 text-sm text-doux">
+        Efface définitivement votre compte, votre stratégie, vos publications, images, vidéos, prospects et tous les accès aux
+        réseaux sociaux. Cette action est irréversible.
+      </p>
+      <label className="mt-4 block text-sm">
+        Tapez <span className="font-mono font-semibold">SUPPRIMER</span> pour confirmer
+        <input className={`${champ} mt-1 max-w-56`} value={confirmation} onChange={(e) => setConfirmation(e.target.value)} autoComplete="off" />
+      </label>
+      <button
+        className="mt-3 rounded-lg bg-erreur px-4 py-2 text-sm font-semibold text-fond hover:brightness-110 disabled:opacity-50"
+        disabled={confirmation !== "SUPPRIMER" || enCours}
+        onClick={supprimer}
+      >
+        {enCours ? "Suppression…" : "Supprimer définitivement"}
+      </button>
+      <Erreur message={erreur} />
+    </section>
   );
 }

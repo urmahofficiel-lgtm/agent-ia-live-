@@ -866,3 +866,32 @@ export const choisirPageLinkedin = createServerFn({ method: "POST" })
       return { ok: false, erreur: message(e) };
     }
   });
+
+// --- Suppression du compte -----------------------------------------------------
+
+// Efface tout : comptes chez Zernio (libère les places), vidéos stockées, puis
+// l'utilisateur lui-même (le reste suit par cascade dans la base).
+export const supprimerCompte = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ jeton, confirmation: z.literal("SUPPRIMER") }).parse(input))
+  .handler(async ({ data }): Promise<Resultat> => {
+    try {
+      const { sb, user } = await utilisateurDepuisJeton(data.jeton);
+
+      if (zernioConfigure()) {
+        const { data: r } = await sb.from("reglages_agent").select("zernio_profile_id").maybeSingle();
+        if (r?.zernio_profile_id) {
+          const comptes = await listerComptes(r.zernio_profile_id as string).catch(() => []);
+          for (const c of comptes) await deconnecterCompte(c._id).catch(() => undefined);
+        }
+      }
+
+      const { data: fichiers } = await sb.storage.from("videos").list(user.id, { limit: 1000 });
+      if (fichiers?.length) await sb.storage.from("videos").remove(fichiers.map((f) => `${user.id}/${f.name}`));
+
+      const { error } = await sb.rpc("supprimer_mon_compte");
+      if (error) return { ok: false, erreur: error.message };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });

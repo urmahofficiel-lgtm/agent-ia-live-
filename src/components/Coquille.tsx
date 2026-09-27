@@ -1,8 +1,9 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { Activity, Bot, Link2, ListChecks, LogOut, MessageCircle, Settings, Target, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase, supabaseConfigure } from "@/lib/supabase";
+import { Accueil } from "./Accueil";
 import { Connexion } from "./Connexion";
 
 // Menu regroupé par usage : piloter l'agent, gérer les contenus, développer
@@ -38,6 +39,9 @@ const MENU = [
   },
 ] as const;
 
+// Pages visibles sans compte, affichées sans le menu de l'application.
+const PAGES_PUBLIQUES = ["/connexion", "/confidentialite", "/conditions", "/suppression-donnees"];
+
 // Adresse officielle. Chaque déploiement Vercel a aussi sa propre adresse
 // (agent-ia-live-xxxx.vercel.app) figée sur une ancienne version : on y
 // renvoie toujours vers la version à jour.
@@ -45,6 +49,7 @@ const ADRESSE_OFFICIELLE = "agent-ia-live.vercel.app";
 
 export function Coquille({ children }: { children: ReactNode }) {
   const { session, chargement } = useAuth();
+  const chemin = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
     const { hostname, pathname, search } = window.location;
@@ -63,8 +68,10 @@ export function Coquille({ children }: { children: ReactNode }) {
       </Centre>
     );
   }
+  if (PAGES_PUBLIQUES.includes(chemin)) return <>{children}</>;
   if (chargement) return <Centre>Chargement…</Centre>;
-  if (!session) return <Connexion />;
+  // Visiteur : la page d'accueil sur « / », la connexion ailleurs.
+  if (!session) return chemin === "/" ? <Accueil /> : <Connexion />;
 
   return (
     <div className="min-h-dvh md:flex">

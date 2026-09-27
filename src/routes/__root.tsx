@@ -9,8 +9,13 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Agent IA Live" },
-      { name: "robots", content: "noindex" },
+      { title: "Agent IA Live · l'agent IA qui publie sur vos réseaux sociaux" },
+      {
+        name: "description",
+        content:
+          "Un agent IA qui analyse votre site, rédige vos publications, crée images et vidéos et publie sur vos réseaux sociaux. Vous suivez chaque étape en direct.",
+      },
+      { name: "theme-color", content: "#0c1624" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
