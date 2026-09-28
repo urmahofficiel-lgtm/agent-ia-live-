@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { nomPlateforme, PLATEFORMES, plateformeParZernio } from "./plateformes";
+import { estManuel, nomPlateforme, PLATEFORMES, plateformeParZernio } from "./plateformes";
 import { demanderIA, genererImage } from "./ia.server";
 import { consigneScript, durees, imposerScenesProduit, lireScript, scriptDeSecours } from "./video";
 import { monterVideo } from "./video.server";
@@ -190,6 +190,7 @@ export const publierTache = createServerFn({ method: "POST" })
       if (!brouillon) return { ok: false, erreur: "Rédigez d'abord le contenu avec l'IA." };
 
       if (!t.plateforme) return { ok: false, erreur: "Cette tâche n'a pas de réseau." };
+      if (estManuel(t.plateforme)) return { ok: false, erreur: "Ce réseau se publie depuis votre téléphone : bouton « Partager »." };
       // Connexion directe Meta en priorité (« meta » < « zernio »).
       const { data: compte } = await sb
         .from("comptes_connectes")

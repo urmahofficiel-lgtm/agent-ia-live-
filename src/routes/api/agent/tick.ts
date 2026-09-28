@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PLATEFORMES } from "@/lib/plateformes";
+import { PLATEFORMES, estManuel } from "@/lib/plateformes";
 import { publierSur } from "@/lib/publication.server";
 import { preparer, type Ecrivain } from "@/lib/preparation.server";
 import { clientMoteur } from "@/lib/supabase-serveur";
@@ -52,6 +52,21 @@ async function tick(secret: string) {
   if (error) throw new Error(error.message);
   let traitees = 0;
   for (const t of (data ?? []) as Due[]) {
+    // Profil Facebook perso : on prépare tout, l'utilisateur partage en 1 clic.
+    if (estManuel(t.plateforme)) {
+      try {
+        await preparer(
+          { type: "publication", plateforme: t.plateforme, titre: t.titre, consigne: t.consigne, brouillon: t.brouillon, visuel_url: t.visuel_url },
+          t.contexte,
+          ecrivainMoteur(t.tache_id),
+        );
+        await maj(t.tache_id, "a_partager", null, "action", `📲 « ${t.titre} » est prêt : partagez-le en 1 clic depuis Publications → À partager.`);
+        traitees++;
+      } catch (e) {
+        await maj(t.tache_id, "echouee", null, "erreur", `Préparation impossible pour « ${t.titre} » : ${e instanceof Error ? e.message : "erreur"}`);
+      }
+      continue;
+    }
     if (!t.plateforme || !t.compte_externe_id) {
       await maj(t.tache_id, "echouee", null, "erreur", `« ${t.titre} » : réseau non connecté, publication impossible.`);
       continue;

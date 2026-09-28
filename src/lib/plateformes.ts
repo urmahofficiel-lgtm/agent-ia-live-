@@ -6,10 +6,14 @@ export type Plateforme = {
   nom: string;
   categorie: "reseau" | "messagerie" | "email" | "local";
   zernio: string | null;
+  // Aucune API ne permet de publier : l'agent prépare, l'utilisateur partage
+  // en 1 clic depuis son téléphone.
+  manuel?: boolean;
 };
 
 export const PLATEFORMES: Plateforme[] = [
   { id: "facebook", nom: "Facebook", categorie: "reseau", zernio: "facebook" },
+  { id: "facebook_profil", nom: "Facebook perso", categorie: "reseau", zernio: null, manuel: true },
   { id: "instagram", nom: "Instagram", categorie: "reseau", zernio: "instagram" },
   { id: "linkedin", nom: "LinkedIn", categorie: "reseau", zernio: "linkedin" },
   { id: "tiktok", nom: "TikTok", categorie: "reseau", zernio: "tiktok" },
@@ -30,5 +34,7 @@ export const PLATEFORMES: Plateforme[] = [
 
 export const nomPlateforme = (id: string | null | undefined) =>
   PLATEFORMES.find((p) => p.id === id)?.nom ?? id ?? "—";
+
+export const estManuel = (id: string | null | undefined) => Boolean(PLATEFORMES.find((p) => p.id === id)?.manuel);
 
 export const plateformeParZernio = (zernio: string) => PLATEFORMES.find((p) => p.zernio === zernio);

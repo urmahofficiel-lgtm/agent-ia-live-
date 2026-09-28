@@ -11,7 +11,8 @@ export function ChoixReseaux({ valeur, onChange }: { valeur: string[]; onChange:
     () => supabase().from("comptes_connectes").select("plateforme").eq("statut", "connecte"),
     [userId],
   );
-  const connectes = new Set((comptes.data ?? []).map((c) => c.plateforme));
+  // Les réseaux « manuels » (profil Facebook perso) n'ont pas de connexion.
+  const connectes = new Set([...(comptes.data ?? []).map((c) => c.plateforme), ...PLATEFORMES.filter((p) => p.manuel).map((p) => p.id)]);
   const liste = PLATEFORMES.filter((p) => p.categorie === "reseau" || p.categorie === "local").sort(
     (a, b) => Number(connectes.has(b.id)) - Number(connectes.has(a.id)),
   );

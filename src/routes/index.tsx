@@ -89,6 +89,7 @@ function TableauDeBord() {
 
       <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Chiffre libelle="À valider" valeur={compte("a_valider")} lien="/taches" accent />
+        {compte("a_partager") > 0 && <Chiffre libelle="À partager" valeur={compte("a_partager")} lien="/taches" accent />}
         <Chiffre libelle="Planifiées" valeur={compte("en_attente", "en_cours")} lien="/taches" />
         <Chiffre libelle="Publiées" valeur={compte("terminee")} lien="/taches" />
         <Chiffre libelle="Prospects" valeur={prospects.data?.length ?? 0} lien="/prospection" />

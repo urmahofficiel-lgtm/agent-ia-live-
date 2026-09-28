@@ -5,17 +5,19 @@ import { Carte, Erreur, Pastille, Titre, bouton, boutonSecondaire, champ } from 
 import { LogoPlateforme } from "@/components/LogoPlateforme";
 import { supabase } from "@/lib/supabase";
 import { useReglages, useRequete, useUserId } from "@/lib/donnees";
-import { PLATEFORMES, nomPlateforme } from "@/lib/plateformes";
+import { PLATEFORMES, estManuel, nomPlateforme } from "@/lib/plateformes";
 import { creerVideo, genererBrouillon, publierTache, regenererVisuel } from "@/lib/agent.functions";
 import { jetonSession } from "@/lib/session";
 import { STATUTS } from "@/lib/statuts";
 import { LIBELLE_TYPE, type StatutTache, type Tache } from "@/lib/types";
 import { creerCopies, supprimerPublications } from "@/lib/publications";
 import { ChoixReseaux } from "@/components/ChoixReseaux";
+import { BoutonPartage } from "@/components/BoutonPartage";
 
 export const Route = createFileRoute("/taches")({ component: Publications });
 
 const ONGLETS: { id: string; libelle: string; statuts: StatutTache[]; vide: string }[] = [
+  { id: "partager", libelle: "À partager", statuts: ["a_partager"], vide: "Rien à partager. Les publications « Facebook perso » arrivent ici à l'heure prévue." },
   { id: "valider", libelle: "À valider", statuts: ["a_valider"], vide: "Rien à valider. L'agent déposera ici ses prochains brouillons." },
   { id: "planifiees", libelle: "Planifiées", statuts: ["en_attente", "en_cours"], vide: "Aucune publication planifiée. Validez un brouillon pour le planifier." },
   { id: "publiees", libelle: "Publiées", statuts: ["terminee"], vide: "Rien de publié pour l'instant." },
@@ -38,7 +40,7 @@ function Publications() {
     () => supabase().from("taches").select("*").order("created_at", { ascending: false }).limit(200),
     [userId],
   );
-  const [onglet, setOnglet] = useState(ONGLETS[0].id);
+  const [onglet, setOnglet] = useState<string | null>(null);
   const [formulaire, setFormulaire] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [travail, setTravail] = useState<Travail | null>(null);
@@ -95,7 +97,9 @@ function Publications() {
     return () => clearInterval(id);
   }, [videoEnCours, recharger]);
 
-  const courant = ONGLETS.find((o) => o.id === onglet) ?? ONGLETS[0];
+  // Par défaut : « À partager » s'il y a quelque chose à publier soi-même, sinon « À valider ».
+  const parDefaut = taches.some((t) => t.statut === "a_partager") ? "partager" : "valider";
+  const courant = ONGLETS.find((o) => o.id === (onglet ?? parDefaut)) ?? ONGLETS[1];
   const visibles = taches.filter((t) => courant.statuts.includes(t.statut));
 
   return (
@@ -193,7 +197,7 @@ function etatVideo(t: Tache): "en_cours" | "echec" | "prete" | null {
 function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Actions }) {
   const [deplie, setDeplie] = useState(false);
   const [edition, setEdition] = useState(false);
-  const modifiable = ["a_valider", "en_attente"].includes(t.statut);
+  const modifiable = ["a_valider", "en_attente", "a_partager"].includes(t.statut);
   const editable = modifiable || t.statut === "echouee" || t.statut === "annulee";
   const brouillon = t.resultat?.brouillon;
   const video = t.resultat?.video_url;
@@ -202,6 +206,7 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
   const ici = a.travail?.id === t.id ? a.travail.quoi : null;
   const estPublication = t.type === "publication";
   const sansReseau = estPublication && !t.plateforme;
+  const manuel = estManuel(t.plateforme);
   const video_etat = ici === "video" ? "en_cours" : etatVideo(t);
 
   // Une seule action principale, selon l'état de la publication.
@@ -218,6 +223,8 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
         Valider
       </button>
     );
+  } else if (manuel && brouillon && ["en_attente", "a_partager"].includes(t.statut)) {
+    principale = <BoutonPartage principal tache={t} onPublie={a.recharger} />;
   } else if (t.statut === "en_attente" && estPublication) {
     principale = (
       <BoutonAction principal occupe={occupe || sansReseau} enCours={ici === "publication"} onClick={() => a.publier(t.id)} icone={<Send size={15} />}>
@@ -312,7 +319,8 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
                 Modifier
               </BoutonAction>
             )}
-            {brouillon && t.statut === "a_valider" && estPublication && (
+            {brouillon && t.statut === "a_valider" && estPublication && manuel && <BoutonPartage tache={t} onPublie={a.recharger} />}
+            {brouillon && t.statut === "a_valider" && estPublication && !manuel && (
               <BoutonAction
                 occupe={occupe || sansReseau}
                 enCours={ici === "publication"}

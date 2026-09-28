@@ -1,4 +1,4 @@
-export type StatutTache = "en_attente" | "a_valider" | "en_cours" | "terminee" | "echouee" | "annulee";
+export type StatutTache = "en_attente" | "a_valider" | "en_cours" | "a_partager" | "terminee" | "echouee" | "annulee";
 export type TypeTache = "publication" | "reponse" | "prospection" | "relance" | "appareil" | "autre";
 
 export type Tache = {
@@ -53,6 +53,7 @@ export const LIBELLE_STATUT: Record<StatutTache, string> = {
   en_attente: "En attente",
   a_valider: "À valider",
   en_cours: "En cours",
+  a_partager: "À partager",
   terminee: "Terminée",
   echouee: "Échouée",
   annulee: "Annulée",
