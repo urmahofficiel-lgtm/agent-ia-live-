@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { URL_SITE } from "./preparation.server";
-import { VERSION_GRAPH, comptesDepuisPages, urlDialogue, type PageMeta } from "./meta";
+import { VERSION_GRAPH, commentairesDeMediasInstagram, commentairesDePostsFacebook, comptesDepuisPages, urlDialogue, type PageMeta } from "./meta";
 import type { Media } from "./zernio.server";
 
 const GRAPH = `https://graph.facebook.com/${VERSION_GRAPH}`;
@@ -125,4 +125,34 @@ export async function publierInstagram(igId: string, jeton: string, texte: strin
     await pause(4000);
   }
   return graph<{ id: string }>(`/${igId}/media_publish`, { access_token: jeton, creation_id: conteneur.id }, "POST", base);
+}
+
+// --- Commentaires : lecture et réponse ---------------------------------------------
+
+export async function commentairesFacebook(pageId: string, jeton: string) {
+  const r = await graph<{ data: Parameters<typeof commentairesDePostsFacebook>[1] }>(`/${pageId}/posts`, {
+    access_token: jeton,
+    fields: "id,message,permalink_url,comments.limit(25).order(reverse_chronological){id,from{id,name},message,created_time,permalink_url}",
+    limit: "10",
+  });
+  return commentairesDePostsFacebook(pageId, r.data ?? []);
+}
+
+export function repondreFacebook(commentaireId: string, jeton: string, texte: string) {
+  return graph<{ id: string }>(`/${commentaireId}/comments`, { access_token: jeton, message: texte }, "POST");
+}
+
+// `base` : graph.facebook.com (Instagram relié à une page) ou graph.instagram.com.
+export async function commentairesInstagram(igId: string, jeton: string, monPseudo: string | null, base = GRAPH) {
+  const r = await graph<{ data: Parameters<typeof commentairesDeMediasInstagram>[1] }>(
+    `/${igId}/media`,
+    { access_token: jeton, fields: "id,caption,permalink,comments.limit(25){id,username,text,timestamp}", limit: "10" },
+    "GET",
+    base,
+  );
+  return commentairesDeMediasInstagram(monPseudo, r.data ?? []);
+}
+
+export function repondreInstagram(commentaireId: string, jeton: string, texte: string, base = GRAPH) {
+  return graph<{ id: string }>(`/${commentaireId}/replies`, { access_token: jeton, message: texte }, "POST", base);
 }

@@ -5,7 +5,7 @@ import type { Media } from "./zernio.server";
 
 // Connexion Instagram directe (« API Instagram avec connexion Instagram ») :
 // un compte professionnel ou créateur, sans page Facebook à relier.
-const GRAPH_IG = `https://graph.instagram.com/${VERSION_GRAPH}`;
+export const GRAPH_IG = `https://graph.instagram.com/${VERSION_GRAPH}`;
 export const RETOUR_INSTAGRAM = `${URL_SITE}/api/instagram/retour`;
 
 export function instagramConfigure() {

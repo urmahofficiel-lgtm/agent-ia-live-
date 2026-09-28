@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { PLATEFORMES, plateformeParZernio } from "./plateformes";
+import { nomPlateforme, PLATEFORMES, plateformeParZernio } from "./plateformes";
 import { demanderIA, genererImage } from "./ia.server";
 import { consigneScript, durees, imposerScenesProduit, lireScript, scriptDeSecours } from "./video";
 import { monterVideo } from "./video.server";
@@ -13,8 +13,8 @@ import { consigneProfilDepuisSite } from "./site";
 import { lireSite, visuelsDuSite } from "./site.server";
 import { CATEGORIES, lireReponseOverpass, requeteOverpass } from "./osm";
 import { clientMoteur, utilisateurDepuisJeton } from "./supabase-serveur";
-import { metaConfigure, urlConnexionMeta } from "./meta.server";
-import { instagramConfigure, urlConnexionInstagram } from "./instagram.server";
+import { commentairesFacebook, commentairesInstagram, metaConfigure, repondreFacebook, repondreInstagram, urlConnexionMeta } from "./meta.server";
+import { GRAPH_IG, instagramConfigure, urlConnexionInstagram } from "./instagram.server";
 import { publierSur, type CompteCible } from "./publication.server";
 import { sessionBluesky } from "./bluesky.server";
 import { verifierTelegram } from "./telegram.server";
@@ -466,6 +466,8 @@ export const trouverProspects = createServerFn({ method: "POST" })
 
 export type ElementBoite = {
   genre: "commentaire" | "message";
+  // Canal de réponse : connexion directe (meta, instagram) ou Zernio.
+  fournisseur?: string;
   id: string;
   plateforme: string;
   accountId: string;
@@ -477,44 +479,108 @@ export type ElementBoite = {
   lien?: string | null;
 };
 
+// Commentaires des comptes connectés en direct (Facebook, Instagram).
+async function commentairesDirects(sb: Sb, userId: string, avertissements: string[]): Promise<ElementBoite[]> {
+  const { data: comptes } = await sb
+    .from("comptes_connectes")
+    .select("plateforme, fournisseur, compte_externe_id, nom_utilisateur")
+    .eq("statut", "connecte")
+    .in("fournisseur", ["meta", "instagram"]);
+  const lots = await Promise.all(
+    (comptes ?? []).map(async (c) => {
+      try {
+        const { data: jeton } = await clientMoteur().rpc("compte_jeton", {
+          p_secret: process.env.AGENT_TICK_SECRET ?? "",
+          p_user: userId,
+          p_externe: c.compte_externe_id,
+        });
+        if (!jeton) return [];
+        const liste =
+          c.plateforme === "facebook"
+            ? await commentairesFacebook(c.compte_externe_id as string, jeton as string)
+            : await commentairesInstagram(
+                c.compte_externe_id as string,
+                jeton as string,
+                c.nom_utilisateur as string | null,
+                c.fournisseur === "instagram" ? GRAPH_IG : undefined,
+              );
+        return liste.map((x) => ({
+          genre: "commentaire" as const,
+          fournisseur: c.fournisseur as string,
+          id: x.id,
+          plateforme: c.plateforme as string,
+          accountId: c.compte_externe_id as string,
+          postId: x.postId,
+          auteur: x.auteur,
+          texte: x.texte,
+          contexte: x.contexte,
+          date: x.date,
+          lien: x.lien,
+        }));
+      } catch (e) {
+        console.warn("Commentaires directs", c.plateforme, e instanceof Error ? e.message : e);
+        avertissements.push(
+          `${nomPlateforme(c.plateforme as string)} : commentaires illisibles. Retirez puis reconnectez le compte (page Comptes) pour accorder l'accès aux commentaires.`,
+        );
+        return [];
+      }
+    }),
+  );
+  return lots.flat();
+}
+
+async function elementsZernio(sb: Sb, user: { id: string; email?: string }): Promise<ElementBoite[]> {
+  if (!zernioConfigure()) return [];
+  const profil = await profilZernio(sb, user);
+  const [conversations, commentaires] = await Promise.all([
+    listerConversations(profil).catch(() => []),
+    listerCommentaires(profil).catch(() => []),
+  ]);
+  return [
+    ...commentaires.map((c) => ({
+      genre: "commentaire" as const,
+      fournisseur: "zernio",
+      id: c.id,
+      plateforme: plateformeParZernio(c.platform)?.id ?? c.platform,
+      accountId: c.accountId,
+      postId: c.postId,
+      auteur: c.from?.name || c.from?.username || "Quelqu'un",
+      texte: c.message,
+      contexte: c.post,
+      date: c.createdTime,
+      lien: c.url,
+    })),
+    ...conversations
+      .filter((c) => c.lastMessage)
+      .map((c) => ({
+        genre: "message" as const,
+        fournisseur: "zernio",
+        id: c.id,
+        plateforme: plateformeParZernio(c.platform)?.id ?? c.platform,
+        accountId: c.accountId,
+        auteur: c.participantName || "Contact",
+        texte: c.lastMessage ?? "",
+        date: c.updatedTime,
+        lien: c.url,
+      })),
+  ];
+}
+
 export const chargerBoite = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ jeton }).parse(input))
-  .handler(async ({ data }): Promise<Resultat<{ elements: ElementBoite[] }>> => {
+  .handler(async ({ data }): Promise<Resultat<{ elements: ElementBoite[]; avertissements: string[] }>> => {
     try {
-      if (!zernioConfigure()) return { ok: false, erreur: "ZERNIO_ABSENT" };
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
-      const profil = await profilZernio(sb, user);
-      const [conversations, commentaires] = await Promise.all([
-        listerConversations(profil).catch(() => []),
-        listerCommentaires(profil).catch(() => []),
+      const avertissements: string[] = [];
+      const [directs, zernio] = await Promise.all([
+        commentairesDirects(sb, user.id, avertissements),
+        elementsZernio(sb, user).catch(() => {
+          avertissements.push("Zernio : messages indisponibles pour le moment.");
+          return [];
+        }),
       ]);
-      const elements: ElementBoite[] = [
-        ...commentaires.map((c) => ({
-          genre: "commentaire" as const,
-          id: c.id,
-          plateforme: plateformeParZernio(c.platform)?.id ?? c.platform,
-          accountId: c.accountId,
-          postId: c.postId,
-          auteur: c.from?.name || c.from?.username || "Quelqu'un",
-          texte: c.message,
-          contexte: c.post,
-          date: c.createdTime,
-          lien: c.url,
-        })),
-        ...conversations
-          .filter((c) => c.lastMessage)
-          .map((c) => ({
-            genre: "message" as const,
-            id: c.id,
-            plateforme: plateformeParZernio(c.platform)?.id ?? c.platform,
-            accountId: c.accountId,
-            auteur: c.participantName || "Contact",
-            texte: c.lastMessage ?? "",
-            date: c.updatedTime,
-            lien: c.url,
-          })),
-      ].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
-      return { ok: true, elements };
+      const elements = [...directs, ...zernio].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+      return { ok: true, elements, avertissements };
     } catch (e) {
       return { ok: false, erreur: message(e) };
     }
@@ -573,14 +639,24 @@ export const envoyerReponse = createServerFn({ method: "POST" })
     try {
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
       // Le compte visé doit bien appartenir à l'utilisateur.
-      const { data: compte } = await sb
+      const { data: comptes } = await sb
         .from("comptes_connectes")
-        .select("id")
-        .eq("compte_externe_id", data.accountId)
-        .maybeSingle();
+        .select("id, plateforme, fournisseur")
+        .eq("compte_externe_id", data.accountId);
+      const compte = comptes?.find((c) => c.fournisseur !== "zernio") ?? comptes?.[0];
       if (!compte) return { ok: false, erreur: "Ce compte n'est pas connecté à votre agent." };
 
-      if (data.genre === "commentaire") {
+      if (compte.fournisseur === "meta" || compte.fournisseur === "instagram") {
+        // Réponse directe via l'API Meta, avec le jeton rangé côté serveur.
+        const { data: j } = await clientMoteur().rpc("compte_jeton", {
+          p_secret: process.env.AGENT_TICK_SECRET ?? "",
+          p_user: user.id,
+          p_externe: data.accountId,
+        });
+        if (!j) return { ok: false, erreur: "Connexion introuvable : reconnectez le compte (page Comptes)." };
+        if (compte.plateforme === "facebook") await repondreFacebook(data.id, j as string, data.reponse);
+        else await repondreInstagram(data.id, j as string, data.reponse, compte.fournisseur === "instagram" ? GRAPH_IG : undefined);
+      } else if (data.genre === "commentaire") {
         if (!data.postId) return { ok: false, erreur: "Publication inconnue." };
         await repondreCommentaire(data.postId, data.accountId, data.id, data.reponse);
       } else {

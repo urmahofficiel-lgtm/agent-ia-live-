@@ -12,6 +12,7 @@ function Messages() {
   const userId = useUserId();
   const [elements, setElements] = useState<ElementBoite[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [avertissements, setAvertissements] = useState<string[]>([]);
   const [chargement, setChargement] = useState(false);
 
   const charger = useCallback(async () => {
@@ -19,7 +20,10 @@ function Messages() {
     setErreur(null);
     try {
       const r = await chargerBoite({ data: { jeton: await jetonSession() } });
-      if (r.ok) setElements(r.elements);
+      if (r.ok) {
+        setElements(r.elements);
+        setAvertissements(r.avertissements);
+      }
       else
         setErreur(
           r.erreur === "ZERNIO_ABSENT" ? "Le service de connexion des réseaux n'est pas activé (clé Zernio manquante)." : r.erreur,
@@ -36,13 +40,18 @@ function Messages() {
 
   return (
     <>
-      <Titre sous="Commentaires et messages privés reçus sur les réseaux connectés via Zernio. L'IA propose une réponse, vous l'envoyez en un clic.">
+      <Titre sous="Commentaires et messages reçus sur vos réseaux connectés. L'IA propose une réponse, vous l'envoyez en un clic.">
         Messages
       </Titre>
       <button className={`${boutonSecondaire} mb-4`} disabled={chargement} onClick={charger}>
         {chargement ? "Chargement…" : "Actualiser"}
       </button>
       <Erreur message={erreur} />
+      {avertissements.map((a) => (
+        <p key={a} className="mb-3 rounded-lg bg-alerte/10 px-3 py-2 text-sm text-alerte" role="status">
+          {a}
+        </p>
+      ))}
       {elements?.length === 0 && (
         <Carte className="text-sm text-doux">
           Rien de nouveau. Les commentaires et messages de vos réseaux connectés apparaîtront ici.

@@ -56,3 +56,29 @@ describe("connexion Instagram directe", () => {
     expect(lireJetonInstagram({ error_message: "x" })).toBeNull();
   });
 });
+
+describe("commentaires Meta", () => {
+  it("garde les commentaires des visiteurs, pas ceux de la page", async () => {
+    const { commentairesDePostsFacebook } = await import("./meta");
+    const l = commentairesDePostsFacebook("page1", [
+      {
+        id: "p1",
+        message: "Notre offre",
+        comments: {
+          data: [
+            { id: "c1", from: { id: "u1", name: "Marc" }, message: "Combien ça coûte ?" },
+            { id: "c2", from: { id: "page1", name: "BTP" }, message: "Merci !" },
+          ],
+        },
+      },
+    ]);
+    expect(l).toEqual([expect.objectContaining({ id: "c1", postId: "p1", auteur: "Marc", texte: "Combien ça coûte ?", contexte: "Notre offre" })]);
+  });
+  it("écarte ses propres réponses sur Instagram", async () => {
+    const { commentairesDeMediasInstagram } = await import("./meta");
+    const l = commentairesDeMediasInstagram("@btp", [
+      { id: "m1", comments: { data: [{ id: "a", username: "julie", text: "Top" }, { id: "b", username: "btp", text: "Merci" }] } },
+    ]);
+    expect(l.map((c) => c.id)).toEqual(["a"]);
+  });
+});

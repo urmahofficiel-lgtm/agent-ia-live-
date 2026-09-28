@@ -11,6 +11,9 @@ export const PERMISSIONS_META = [
   "business_management",
   "instagram_basic",
   "instagram_content_publish",
+  // Page Messages : lire les commentaires et y répondre.
+  "pages_manage_engagement",
+  "instagram_manage_comments",
 ];
 
 export type PageMeta = {
@@ -71,4 +74,55 @@ export function lireJetonInstagram(json: unknown): { jeton: string; userId: stri
   const j = json as { access_token?: string; user_id?: string | number; data?: { access_token?: string; user_id?: string | number }[] };
   const d = j?.access_token ? j : j?.data?.[0];
   return d?.access_token && d.user_id != null ? { jeton: d.access_token, userId: String(d.user_id) } : null;
+}
+
+// --- Commentaires (page Messages) ------------------------------------------------
+
+export type CommentaireMeta = { id: string; postId: string; auteur: string; texte: string; date?: string; lien?: string | null; contexte?: string };
+
+type PostFacebook = {
+  id: string;
+  message?: string;
+  permalink_url?: string;
+  comments?: { data?: { id: string; from?: { id?: string; name?: string }; message?: string; created_time?: string; permalink_url?: string }[] };
+};
+
+// Commentaires sous les derniers posts d'une page, sans ceux de la page elle-même.
+export function commentairesDePostsFacebook(pageId: string, posts: PostFacebook[]): CommentaireMeta[] {
+  return posts.flatMap((p) =>
+    (p.comments?.data ?? [])
+      .filter((c) => c.message && c.from?.id !== pageId)
+      .map((c) => ({
+        id: c.id,
+        postId: p.id,
+        auteur: c.from?.name ?? "Quelqu'un",
+        texte: c.message ?? "",
+        date: c.created_time,
+        lien: c.permalink_url ?? p.permalink_url ?? null,
+        contexte: p.message?.slice(0, 120),
+      })),
+  );
+}
+
+type MediaInstagram = {
+  id: string;
+  caption?: string;
+  permalink?: string;
+  comments?: { data?: { id: string; username?: string; text?: string; timestamp?: string }[] };
+};
+
+export function commentairesDeMediasInstagram(monPseudo: string | null, medias: MediaInstagram[]): CommentaireMeta[] {
+  return medias.flatMap((m) =>
+    (m.comments?.data ?? [])
+      .filter((c) => c.text && (!monPseudo || c.username !== monPseudo.replace(/^@/, "")))
+      .map((c) => ({
+        id: c.id,
+        postId: m.id,
+        auteur: c.username ?? "Quelqu'un",
+        texte: c.text ?? "",
+        date: c.timestamp,
+        lien: m.permalink ?? null,
+        contexte: m.caption?.slice(0, 120),
+      })),
+  );
 }
