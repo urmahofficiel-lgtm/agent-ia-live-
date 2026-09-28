@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lireStatutFal, traduireErreurFal, validerPhoto, validerVideo } from "./animation";
+import { lireStatutFal, traduireErreurFal, traduireErreurHF, validerPhoto, validerVideo } from "./animation";
 
 describe("validation des fichiers", () => {
   it("accepte une photo JPEG ou PNG raisonnable", () => {
@@ -30,5 +30,14 @@ describe("fal.ai", () => {
     expect(traduireErreurFal(402)).toMatch(/Crédit fal\.ai épuisé/);
     expect(traduireErreurFal(422, "no face detected")).toMatch(/no face detected/);
     expect(traduireErreurFal(503)).toMatch(/momentanément indisponible/);
+  });
+});
+
+describe("traduireErreurHF", () => {
+  it("explique le quota du jour", () => {
+    expect(traduireErreurHF("You have exceeded your free GPU quota (150s requested vs. 40s left)")).toMatch(/Quota gratuit/);
+  });
+  it("reste utile sans détail", () => {
+    expect(traduireErreurHF("")).toMatch(/personne est bien visible/);
   });
 });

@@ -71,3 +71,17 @@ export function traduireErreurFal(statut: number, detail?: string) {
   if (statut >= 500) return "Le service d'animation est momentanément indisponible. Réessayez plus tard.";
   return detail ? `Échec de l'animation : ${detail}` : `Échec de l'animation (erreur ${statut}).`;
 }
+
+// Erreurs Hugging Face (ZeroGPU) : quota du jour, espace en pause ou saturé.
+export function traduireErreurHF(detail: string) {
+  if (/quota/i.test(detail)) {
+    return "Quota gratuit du jour épuisé chez Hugging Face (5 min de calcul par jour). Réessayez demain, ou utilisez le mode Visage, moins gourmand.";
+  }
+  if (/^401|^403|invalid.*token|unauthorized/i.test(detail)) return "Clé Hugging Face invalide : vérifiez HF_TOKEN dans Vercel.";
+  if (/^404|sleeping|paused|building/i.test(detail)) return "Le modèle gratuit est en veille ou en redémarrage. Réessayez dans quelques minutes.";
+  if (/^429|too many|queue.*full/i.test(detail)) return "Le modèle gratuit est saturé. Réessayez dans quelques minutes.";
+  if (/^5\d\d/.test(detail)) return "Le modèle gratuit est momentanément indisponible. Réessayez plus tard.";
+  return detail
+    ? `Échec de l'animation : ${detail.replace(/^"|"$/g, "").slice(0, 200)}`
+    : "Le modèle n'a pas pu animer ces fichiers. Vérifiez qu'une personne est bien visible, de face, puis réessayez.";
+}

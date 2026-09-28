@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { LIMITES, MODELES_ANIMATION, lireStatutFal, validerPhoto, validerVideo, type ModeAnimation } from "./animation";
 import { falConfigure, jetonWebhook, resultatRequete, soumettre, statutRequete } from "./fal.server";
+import { ESPACES_HF, animerAvecHF, hfConfigure } from "./hf.server";
 import { URL_SITE } from "./preparation.server";
 import { utilisateurDepuisJeton } from "./supabase-serveur";
 
@@ -10,6 +11,9 @@ type Sb = Awaited<ReturnType<typeof utilisateurDepuisJeton>>["sb"];
 
 const texte = (e: unknown) => (e instanceof Error ? e.message : "Erreur inattendue.");
 const DELAI_MAX_MS = 20 * 60_000; // au-delà, la génération est considérée comme perdue
+// Hugging Face tourne dans la fonction serveur (5 min maximum sur Vercel).
+const DELAI_HF_MS = 270_000;
+const PERDUE_HF_MS = 6 * 60_000;
 
 // Métadonnées d'un fichier du dossier de l'utilisateur (taille, type réels).
 async function infosFichier(sb: Sb, chemin: string) {
@@ -35,7 +39,9 @@ export const lancerAnimation = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data }): Promise<Resultat<{ id: string }>> => {
-    if (!falConfigure()) return { ok: false, erreur: "Service d'animation non activé : ajoutez la clé FAL_KEY dans Vercel." };
+    // Hugging Face (gratuit) en priorité, fal.ai (payant) sinon.
+    const gratuit = hfConfigure();
+    if (!gratuit && !falConfigure()) return { ok: false, erreur: "Service d'animation non activé : ajoutez la clé HF_TOKEN dans Vercel." };
     try {
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
       // Les fichiers doivent être dans le dossier de l'utilisateur…
@@ -55,13 +61,15 @@ export const lancerAnimation = createServerFn({ method: "POST" })
       if (enCours >= LIMITES.enCoursMax) return { ok: false, erreur: `${LIMITES.enCoursMax} animations sont déjà en cours : attendez qu'une se termine.` };
       if ((recentes ?? []).length >= LIMITES.parJour) return { ok: false, erreur: `Limite de ${LIMITES.parJour} animations par 24 h atteinte.` };
 
-      const modele = MODELES_ANIMATION[data.mode as ModeAnimation].id;
+      const modele = gratuit ? `hf:${ESPACES_HF[data.mode as ModeAnimation].id}` : MODELES_ANIMATION[data.mode as ModeAnimation].id;
       const { data: ligne, error } = await sb
         .from("animations")
         .insert({ user_id: user.id, mode: data.mode, photo_chemin: data.photo, video_chemin: data.video, duree_source: data.duree, fal_modele: modele })
         .select("id")
         .single();
       if (error || !ligne) return { ok: false, erreur: error?.message ?? "Enregistrement impossible." };
+      // Gratuit : la page déclenche ensuite executerAnimation.
+      if (gratuit) return { ok: true, id: ligne.id };
 
       try {
         // fal.ai lit les fichiers privés par des liens signés valables 2 h.
@@ -102,10 +110,14 @@ async function finaliser(sb: Sb, a: Animation) {
   if (!source) throw new Error("Vidéo absente de la réponse du modèle.");
   const r = await fetch(source, { signal: AbortSignal.timeout(60_000) });
   if (!r.ok) throw new Error("Téléchargement de la vidéo générée impossible.");
+  await enregistrer(sb, a, new Uint8Array(await r.arrayBuffer()), source);
+}
+
+async function enregistrer(sb: Sb, a: Pick<Animation, "id" | "user_id">, donnees: Uint8Array, source: string) {
   const chemin = `${a.user_id}/animation-${a.id}.mp4`;
   const { error } = await sb.storage
     .from("videos")
-    .upload(chemin, new Uint8Array(await r.arrayBuffer()), { contentType: "video/mp4", upsert: true });
+    .upload(chemin, donnees, { contentType: "video/mp4", upsert: true });
   if (error) throw new Error(`Enregistrement de la vidéo impossible : ${error.message}`);
   const resultat_url = sb.storage.from("videos").getPublicUrl(chemin).data.publicUrl;
   await sb.from("animations").update({ statut: "terminee", resultat_source: source, resultat_url, erreur: null }).eq("id", a.id);
@@ -126,7 +138,13 @@ export const suivreAnimation = createServerFn({ method: "POST" })
           await finaliser(sb, a);
           return { ok: true };
         }
-        if (!a.fal_modele || !a.fal_requete) return { ok: true };
+        if (!a.fal_modele || !a.fal_requete) {
+          // Hugging Face : si la fonction serveur s'est arrêtée sans conclure.
+          if (a.fal_modele?.startsWith("hf:") && Date.now() - new Date(a.created_at).getTime() > PERDUE_HF_MS) {
+            throw new Error("La génération a été interrompue. Réessayez, si possible avec une vidéo plus courte.");
+          }
+          return { ok: true };
+        }
         const etat = lireStatutFal(await statutRequete(a.fal_modele, a.fal_requete));
         if (etat.statut === "terminee") await finaliser(sb, a);
         else if (etat.statut === "echouee") {
@@ -139,6 +157,50 @@ export const suivreAnimation = createServerFn({ method: "POST" })
         }
       } catch (e) {
         await sb.from("animations").update({ statut: "echouee", erreur: texte(e) }).eq("id", a.id);
+      }
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, erreur: texte(e) };
+    }
+  });
+
+// Gratuit (Hugging Face) : exécute l'animation dans cette fonction serveur et
+// met la ligne à jour à chaque étape (la page suit en direct).
+export const executerAnimation = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ id: z.string().uuid(), jeton: z.string().min(10) }).parse(input))
+  .handler(async ({ data }): Promise<Resultat> => {
+    try {
+      const { sb } = await utilisateurDepuisJeton(data.jeton);
+      // Prise en charge atomique : une seule exécution par animation.
+      const { data: a } = await sb
+        .from("animations")
+        .update({ statut: "en_file" })
+        .eq("id", data.id)
+        .eq("statut", "en_attente")
+        .like("fal_modele", "hf:%")
+        .select("*")
+        .maybeSingle<Animation & { mode: ModeAnimation; photo_chemin: string; video_chemin: string; duree_source: number | null }>();
+      if (!a) return { ok: true };
+      try {
+        const [photo, video] = await Promise.all([
+          sb.storage.from("animations").download(a.photo_chemin),
+          sb.storage.from("animations").download(a.video_chemin),
+        ]);
+        if (!photo.data || !video.data) throw new Error("Fichiers introuvables : importez-les à nouveau.");
+        const { donnees, source } = await animerAvecHF(
+          a.mode,
+          { donnees: photo.data, nom: a.photo_chemin.split("/").pop() ?? "photo.jpg" },
+          { donnees: video.data, duree: a.duree_source ?? 2 },
+          async (etat) => {
+            await sb.from("animations").update({ statut: etat.statut, position_file: etat.position ?? null }).eq("id", a.id);
+          },
+          DELAI_HF_MS,
+        );
+        await enregistrer(sb, a, donnees, source);
+      } catch (e) {
+        const message =
+          e instanceof Error && e.name === "TimeoutError" ? "La génération a pris trop de temps. Réessayez avec une vidéo plus courte." : texte(e);
+        await sb.from("animations").update({ statut: "echouee", erreur: message }).eq("id", a.id);
       }
       return { ok: true };
     } catch (e) {

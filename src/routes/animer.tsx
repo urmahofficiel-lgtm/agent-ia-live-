@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { jetonSession } from "@/lib/session";
 import { useUserId } from "@/lib/donnees";
 import { LIMITES, MODELES_ANIMATION, validerPhoto, validerVideo, type ModeAnimation } from "@/lib/animation";
-import { lancerAnimation, suivreAnimation } from "@/lib/animation.functions";
+import { executerAnimation, lancerAnimation, suivreAnimation } from "@/lib/animation.functions";
 
 export const Route = createFileRoute("/animer")({ component: Animer });
 
@@ -127,8 +127,12 @@ function Animer() {
         c = { ...chemin, duree: video.duree, mode };
       }
       setEtape("lancement");
-      const r = await lancerAnimation({ data: { ...c, consentement: true, jeton: await jetonSession() } });
+      const jeton = await jetonSession();
+      const r = await lancerAnimation({ data: { ...c, consentement: true, jeton } });
       if (!r.ok) throw new Error(r.erreur);
+      // Version gratuite : la génération tourne pendant cet appel (1 à 4 min),
+      // la liste suit son avancement en direct.
+      void executerAnimation({ data: { id: r.id, jeton } }).catch(() => null);
       if (!chemins) {
         setPhoto(null);
         setVideo(null);
@@ -196,6 +200,7 @@ function Animer() {
                 <span>
                   <span className="font-medium">{MODELES_ANIMATION[m].nom}</span>
                   <span className="block text-doux">{MODELES_ANIMATION[m].description}</span>
+                  {m === "corps" && <span className="mt-1 block text-xs text-doux">Version gratuite : les 5 premières secondes de la vidéo.</span>}
                 </span>
               </label>
             ))}
@@ -216,7 +221,7 @@ function Animer() {
             {etape === "envoi" ? "Envoi des fichiers…" : etape === "lancement" ? "Lancement…" : "Animer la photo"}
           </button>
           <span className="text-xs text-doux">
-            Durée habituelle : 1 à 5 minutes. Vous pouvez quitter la page, le résultat vous attendra ici.
+            Durée habituelle : 1 à 4 minutes. Gardez cette page ouverte jusqu'à la fin.
           </span>
         </div>
         <Erreur message={erreur} />
