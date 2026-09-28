@@ -231,6 +231,13 @@ function Comptes() {
         Facebook, Instagram, Bluesky et Telegram : connexion directe, gratuite et sans limite ; elle n'occupe pas de place chez Zernio.
         Instagram doit être un compte professionnel ou créateur (réglage gratuit dans l'app Instagram : Paramètres → Type de compte).
       </p>
+      <p className="mb-2 text-xs text-doux">
+        Instagram ne se connecte pas ?{" "}
+        <button type="button" className="text-accent underline disabled:opacity-50" disabled={enCours !== null} onClick={() => connecter("instagram", "zernio")}>
+          Connecter Instagram via Zernio
+        </button>{" "}
+        — autre porte d'entrée, sans réglage Meta.
+      </p>
       <p className="mb-4 text-xs text-doux">
         LinkedIn : « Connecter » relie votre profil personnel.{" "}
         <button type="button" className="text-accent underline disabled:opacity-50" disabled={enCours !== null} onClick={() => connecter("linkedin", "zernio")}>

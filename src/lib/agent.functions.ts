@@ -245,7 +245,8 @@ export const urlConnexion = createServerFn({ method: "POST" })
     try {
       // Facebook et Instagram : connexion directe à Meta quand l'app est configurée.
       // Instagram : connexion Instagram directe (compte pro, sans page Facebook).
-      if (data.plateforme === "instagram" && instagramConfigure()) {
+      // « via zernio » : solution de secours qui ne dépend d'aucun réglage Meta.
+      if (data.plateforme === "instagram" && data.via !== "zernio" && instagramConfigure()) {
         const { user } = await utilisateurDepuisJeton(data.jeton);
         return { ok: true, url: urlConnexionInstagram(user.id) };
       }
@@ -254,7 +255,7 @@ export const urlConnexion = createServerFn({ method: "POST" })
         const { user } = await utilisateurDepuisJeton(data.jeton);
         return { ok: true, url: urlConnexionLinkedin(user.id) };
       }
-      if (["facebook", "instagram"].includes(data.plateforme) && metaConfigure()) {
+      if (["facebook", "instagram"].includes(data.plateforme) && data.via !== "zernio" && metaConfigure()) {
         const { user } = await utilisateurDepuisJeton(data.jeton);
         return { ok: true, url: urlConnexionMeta(user.id) };
       }
