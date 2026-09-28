@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PLATEFORMES, estManuel } from "@/lib/plateformes";
 import { publierSur } from "@/lib/publication.server";
 import { preparer, type Ecrivain } from "@/lib/preparation.server";
+import { fabriquerVideo } from "@/lib/fabrication-video.server";
 import { clientMoteur } from "@/lib/supabase-serveur";
 
 // Moteur de l'agent : appelé toutes les 5 minutes par pg_cron (Supabase).
@@ -23,9 +24,12 @@ type Due = {
   contexte: string | null;
 };
 
+type AFilmer = { tache_id: string; user_id: string; plateforme: string; titre: string; consigne: string; brouillon: string; contexte: string | null; site: string | null; essais: number };
+
 type ARediger = { tache_id: string; type: string; plateforme: string | null; titre: string; consigne: string; contexte: string | null; brouillon: string | null };
 
 async function tick(secret: string) {
+  const debut = Date.now();
   const sb = clientMoteur();
 
   const maj = (id: string, statut: string | null, resultat: object | null, niveau: string, msg: string | null) =>
@@ -100,6 +104,36 @@ async function tick(secret: string) {
       await maj(t.tache_id, null, null, "info", `Prêt à valider : « ${t.titre} »`);
     } catch (e) {
       await maj(t.tache_id, null, { essais_brouillon: 3 }, "erreur", `Rédaction impossible pour « ${t.titre} » : ${e instanceof Error ? e.message : "erreur"}`);
+    }
+  }
+
+  // 3. Reels automatiques : les publications Facebook et Instagram reçoivent
+  // leur vidéo verticale (2 à 3 min de fabrication), une par passage, s'il
+  // reste assez de temps avant la limite de 5 minutes.
+  if (Date.now() - debut < 60_000) {
+    const { data: aFilmer } = await sb.rpc("agent_videos_a_faire", { p_secret: secret });
+    for (const v of (aFilmer ?? []) as AFilmer[]) {
+      const etat = (champs: Record<string, unknown>) => maj(v.tache_id, null, champs, "info", null);
+      try {
+        await maj(v.tache_id, null, { essais_video: v.essais + 1 }, "action", `🎬 Création automatique du Reel pour « ${v.titre} »`);
+        await fabriquerVideo({ id: v.tache_id, plateforme: v.plateforme, titre: v.titre, consigne: v.consigne, brouillon: v.brouillon }, v.contexte, v.site, {
+          journal: (niveau, msg) => maj(v.tache_id, null, null, niveau, msg),
+          etat,
+          deposer: async (mp4) => {
+            // Ticket de dépôt à usage unique : le moteur n'a pas d'accès libre au stockage.
+            const { data: ticket, error } = await sb.rpc("agent_depot_video", { p_secret: secret, p_user: v.user_id });
+            if (error || !ticket) throw new Error("Dépôt de la vidéo refusé.");
+            const chemin = `${v.user_id}/auto-${ticket as string}/${v.tache_id}-${Date.now()}.mp4`;
+            const { error: errDepot } = await sb.storage.from("videos").upload(chemin, mp4, { contentType: "video/mp4" });
+            if (errDepot) throw new Error(`Enregistrement de la vidéo impossible : ${errDepot.message}`);
+            return sb.storage.from("videos").getPublicUrl(chemin).data.publicUrl;
+          },
+        });
+        traitees++;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "erreur";
+        await maj(v.tache_id, null, { video_etat: "echec", video_erreur: msg }, "erreur", `Reel non créé pour « ${v.titre} » : ${msg}`);
+      }
     }
   }
 

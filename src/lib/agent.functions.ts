@@ -10,7 +10,8 @@ import { preparer, URL_SITE, type Ecrivain } from "./preparation.server";
 import { consignePlanification, datePrevue, lirePlan } from "./commande";
 import { consigneAnalyse, demandeDepuisStrategie, lireAnalyse, lireProfilDeduit, type Analyse, type Profil } from "./strategie";
 import { consigneProfilDepuisSite } from "./site";
-import { lireSite, visuelsDuSite } from "./site.server";
+import { lireSite } from "./site.server";
+import { fabriquerVideo } from "./fabrication-video.server";
 import { CATEGORIES, lireReponseOverpass, requeteOverpass } from "./osm";
 import { clientMoteur, utilisateurDepuisJeton } from "./supabase-serveur";
 import { commentairesFacebook, commentairesInstagram, metaConfigure, repondreFacebook, repondreInstagram, urlConnexionMeta } from "./meta.server";
@@ -834,125 +835,23 @@ export const creerVideo = createServerFn({ method: "POST" })
       if (!t) return { ok: false, erreur: "Tâche introuvable." };
       const journal = (niveau: string, msg: string, image?: string) =>
         sb.from("evenements_taches").insert({ tache_id: t.id, user_id: user.id, niveau, message: msg, capture_url: image ?? null });
-      const debutVideo = Date.now();
       const contexte = await contexteMarque(sb);
-      const reseau = PLATEFORMES.find((p) => p.id === t.plateforme)?.nom ?? "TikTok, Reels et Shorts";
-      await etatVideo(sb, t.id, { video_etat: "en_cours", video_erreur: null, video_debut: new Date().toISOString() });
-
-      // Vraies captures du produit, lues sur le site de la marque.
       const { data: pm } = await sb.from("profil_marque").select("site").maybeSingle();
-      const site = (pm?.site as string | undefined) || contexte?.match(/Site \/ lien[^:]*: (\S+)/)?.[1] || "";
-      const visuelsSite = site ? await visuelsDuSite(site).catch(() => []) : [];
-      const captures = visuelsSite.filter((v) => v.source !== "icone");
-      if (captures.length) await journal("info", `🖥️ ${captures.length} visuel(s) de votre site récupéré(s) pour montrer le produit.`);
-
-      await journal("action", `🎬 Écriture du script vidéo : « ${t.titre} »`);
-      // Budget serré : la fonction entière doit tenir sous les 5 minutes de Vercel.
-      const finScript = Date.now() + 80_000;
-      let script = null;
-      for (let essai = 0; essai < 2 && !script && Date.now() < finScript - 10_000; essai++) {
-        try {
-          script = lireScript(
-            await demanderIA(consigneScript(t, contexte, reseau, captures.length > 0), {
-              systeme: "Tu es scénariste de vidéos courtes pour les réseaux sociaux. Tu réponds uniquement en JSON valide.",
-              maxTokens: 2000,
-              delaiTotal: finScript - Date.now(),
-            }),
-          );
-        } catch (err) {
-          console.warn("Script vidéo : IA indisponible", err instanceof Error ? err.message : err);
-          break;
-        }
-      }
-      if (!script) {
-        // IA saturée : script tiré du texte de la publication, la vidéo se fait quand même.
-        script = scriptDeSecours({ ...t, brouillon: (t.resultat as { brouillon?: string } | null)?.brouillon }, contexte);
-        await journal("info", "IA occupée : script construit à partir du texte de la publication.");
-      }
-      if (captures.length) script = imposerScenesProduit(script);
-      await journal("info", `Script : ${script.scenes.length} scènes — « ${script.scenes[0].texte_ecran} »`);
-
-      let voix = null;
-      if (voixConfiguree()) {
-        await journal("action", "🎙️ Enregistrement de la voix off (Gemini)…");
-        voix = await voixOff(script.scenes.map((s) => s.voix).join(" "));
-        await journal(voix ? "info" : "erreur", voix ? `Voix off prête (${Math.round(voix.duree)} s).` : "Voix off impossible : vidéo sans voix.");
-      }
-      const d = durees(script.scenes, voix ? voix.duree + 0.6 : undefined);
-
-      // Pour chaque scène : une capture du produit (scènes « produit »), sinon
-      // une séquence filmée Pexels différente à chaque fois, sinon une photo
-      // Pexels, sinon une image IA (FLUX) ; les images sont animées au montage.
-      const univers = contexte?.match(/Univers visuel[^:]*: (.*)/)?.[1] ?? "";
-      const dejaVus = new Set<number>();
-      // La dernière scène (appel à l'action) prend l'image de partage du site
-      // si elle existe ; les autres scènes produit, les captures dans l'ordre.
-      const partage = captures.find((v) => v.source === "og");
-      const ecrans = captures.filter((v) => v !== partage);
-      let prochainEcran = 0;
-      const visuelProduit = (i: number) => {
-        if (!captures.length) return null;
-        if (i === script.scenes.length - 1 && partage) return partage.donnees;
-        const liste = ecrans.length ? ecrans : captures;
-        return liste[prochainEcran++ % liste.length].donnees;
-      };
-      const medias: { image?: Buffer; clip?: Buffer; cadre?: boolean }[] = [];
-      if (pexelsConfigure()) await journal("action", "🎥 Recherche de séquences filmées (Pexels)…");
-      // Scènes traitées une à une : la liste des séquences déjà utilisées doit
-      // être à jour avant de chercher la suivante.
-      for (const [i, s] of script.scenes.entries()) {
-        const produit = s.type_visuel === "produit" ? visuelProduit(i) : null;
-        if (produit) {
-          medias.push({ image: produit, cadre: true });
-          continue;
-        }
-        if (pexelsConfigure() && s.recherche_stock) {
-          const clip = await sequenceVerticale(s.recherche_stock, d[i], dejaVus).catch(() => null);
-          if (clip) {
-            medias.push({ clip });
-            continue;
-          }
-          const img = await photo(s.recherche_stock, "portrait", dejaVus).catch(() => null);
-          if (img) {
-            medias.push({ image: img });
-            continue;
-          }
-        }
-        // Image IA en dernier recours, seulement s'il reste du temps
-        // (la fonction doit finir en moins de 5 minutes).
-        if (Date.now() - debutVideo > 170_000) {
-          const secours = visuelProduit(i);
-          if (!secours) throw new Error("Temps insuffisant pour créer les images des scènes.");
-          medias.push({ image: secours, cadre: true });
-          continue;
-        }
-        const img = await genererImage(`${s.visuel}. ${univers} Vertical 9:16 composition, realistic photo, no text.`, "tiktok");
-        medias.push({ image: Buffer.from(img.base64, "base64") });
-      }
-      const nbClips = medias.filter((m) => m.clip).length;
-      await journal("info", `Scènes prêtes : ${medias.filter((m) => m.cadre).length} vue(s) du produit, ${nbClips} séquence(s) filmée(s), ${medias.length - nbClips - medias.filter((m) => m.cadre).length} image(s).`);
-
-      await journal("action", "✂️ Montage de la vidéo (zoom, textes, voix)…");
-      const mp4 = await monterVideo(
-        script.scenes.map((s, i) => ({ ...medias[i], texte_ecran: s.texte_ecran })),
-        d,
-        voix ?? undefined,
+      const video_url = await fabriquerVideo(
+        { ...t, brouillon: (t.resultat as { brouillon?: string } | null)?.brouillon },
+        contexte,
+        (pm?.site as string | undefined) ?? null,
+        {
+          journal,
+          etat: (champs) => etatVideo(sb, t.id, champs),
+          deposer: async (mp4) => {
+            const chemin = `${user.id}/${t.id}-${Date.now()}.mp4`;
+            const { error } = await sb.storage.from("videos").upload(chemin, mp4, { contentType: "video/mp4" });
+            if (error) throw new Error(`Enregistrement de la vidéo impossible : ${error.message}`);
+            return sb.storage.from("videos").getPublicUrl(chemin).data.publicUrl;
+          },
+        },
       );
-
-      const chemin = `${user.id}/${t.id}-${Date.now()}.mp4`;
-      const { error: errStockage } = await sb.storage.from("videos").upload(chemin, mp4, { contentType: "video/mp4" });
-      if (errStockage) throw new Error(`Enregistrement de la vidéo impossible : ${errStockage.message}`);
-      const video_url = sb.storage.from("videos").getPublicUrl(chemin).data.publicUrl;
-
-      await etatVideo(sb, t.id, {
-        brouillon: (t.resultat as { brouillon?: string } | null)?.brouillon || script.legende,
-        video_url,
-        video_script: script,
-        video_le: new Date().toISOString(),
-        video_etat: "prete",
-        video_erreur: null,
-      });
-      await journal("info", `✅ Vidéo prête (${Math.round(d.reduce((a, b) => a + b, 0))} s, ${(mp4.length / 1e6).toFixed(1)} Mo) — à valider dans Publications.`);
       return { ok: true, video_url };
     } catch (e) {
       try {

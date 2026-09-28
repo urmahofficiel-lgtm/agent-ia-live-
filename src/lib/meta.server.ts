@@ -90,9 +90,30 @@ export async function comptesDepuisCode(code: string) {
   return comptesDepuisPages(pages.data ?? []);
 }
 
+// Reel Facebook : montré aussi aux personnes qui ne suivent pas la page (c'est
+// là que se font les vues sans publicité). Envoi en 3 temps : ouverture,
+// Meta récupère le fichier par son adresse, publication.
+async function publierReelFacebook(pageId: string, jeton: string, texte: string, url: string) {
+  const { video_id } = await graph<{ video_id: string }>(`/${pageId}/video_reels`, { access_token: jeton, upload_phase: "start" }, "POST");
+  const envoi = await fetch(`https://rupload.facebook.com/video-upload/${VERSION_GRAPH}/${video_id}`, {
+    method: "POST",
+    headers: { Authorization: `OAuth ${jeton}`, file_url: url },
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!envoi.ok) throw new Error(`Meta : envoi du Reel refusé (${envoi.status}).`);
+  await graph(`/${pageId}/video_reels`, { access_token: jeton, video_id, upload_phase: "finish", video_state: "PUBLISHED", description: texte }, "POST");
+  return { id: video_id };
+}
+
 export async function publierFacebook(pageId: string, jeton: string, texte: string, media: Media | null) {
   if (media?.type === "video") {
-    return graph<{ id: string }>(`/${pageId}/videos`, { access_token: jeton, file_url: media.url, description: texte }, "POST");
+    try {
+      return await publierReelFacebook(pageId, jeton, texte, media.url);
+    } catch (e) {
+      // Format hors Reel (durée, cadrage) : publiée en vidéo classique.
+      console.warn("Reel Facebook refusé, vidéo classique", e instanceof Error ? e.message : e);
+      return graph<{ id: string }>(`/${pageId}/videos`, { access_token: jeton, file_url: media.url, description: texte }, "POST");
+    }
   }
   if (media?.type === "image") {
     return graph<{ id: string }>(`/${pageId}/photos`, { access_token: jeton, url: media.url, caption: texte }, "POST");
@@ -111,7 +132,7 @@ export async function publierInstagram(igId: string, jeton: string, texte: strin
   const conteneur = await graph<{ id: string }>(
     `/${igId}/media`,
     media.type === "video"
-      ? { access_token: jeton, media_type: "REELS", video_url: media.url, caption: texte }
+      ? { access_token: jeton, media_type: "REELS", video_url: media.url, caption: texte, share_to_feed: "true" }
       : { access_token: jeton, image_url: media.url, caption: texte },
     "POST",
     base,
