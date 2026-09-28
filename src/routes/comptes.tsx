@@ -4,6 +4,7 @@ import { CircleCheck, LoaderCircle, RefreshCw } from "lucide-react";
 import { Carte, Erreur, Titre, bouton, boutonSecondaire } from "@/components/ui";
 import { LogoPlateforme } from "@/components/LogoPlateforme";
 import { ChoixPageLinkedin } from "@/components/ChoixPageLinkedin";
+import { ConnexionDirecte, RESEAUX_DIRECTS, type ReseauDirect } from "@/components/ConnexionDirecte";
 import { supabase } from "@/lib/supabase";
 import { jetonSession } from "@/lib/session";
 import { useRequete, useUserId } from "@/lib/donnees";
@@ -19,7 +20,7 @@ type Compte = {
   statut: string;
   nom_utilisateur: string | null;
   compte_externe_id: string | null;
-  fournisseur: "zernio" | "meta" | "instagram";
+  fournisseur: "zernio" | "meta" | "instagram" | "bluesky" | "telegram";
 };
 
 // Erreurs renvoyées par Zernio au retour de la page d'autorisation.
@@ -48,6 +49,7 @@ function Comptes() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [enCours, setEnCours] = useState<string | null>(null);
+  const [formulaire, setFormulaire] = useState<ReseauDirect | null>(null);
 
   const [distants, setDistants] = useState<CompteDistant[] | null>(null);
   const [lienFacturation, setLienFacturation] = useState<string | null>(null);
@@ -97,6 +99,12 @@ function Comptes() {
   }, [userId, synchroniser]);
 
   async function connecter(plateforme: string) {
+    // Bluesky et Telegram : formulaire sur place, pas de page d'autorisation.
+    if ((RESEAUX_DIRECTS as readonly string[]).includes(plateforme)) {
+      setFormulaire(plateforme as ReseauDirect);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     setEnCours(plateforme);
     setErreur(null);
     try {
@@ -198,6 +206,18 @@ function Comptes() {
         </Carte>
       )}
 
+      {formulaire && (
+        <ConnexionDirecte
+          key={formulaire}
+          reseau={formulaire}
+          onFini={async (connecte) => {
+            if (connecte) setInfo(`${formulaire === "bluesky" ? "Bluesky" : "Telegram"} connecté.`);
+            setFormulaire(null);
+            await recharger();
+          }}
+        />
+      )}
+
       <PagesMeta comptes={comptes.data ?? []} onChange={recharger} />
 
       {comptes.data?.find((c) => c.plateforme === "linkedin" && c.statut === "connecte") && (
@@ -207,7 +227,7 @@ function Comptes() {
       )}
 
       <p className="mb-2 text-xs text-doux">
-        Facebook et Instagram : connexion directe à Meta, gratuite et sans limite ; elle n'occupe pas de place chez Zernio.
+        Facebook, Instagram, Bluesky et Telegram : connexion directe, gratuite et sans limite ; elle n'occupe pas de place chez Zernio.
         Instagram doit être un compte professionnel ou créateur (réglage gratuit dans l'app Instagram : Paramètres → Type de compte).
       </p>
       <p className="mb-4 text-xs text-doux">

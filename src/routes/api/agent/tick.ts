@@ -69,7 +69,7 @@ async function tick(secret: string) {
         : pret.visuel_url
           ? ({ type: "image", url: pret.visuel_url } as const)
           : null;
-      const postId = await publierSur(t.plateforme, t.user_id, { fournisseur: t.fournisseur, compte_externe_id: t.compte_externe_id, cible_urn: t.cible_urn }, pret.brouillon, media);
+      const postId = await publierSur(t.plateforme, t.user_id, { fournisseur: t.fournisseur, compte_externe_id: t.compte_externe_id, cible_urn: t.cible_urn }, pret.brouillon, media, pret.visuel_url);
       await maj(t.tache_id, "terminee", { post_id: postId, publie_le: new Date().toISOString() }, "info", `✅ Publié : « ${t.titre} »`);
       traitees++;
     } catch (e) {

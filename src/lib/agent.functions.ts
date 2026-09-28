@@ -12,10 +12,12 @@ import { consigneAnalyse, demandeDepuisStrategie, lireAnalyse, lireProfilDeduit,
 import { consigneProfilDepuisSite } from "./site";
 import { lireSite, visuelsDuSite } from "./site.server";
 import { CATEGORIES, lireReponseOverpass, requeteOverpass } from "./osm";
-import { utilisateurDepuisJeton } from "./supabase-serveur";
+import { clientMoteur, utilisateurDepuisJeton } from "./supabase-serveur";
 import { metaConfigure, urlConnexionMeta } from "./meta.server";
 import { instagramConfigure, urlConnexionInstagram } from "./instagram.server";
 import { publierSur, type CompteCible } from "./publication.server";
+import { sessionBluesky } from "./bluesky.server";
+import { verifierTelegram } from "./telegram.server";
 import {
   creerProfil,
   deconnecterCompte,
@@ -207,7 +209,7 @@ export const publierTache = createServerFn({ method: "POST" })
       await sb.from("taches").update({ statut: "en_cours" }).eq("id", t.id);
       await journal("action", `🚀 Publication en cours sur ${PLATEFORMES.find((p) => p.id === t.plateforme)?.nom} : « ${t.titre} »`);
       try {
-        const postId = await publierSur(t.plateforme, user.id, compte as CompteCible, brouillon, media);
+        const postId = await publierSur(t.plateforme, user.id, compte as CompteCible, brouillon, media, r.visuel_url);
         await sb
           .from("taches")
           .update({ statut: "terminee", resultat: { ...(t.resultat as object), post_id: postId, publie_le: new Date().toISOString() } })
@@ -323,7 +325,7 @@ export const deconnecter = createServerFn({ method: "POST" })
         .from("comptes_connectes")
         .select("id")
         .eq("compte_externe_id", data.compteExterneId)
-        .in("fournisseur", ["meta", "instagram"]);
+        .neq("fournisseur", "zernio");
       if (direct?.length) {
         const { error } = await sb.from("comptes_connectes").delete().in("id", direct.map((d) => d.id));
         return error ? { ok: false, erreur: error.message } : { ok: true };
@@ -947,6 +949,52 @@ export const supprimerCompte = createServerFn({ method: "POST" })
       const { error } = await sb.rpc("supprimer_mon_compte");
       if (error) return { ok: false, erreur: error.message };
       return { ok: true };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });
+
+// --- Connexions directes sans validation : Bluesky et Telegram ------------------
+
+// Vérifie les identifiants auprès du réseau, puis les range côté serveur
+// (schéma privé) : ils ne reviennent jamais vers le navigateur.
+export const connecterDirect = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .discriminatedUnion("plateforme", [
+        z.object({ plateforme: z.literal("bluesky"), identifiant: z.string().min(3).max(200), motDePasse: z.string().min(8).max(100), jeton }),
+        z.object({ plateforme: z.literal("telegram"), token: z.string().min(20).max(200), chat: z.string().min(2).max(200), jeton }),
+      ])
+      .parse(input),
+  )
+  .handler(async ({ data }): Promise<Resultat<{ nom: string }>> => {
+    try {
+      const { user } = await utilisateurDepuisJeton(data.jeton);
+      let externe: string;
+      let nom: string;
+      let secret: string;
+      if (data.plateforme === "bluesky") {
+        const s = await sessionBluesky(data);
+        externe = s.did;
+        nom = s.handle;
+        secret = JSON.stringify({ identifiant: data.identifiant.trim(), motDePasse: data.motDePasse.trim() });
+      } else {
+        const c = await verifierTelegram(data);
+        externe = c.chatId;
+        nom = c.nom;
+        secret = JSON.stringify({ token: data.token.trim(), chat: c.chatId });
+      }
+      const { error } = await clientMoteur().rpc("compte_direct_enregistrer", {
+        p_secret: process.env.AGENT_TICK_SECRET ?? "",
+        p_user: user.id,
+        p_fournisseur: data.plateforme,
+        p_plateforme: data.plateforme,
+        p_externe: externe,
+        p_nom: nom,
+        p_jeton: secret,
+      });
+      if (error) return { ok: false, erreur: error.message };
+      return { ok: true, nom };
     } catch (e) {
       return { ok: false, erreur: message(e) };
     }
