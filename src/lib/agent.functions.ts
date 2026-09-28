@@ -18,6 +18,7 @@ import { instagramConfigure, urlConnexionInstagram } from "./instagram.server";
 import { publierSur, type CompteCible } from "./publication.server";
 import { sessionBluesky } from "./bluesky.server";
 import { verifierTelegram } from "./telegram.server";
+import { linkedinConfigure, urlConnexionLinkedin } from "./linkedin.server";
 import {
   creerProfil,
   deconnecterCompte,
@@ -237,7 +238,7 @@ async function profilZernio(sb: Awaited<ReturnType<typeof utilisateurDepuisJeton
 }
 
 export const urlConnexion = createServerFn({ method: "POST" })
-  .inputValidator((input) => z.object({ plateforme: z.string(), jeton }).parse(input))
+  .inputValidator((input) => z.object({ plateforme: z.string(), via: z.enum(["direct", "zernio"]).optional(), jeton }).parse(input))
   .handler(async ({ data }): Promise<Resultat<{ url: string }>> => {
     try {
       // Facebook et Instagram : connexion directe à Meta quand l'app est configurée.
@@ -245,6 +246,11 @@ export const urlConnexion = createServerFn({ method: "POST" })
       if (data.plateforme === "instagram" && instagramConfigure()) {
         const { user } = await utilisateurDepuisJeton(data.jeton);
         return { ok: true, url: urlConnexionInstagram(user.id) };
+      }
+      // LinkedIn : profil personnel en direct ; la page entreprise passe par Zernio.
+      if (data.plateforme === "linkedin" && data.via !== "zernio" && linkedinConfigure()) {
+        const { user } = await utilisateurDepuisJeton(data.jeton);
+        return { ok: true, url: urlConnexionLinkedin(user.id) };
       }
       if (["facebook", "instagram"].includes(data.plateforme) && metaConfigure()) {
         const { user } = await utilisateurDepuisJeton(data.jeton);
@@ -278,12 +284,20 @@ export const synchroniserComptes = createServerFn({ method: "POST" })
       for (const c of comptes) {
         const p = plateformeParZernio(c.platform);
         if (!p || [...utilises].some((id) => comptes.find((x) => x._id === id)?.platform === c.platform)) continue;
+        // Un compte que l'utilisateur a mis de côté (autre compte choisi pour
+        // ce réseau) le reste.
+        const { data: avant } = await sb
+          .from("comptes_connectes")
+          .select("statut")
+          .eq("plateforme", p.id)
+          .eq("libelle", "principal")
+          .maybeSingle();
         const { error } = await sb.from("comptes_connectes").upsert(
           {
             user_id: user.id,
             plateforme: p.id,
             libelle: "principal",
-            statut: c.isActive === false ? "erreur" : "connecte",
+            statut: c.isActive === false ? "erreur" : avant?.statut === "desactive" ? "desactive" : "connecte",
             compte_externe_id: c._id,
             nom_utilisateur: c.username ?? c.displayName ?? null,
           },

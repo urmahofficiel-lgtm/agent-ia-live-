@@ -24,6 +24,7 @@ import { Route as TachesRouteImport } from './routes/taches'
 import { Route as ApiAgentTickRouteImport } from './routes/api/agent/tick'
 import { Route as ApiIaDiagnosticRouteImport } from './routes/api/ia/diagnostic'
 import { Route as ApiInstagramRetourRouteImport } from './routes/api/instagram/retour'
+import { Route as ApiLinkedinRetourRouteImport } from './routes/api/linkedin/retour'
 import { Route as ApiMetaRetourRouteImport } from './routes/api/meta/retour'
 import { Route as ApiVisuelsIdRouteImport } from './routes/api/visuels/$id'
 
@@ -102,6 +103,11 @@ const ApiInstagramRetourRoute = ApiInstagramRetourRouteImport.update({
   path: '/api/instagram/retour',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLinkedinRetourRoute = ApiLinkedinRetourRouteImport.update({
+  id: '/api/linkedin/retour',
+  path: '/api/linkedin/retour',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMetaRetourRoute = ApiMetaRetourRouteImport.update({
   id: '/api/meta/retour',
   path: '/api/meta/retour',
@@ -129,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
+  '/api/linkedin/retour': typeof ApiLinkedinRetourRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
@@ -148,6 +155,7 @@ export interface FileRoutesByTo {
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
+  '/api/linkedin/retour': typeof ApiLinkedinRetourRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
@@ -168,6 +176,7 @@ export interface FileRoutesById {
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
+  '/api/linkedin/retour': typeof ApiLinkedinRetourRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
@@ -189,6 +198,7 @@ export interface FileRouteTypes {
     | '/api/agent/tick'
     | '/api/ia/diagnostic'
     | '/api/instagram/retour'
+    | '/api/linkedin/retour'
     | '/api/meta/retour'
     | '/api/visuels/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -208,6 +218,7 @@ export interface FileRouteTypes {
     | '/api/agent/tick'
     | '/api/ia/diagnostic'
     | '/api/instagram/retour'
+    | '/api/linkedin/retour'
     | '/api/meta/retour'
     | '/api/visuels/$id'
   id:
@@ -227,6 +238,7 @@ export interface FileRouteTypes {
     | '/api/agent/tick'
     | '/api/ia/diagnostic'
     | '/api/instagram/retour'
+    | '/api/linkedin/retour'
     | '/api/meta/retour'
     | '/api/visuels/$id'
   fileRoutesById: FileRoutesById
@@ -247,6 +259,7 @@ export interface RootRouteChildren {
   ApiAgentTickRoute: typeof ApiAgentTickRoute
   ApiIaDiagnosticRoute: typeof ApiIaDiagnosticRoute
   ApiInstagramRetourRoute: typeof ApiInstagramRetourRoute
+  ApiLinkedinRetourRoute: typeof ApiLinkedinRetourRoute
   ApiMetaRetourRoute: typeof ApiMetaRetourRoute
   ApiVisuelsIdRoute: typeof ApiVisuelsIdRoute
 }
@@ -358,6 +371,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInstagramRetourRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/linkedin/retour': {
+      id: '/api/linkedin/retour'
+      path: '/api/linkedin/retour'
+      fullPath: '/api/linkedin/retour'
+      preLoaderRoute: typeof ApiLinkedinRetourRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/meta/retour': {
       id: '/api/meta/retour'
       path: '/api/meta/retour'
@@ -391,6 +411,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAgentTickRoute: ApiAgentTickRoute,
   ApiIaDiagnosticRoute: ApiIaDiagnosticRoute,
   ApiInstagramRetourRoute: ApiInstagramRetourRoute,
+  ApiLinkedinRetourRoute: ApiLinkedinRetourRoute,
   ApiMetaRetourRoute: ApiMetaRetourRoute,
   ApiVisuelsIdRoute: ApiVisuelsIdRoute,
 }

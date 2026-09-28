@@ -4,6 +4,7 @@ import { publierFacebook, publierInstagram } from "./meta.server";
 import { prolongerJetonInstagram, publierInstagramDirect } from "./instagram.server";
 import { publierBluesky, type IdentifiantsBluesky } from "./bluesky.server";
 import { publierTelegram, type IdentifiantsTelegram } from "./telegram.server";
+import { publierLinkedin, type IdentifiantsLinkedin } from "./linkedin.server";
 import { publier, type Media } from "./zernio.server";
 
 export type CompteCible = { fournisseur: string | null; compte_externe_id: string; cible_urn: string | null };
@@ -18,7 +19,7 @@ export async function publierSur(
   media: Media | null,
   image?: string | null,
 ) {
-  if (compte.fournisseur === "bluesky" || compte.fournisseur === "telegram") {
+  if (compte.fournisseur === "bluesky" || compte.fournisseur === "telegram" || compte.fournisseur === "linkedin") {
     const { data, error } = await clientMoteur().rpc("compte_jeton", {
       p_secret: process.env.AGENT_TICK_SECRET ?? "",
       p_user: userId,
@@ -26,7 +27,8 @@ export async function publierSur(
     });
     if (error || !data) throw new Error("Connexion introuvable : reconnectez le compte (page Comptes).");
     const identifiants = JSON.parse(data as string);
-    // Bluesky ne prend pas la vidéo par cette voie : on y joint l'image.
+    // Bluesky et LinkedIn ne prennent pas la vidéo par cette voie : on y joint l'image.
+    if (compte.fournisseur === "linkedin") return publierLinkedin(identifiants as IdentifiantsLinkedin, texte, media, image);
     return compte.fournisseur === "bluesky"
       ? publierBluesky(identifiants as IdentifiantsBluesky, texte, media, image)
       : publierTelegram(identifiants as IdentifiantsTelegram, texte, media);

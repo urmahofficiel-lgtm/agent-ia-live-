@@ -20,7 +20,8 @@ type Compte = {
   statut: string;
   nom_utilisateur: string | null;
   compte_externe_id: string | null;
-  fournisseur: "zernio" | "meta" | "instagram" | "bluesky" | "telegram";
+  fournisseur: "zernio" | "meta" | "instagram" | "bluesky" | "telegram" | "linkedin";
+  cible_nom: string | null;
 };
 
 // Erreurs renvoyées par Zernio au retour de la page d'autorisation.
@@ -43,7 +44,7 @@ const GROUPES: { titre: string; filtre: (p: Plateforme) => boolean }[] = [
 function Comptes() {
   const userId = useUserId();
   const comptes = useRequete<Compte[]>(
-    () => supabase().from("comptes_connectes").select("id, plateforme, statut, nom_utilisateur, compte_externe_id, fournisseur"),
+    () => supabase().from("comptes_connectes").select("id, plateforme, statut, nom_utilisateur, compte_externe_id, fournisseur, cible_nom"),
     [userId],
   );
   const [erreur, setErreur] = useState<string | null>(null);
@@ -98,7 +99,7 @@ function Comptes() {
     } else void synchroniser(!params.has("connected"));
   }, [userId, synchroniser]);
 
-  async function connecter(plateforme: string) {
+  async function connecter(plateforme: string, via?: "direct" | "zernio") {
     // Bluesky et Telegram : formulaire sur place, pas de page d'autorisation.
     if ((RESEAUX_DIRECTS as readonly string[]).includes(plateforme)) {
       setFormulaire(plateforme as ReseauDirect);
@@ -108,7 +109,7 @@ function Comptes() {
     setEnCours(plateforme);
     setErreur(null);
     try {
-      const r = await urlConnexion({ data: { plateforme, jeton: await jetonSession() } });
+      const r = await urlConnexion({ data: { plateforme, via, jeton: await jetonSession() } });
       if (r.ok) {
         window.location.href = r.url;
         return;
@@ -218,7 +219,7 @@ function Comptes() {
         />
       )}
 
-      <PagesMeta comptes={comptes.data ?? []} onChange={recharger} />
+      <ComptesActifs comptes={comptes.data ?? []} onChange={recharger} />
 
       {comptes.data?.find((c) => c.plateforme === "linkedin" && c.statut === "connecte") && (
         <ChoixPageLinkedin
@@ -231,8 +232,11 @@ function Comptes() {
         Instagram doit être un compte professionnel ou créateur (réglage gratuit dans l'app Instagram : Paramètres → Type de compte).
       </p>
       <p className="mb-4 text-xs text-doux">
-        LinkedIn : la connexion se fait avec votre compte personnel ; choisissez ensuite
-        ci-dessus la page entreprise au nom de laquelle publier (il faut en être administrateur).
+        LinkedIn : « Connecter » relie votre profil personnel.{" "}
+        <button type="button" className="text-accent underline disabled:opacity-50" disabled={enCours !== null} onClick={() => connecter("linkedin", "zernio")}>
+          Connecter une page entreprise (via Zernio)
+        </button>{" "}
+        — il faut en être administrateur ; choisissez ensuite ci-dessus la page et le compte qui publie.
       </p>
 
       {GROUPES.map((g) => {
@@ -295,16 +299,24 @@ function Comptes() {
   );
 }
 
-// Plusieurs pages autorisées chez Meta : choisir celle au nom de laquelle publier.
-function PagesMeta({ comptes, onChange }: { comptes: Compte[]; onChange: () => Promise<void> }) {
+// Plusieurs comptes pour un même réseau (plusieurs pages Facebook, ou LinkedIn
+// en page entreprise via Zernio et en profil perso direct) : l'utilisateur
+// choisit celui au nom duquel l'agent publie.
+function libelleCompte(c: Compte) {
+  if (c.fournisseur === "zernio") return `${c.cible_nom ? `Page ${c.cible_nom}` : (c.nom_utilisateur ?? "Compte")} · via Zernio`;
+  if (c.fournisseur === "linkedin") return `${c.nom_utilisateur ?? "Profil"} · profil perso, direct`;
+  return `${c.nom_utilisateur ?? c.compte_externe_id} · direct`;
+}
+
+function ComptesActifs({ comptes, onChange }: { comptes: Compte[]; onChange: () => Promise<void> }) {
   const [erreur, setErreur] = useState<string | null>(null);
-  const meta = comptes.filter((c) => c.fournisseur === "meta");
-  const plateformes = ["facebook", "instagram"].filter((p) => meta.filter((c) => c.plateforme === p).length > 1);
+  const utiles = comptes.filter((c) => c.statut === "connecte" || c.statut === "desactive");
+  const plateformes = [...new Set(utiles.map((c) => c.plateforme))].filter((p) => utiles.filter((c) => c.plateforme === p).length > 1);
   if (plateformes.length === 0) return null;
 
   async function utiliser(c: Compte) {
     const sb = supabase();
-    const autres = meta.filter((x) => x.plateforme === c.plateforme && x.id !== c.id).map((x) => x.id);
+    const autres = utiles.filter((x) => x.plateforme === c.plateforme && x.id !== c.id).map((x) => x.id);
     const r1 = await sb.from("comptes_connectes").update({ statut: "desactive" }).in("id", autres);
     const r2 = await sb.from("comptes_connectes").update({ statut: "connecte" }).eq("id", c.id);
     setErreur(r1.error?.message ?? r2.error?.message ?? null);
@@ -313,8 +325,8 @@ function PagesMeta({ comptes, onChange }: { comptes: Compte[]; onChange: () => P
 
   return (
     <Carte className="my-4">
-      <h2 className="font-medium">Page utilisée pour publier</h2>
-      <p className="mt-1 text-xs text-doux">Vous avez autorisé plusieurs pages. L'agent publie sur celle qui est cochée.</p>
+      <h2 className="font-medium">Compte utilisé pour publier</h2>
+      <p className="mt-1 text-xs text-doux">Plusieurs comptes sont connectés pour un même réseau : l'agent publie avec celui qui est coché.</p>
       {plateformes.map((p) => (
         <fieldset key={p} className="mt-3">
           <legend className="mb-2 flex items-center gap-2 text-sm">
@@ -322,12 +334,12 @@ function PagesMeta({ comptes, onChange }: { comptes: Compte[]; onChange: () => P
             {nomPlateforme(p)}
           </legend>
           <div className="space-y-1.5">
-            {meta
+            {utiles
               .filter((c) => c.plateforme === p)
               .map((c) => (
-                <label key={c.id} className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input type="radio" name={`page-${p}`} checked={c.statut === "connecte"} onChange={() => utiliser(c)} className="accent-accent" />
-                  {c.nom_utilisateur ?? c.compte_externe_id}
+                <label key={c.id} className="flex min-h-9 cursor-pointer items-center gap-2 text-sm">
+                  <input type="radio" name={`compte-${p}`} checked={c.statut === "connecte"} onChange={() => utiliser(c)} className="accent-accent" />
+                  {libelleCompte(c)}
                 </label>
               ))}
           </div>
