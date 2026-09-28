@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AnimerRouteImport } from './routes/animer'
 import { Route as ComptesRouteImport } from './routes/comptes'
 import { Route as ConditionsRouteImport } from './routes/conditions'
 import { Route as ConfidentialiteRouteImport } from './routes/confidentialite'
@@ -22,6 +23,7 @@ import { Route as StrategieRouteImport } from './routes/strategie'
 import { Route as SuppressionDonneesRouteImport } from './routes/suppression-donnees'
 import { Route as TachesRouteImport } from './routes/taches'
 import { Route as ApiAgentTickRouteImport } from './routes/api/agent/tick'
+import { Route as ApiAnimationsWebhookRouteImport } from './routes/api/animations/webhook'
 import { Route as ApiIaDiagnosticRouteImport } from './routes/api/ia/diagnostic'
 import { Route as ApiInstagramRetourRouteImport } from './routes/api/instagram/retour'
 import { Route as ApiLinkedinRetourRouteImport } from './routes/api/linkedin/retour'
@@ -31,6 +33,11 @@ import { Route as ApiVisuelsIdRouteImport } from './routes/api/visuels/$id'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnimerRoute = AnimerRouteImport.update({
+  id: '/animer',
+  path: '/animer',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ComptesRoute = ComptesRouteImport.update({
@@ -93,6 +100,11 @@ const ApiAgentTickRoute = ApiAgentTickRouteImport.update({
   path: '/api/agent/tick',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnimationsWebhookRoute = ApiAnimationsWebhookRouteImport.update({
+  id: '/api/animations/webhook',
+  path: '/api/animations/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiIaDiagnosticRoute = ApiIaDiagnosticRouteImport.update({
   id: '/api/ia/diagnostic',
   path: '/api/ia/diagnostic',
@@ -121,6 +133,7 @@ const ApiVisuelsIdRoute = ApiVisuelsIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/animer': typeof AnimerRoute
   '/comptes': typeof ComptesRoute
   '/conditions': typeof ConditionsRoute
   '/confidentialite': typeof ConfidentialiteRoute
@@ -133,6 +146,7 @@ export interface FileRoutesByFullPath {
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
+  '/api/animations/webhook': typeof ApiAnimationsWebhookRoute
   '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
   '/api/linkedin/retour': typeof ApiLinkedinRetourRoute
@@ -141,6 +155,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/animer': typeof AnimerRoute
   '/comptes': typeof ComptesRoute
   '/conditions': typeof ConditionsRoute
   '/confidentialite': typeof ConfidentialiteRoute
@@ -153,6 +168,7 @@ export interface FileRoutesByTo {
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
+  '/api/animations/webhook': typeof ApiAnimationsWebhookRoute
   '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
   '/api/linkedin/retour': typeof ApiLinkedinRetourRoute
@@ -162,6 +178,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/animer': typeof AnimerRoute
   '/comptes': typeof ComptesRoute
   '/conditions': typeof ConditionsRoute
   '/confidentialite': typeof ConfidentialiteRoute
@@ -174,6 +191,7 @@ export interface FileRoutesById {
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
+  '/api/animations/webhook': typeof ApiAnimationsWebhookRoute
   '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
   '/api/linkedin/retour': typeof ApiLinkedinRetourRoute
@@ -184,6 +202,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/animer'
     | '/comptes'
     | '/conditions'
     | '/confidentialite'
@@ -196,6 +215,7 @@ export interface FileRouteTypes {
     | '/suppression-donnees'
     | '/taches'
     | '/api/agent/tick'
+    | '/api/animations/webhook'
     | '/api/ia/diagnostic'
     | '/api/instagram/retour'
     | '/api/linkedin/retour'
@@ -204,6 +224,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/animer'
     | '/comptes'
     | '/conditions'
     | '/confidentialite'
@@ -216,6 +237,7 @@ export interface FileRouteTypes {
     | '/suppression-donnees'
     | '/taches'
     | '/api/agent/tick'
+    | '/api/animations/webhook'
     | '/api/ia/diagnostic'
     | '/api/instagram/retour'
     | '/api/linkedin/retour'
@@ -224,6 +246,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/animer'
     | '/comptes'
     | '/conditions'
     | '/confidentialite'
@@ -236,6 +259,7 @@ export interface FileRouteTypes {
     | '/suppression-donnees'
     | '/taches'
     | '/api/agent/tick'
+    | '/api/animations/webhook'
     | '/api/ia/diagnostic'
     | '/api/instagram/retour'
     | '/api/linkedin/retour'
@@ -245,6 +269,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AnimerRoute: typeof AnimerRoute
   ComptesRoute: typeof ComptesRoute
   ConditionsRoute: typeof ConditionsRoute
   ConfidentialiteRoute: typeof ConfidentialiteRoute
@@ -257,6 +282,7 @@ export interface RootRouteChildren {
   SuppressionDonneesRoute: typeof SuppressionDonneesRoute
   TachesRoute: typeof TachesRoute
   ApiAgentTickRoute: typeof ApiAgentTickRoute
+  ApiAnimationsWebhookRoute: typeof ApiAnimationsWebhookRoute
   ApiIaDiagnosticRoute: typeof ApiIaDiagnosticRoute
   ApiInstagramRetourRoute: typeof ApiInstagramRetourRoute
   ApiLinkedinRetourRoute: typeof ApiLinkedinRetourRoute
@@ -271,6 +297,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/animer': {
+      id: '/animer'
+      path: '/animer'
+      fullPath: '/animer'
+      preLoaderRoute: typeof AnimerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/comptes': {
@@ -357,6 +390,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/animations/webhook': {
+      id: '/api/animations/webhook'
+      path: '/api/animations/webhook'
+      fullPath: '/api/animations/webhook'
+      preLoaderRoute: typeof ApiAnimationsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/ia/diagnostic': {
       id: '/api/ia/diagnostic'
       path: '/api/ia/diagnostic'
@@ -397,6 +437,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AnimerRoute: AnimerRoute,
   ComptesRoute: ComptesRoute,
   ConditionsRoute: ConditionsRoute,
   ConfidentialiteRoute: ConfidentialiteRoute,
@@ -409,6 +450,7 @@ const rootRouteChildren: RootRouteChildren = {
   SuppressionDonneesRoute: SuppressionDonneesRoute,
   TachesRoute: TachesRoute,
   ApiAgentTickRoute: ApiAgentTickRoute,
+  ApiAnimationsWebhookRoute: ApiAnimationsWebhookRoute,
   ApiIaDiagnosticRoute: ApiIaDiagnosticRoute,
   ApiInstagramRetourRoute: ApiInstagramRetourRoute,
   ApiLinkedinRetourRoute: ApiLinkedinRetourRoute,
