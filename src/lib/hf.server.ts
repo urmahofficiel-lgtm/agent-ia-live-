@@ -25,7 +25,7 @@ function session(mode: ModeAnimation) {
   const base = espace.hote + espace.prefixe;
   let cookies = "";
   const entetes = (autres: Record<string, string> = {}) => ({
-    ...(process.env.HF_TOKEN ? { Authorization: `Bearer ${process.env.HF_TOKEN}` } : {}),
+    ...(process.env.HF_TOKEN ? { Authorization: `Bearer ${process.env.HF_TOKEN.trim()}` } : {}),
     ...(cookies ? { Cookie: cookies } : {}),
     ...autres,
   });
@@ -106,9 +106,25 @@ export async function animerAvecHF(
   const source = fichier?.url ?? (fichier?.path ? `${espace.hote}${espace.prefixe}/file=${fichier.path}` : null);
   if (!source) throw new Error("Vidéo absente de la réponse du modèle.");
   const r = await fetch(source, {
-    headers: process.env.HF_TOKEN ? { Authorization: `Bearer ${process.env.HF_TOKEN}` } : {},
+    headers: process.env.HF_TOKEN ? { Authorization: `Bearer ${process.env.HF_TOKEN.trim()}` } : {},
     signal: AbortSignal.timeout(90_000),
   });
   if (!r.ok) throw new Error("Téléchargement de la vidéo générée impossible.");
   return { donnees: new Uint8Array(await r.arrayBuffer()), source };
+}
+
+// Diagnostic après un refus : la clé HF_TOKEN est-elle acceptée, et par quel compte ?
+export async function compteHF(): Promise<{ valide: boolean; nom?: string }> {
+  if (!process.env.HF_TOKEN) return { valide: false };
+  try {
+    const r = await fetch("https://huggingface.co/api/whoami-v2", {
+      headers: { Authorization: `Bearer ${process.env.HF_TOKEN.trim()}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!r.ok) return { valide: false };
+    const j = (await r.json()) as { name?: string };
+    return { valide: true, nom: j.name };
+  } catch {
+    return { valide: true }; // Hugging Face injoignable : on ne conclut pas
+  }
 }

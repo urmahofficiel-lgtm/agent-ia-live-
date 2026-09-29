@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { LIMITES, MODELES_ANIMATION, lireStatutFal, validerPhoto, validerVideo, type ModeAnimation } from "./animation";
 import { falConfigure, jetonWebhook, resultatRequete, soumettre, statutRequete } from "./fal.server";
-import { ESPACES_HF, animerAvecHF, hfConfigure } from "./hf.server";
+import { ESPACES_HF, animerAvecHF, compteHF, hfConfigure } from "./hf.server";
 import { URL_SITE } from "./preparation.server";
 import { utilisateurDepuisJeton } from "./supabase-serveur";
 
@@ -198,8 +198,14 @@ export const executerAnimation = createServerFn({ method: "POST" })
         );
         await enregistrer(sb, a, donnees, source);
       } catch (e) {
-        const message =
+        let message =
           e instanceof Error && e.name === "TimeoutError" ? "La génération a pris trop de temps. Réessayez avec une vidéo plus courte." : texte(e);
+        if (message.startsWith("Hugging Face a refusé")) {
+          const compte = await compteHF();
+          message = compte.valide
+            ? `Hugging Face a refusé le calcul pour le compte « ${compte.nom ?? "?"} » : quota gratuit du jour épuisé ou modèle en panne. Réessayez plus tard.`
+            : "La clé HF_TOKEN est refusée par Hugging Face : recréez-la (type Read) et remplacez-la dans Vercel, puis Redeploy.";
+        }
         await sb.from("animations").update({ statut: "echouee", erreur: message }).eq("id", a.id);
       }
       return { ok: true };
