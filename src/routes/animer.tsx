@@ -119,11 +119,23 @@ function Animer() {
         const sb = supabase();
         const base = `${userId}/${crypto.randomUUID()}`;
         const chemin = { photo: `${base}-photo.${photo.fichier.type === "image/png" ? "png" : "jpg"}`, video: `${base}-video.mp4` };
-        const [p, v] = await Promise.all([
-          sb.storage.from("animations").upload(chemin.photo, photo.fichier, { contentType: photo.fichier.type }),
-          sb.storage.from("animations").upload(chemin.video, video.fichier, { contentType: "video/mp4" }),
-        ]);
-        if (p.error || v.error) throw new Error(`Envoi des fichiers impossible : ${(p.error ?? v.error)!.message}`);
+        // Réseau mobile instable : chaque fichier est renvoyé jusqu'à 3 fois.
+        const envoyer = async (chemin_: string, f: File, type: string) => {
+          for (let essai = 1; ; essai++) {
+            const { error } = await sb.storage.from("animations").upload(chemin_, f, { contentType: type, upsert: true });
+            if (!error) return;
+            if (essai === 3) {
+              throw new Error(
+                /fetch|network/i.test(error.message)
+                  ? "La connexion a coupé pendant l'envoi. Réessayez en Wi-Fi, ou avec une vidéo plus courte ou plus légère."
+                  : `Envoi des fichiers impossible : ${error.message}`,
+              );
+            }
+            await new Promise((r) => setTimeout(r, 1500 * essai));
+          }
+        };
+        await envoyer(chemin.photo, photo.fichier, photo.fichier.type);
+        await envoyer(chemin.video, video.fichier, "video/mp4");
         c = { ...chemin, duree: video.duree, mode };
       }
       setEtape("lancement");

@@ -38,6 +38,7 @@ describe("traduireErreurHF", () => {
     expect(traduireErreurHF("You have exceeded your free GPU quota (150s requested vs. 40s left)")).toMatch(/Quota gratuit/);
   });
   it("reste utile sans détail", () => {
-    expect(traduireErreurHF("")).toMatch(/personne est bien visible/);
+    expect(traduireErreurHF("")).toMatch(/Hugging Face a refusé/);
+    expect(traduireErreurHF('{"error": null}')).toMatch(/Hugging Face a refusé/);
   });
 });

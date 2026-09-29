@@ -81,6 +81,11 @@ export function traduireErreurHF(detail: string) {
   if (/^404|sleeping|paused|building/i.test(detail)) return "Le modèle gratuit est en veille ou en redémarrage. Réessayez dans quelques minutes.";
   if (/^429|too many|queue.*full/i.test(detail)) return "Le modèle gratuit est saturé. Réessayez dans quelques minutes.";
   if (/^5\d\d/.test(detail)) return "Le modèle gratuit est momentanément indisponible. Réessayez plus tard.";
+  // Erreur sans message : Hugging Face a refusé le calcul (quota du compte,
+  // clé non prise en compte ou modèle momentanément en panne).
+  if (!detail || /"error":\s*null/.test(detail)) {
+    return "Hugging Face a refusé le calcul (quota gratuit du jour, clé HF_TOKEN non reconnue ou modèle en panne). Réessayez plus tard ou avec l'autre mode.";
+  }
   return detail
     ? `Échec de l'animation : ${detail.replace(/^"|"$/g, "").slice(0, 200)}`
     : "Le modèle n'a pas pu animer ces fichiers. Vérifiez qu'une personne est bien visible, de face, puis réessayez.";
