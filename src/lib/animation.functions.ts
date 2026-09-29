@@ -25,6 +25,20 @@ async function infosFichier(sb: Sb, chemin: string) {
   return f ? { taille: meta.size ?? 0, type: meta.mimetype ?? "" } : null;
 }
 
+// fal.ai (payant) : lit les fichiers privés par des liens signés valables 2 h
+// et prévient le site par webhook quand la vidéo est prête.
+async function envoyerAFal(sb: Sb, id: string, mode: ModeAnimation, photo: string, video: string) {
+  const modele = MODELES_ANIMATION[mode].id;
+  const [lienPhoto, lienVideo] = await Promise.all([
+    sb.storage.from("animations").createSignedUrl(photo, 7200),
+    sb.storage.from("animations").createSignedUrl(video, 7200),
+  ]);
+  if (!lienPhoto.data || !lienVideo.data) throw new Error("Liens des fichiers indisponibles.");
+  const webhook = `${URL_SITE}/api/animations/webhook?id=${id}&m=${mode}&jeton=${jetonWebhook(id)}`;
+  const { request_id } = await soumettre(modele, { image_url: lienPhoto.data.signedUrl, video_url: lienVideo.data.signedUrl }, webhook);
+  await sb.from("animations").update({ fal_modele: modele, fal_requete: request_id, statut: "en_file", erreur: null }).eq("id", id);
+}
+
 export const lancerAnimation = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
@@ -72,15 +86,7 @@ export const lancerAnimation = createServerFn({ method: "POST" })
       if (gratuit) return { ok: true, id: ligne.id };
 
       try {
-        // fal.ai lit les fichiers privés par des liens signés valables 2 h.
-        const [lienPhoto, lienVideo] = await Promise.all([
-          sb.storage.from("animations").createSignedUrl(data.photo, 7200),
-          sb.storage.from("animations").createSignedUrl(data.video, 7200),
-        ]);
-        if (!lienPhoto.data || !lienVideo.data) throw new Error("Liens des fichiers indisponibles.");
-        const webhook = `${URL_SITE}/api/animations/webhook?id=${ligne.id}&m=${data.mode}&jeton=${jetonWebhook(ligne.id)}`;
-        const { request_id } = await soumettre(modele, { image_url: lienPhoto.data.signedUrl, video_url: lienVideo.data.signedUrl }, webhook);
-        await sb.from("animations").update({ fal_requete: request_id, statut: "en_file" }).eq("id", ligne.id);
+        await envoyerAFal(sb, ligne.id, data.mode as ModeAnimation, data.photo, data.video);
         return { ok: true, id: ligne.id };
       } catch (e) {
         await sb.from("animations").update({ statut: "echouee", erreur: texte(e) }).eq("id", ligne.id);
@@ -200,7 +206,15 @@ export const executerAnimation = createServerFn({ method: "POST" })
       } catch (e) {
         let message =
           e instanceof Error && e.name === "TimeoutError" ? "La génération a pris trop de temps. Réessayez avec une vidéo plus courte." : texte(e);
-        if (message.startsWith("Hugging Face a refusé")) {
+        // Plan B automatique : Hugging Face refuse, fal.ai prend le relais s'il est configuré.
+        if (message.startsWith("Hugging Face a refusé") && falConfigure()) {
+          try {
+            await envoyerAFal(sb, a.id, a.mode, a.photo_chemin, a.video_chemin);
+            return { ok: true };
+          } catch (errFal) {
+            message = texte(errFal);
+          }
+        } else if (message.startsWith("Hugging Face a refusé")) {
           const compte = await compteHF();
           message = compte.valide
             ? `Hugging Face a refusé le calcul pour le compte « ${compte.nom ?? "?"} » : quota gratuit du jour épuisé ou modèle en panne. Réessayez plus tard.`
