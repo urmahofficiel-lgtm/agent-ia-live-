@@ -1,4 +1,5 @@
 import { PLATEFORMES } from "./plateformes";
+import { nettoyerPost } from "./texte";
 import { clientMoteur } from "./supabase-serveur";
 import { publierFacebook, publierInstagram } from "./meta.server";
 import { prolongerJetonInstagram, publierInstagramDirect } from "./instagram.server";
@@ -19,6 +20,8 @@ export async function publierSur(
   media: Media | null,
   image?: string | null,
 ) {
+  // Dernier filet de sécurité : jamais de markdown affiché tel quel sur un réseau.
+  texte = nettoyerPost(texte);
   if (compte.fournisseur === "bluesky" || compte.fournisseur === "telegram" || compte.fournisseur === "linkedin") {
     const { data, error } = await clientMoteur().rpc("compte_jeton", {
       p_secret: process.env.AGENT_TICK_SECRET ?? "",

@@ -1,3 +1,4 @@
+import { nettoyerPost } from "./texte";
 import { nomPlateforme } from "./plateformes";
 
 // Cerveau de l'agent : NVIDIA NIM (API compatible OpenAI).
@@ -219,10 +220,11 @@ const REGLES_MARQUE = `Règles impératives :
 - N'utilise que les faits de la fiche. N'invente AUCUN chiffre, pourcentage, témoignage, nom de client, étude de cas ou garantie qui n'y figure pas.
 - Termine par l'appel à l'action de la fiche et le lien du site, écrit en entier.
 - Le post est un texte accompagné d'une image : si la consigne parle de vidéo, live, PDF ou infographie, transforme-la en post texte sur le même sujet.
-- Hashtags : 3 à 5 maximum, pris dans la liste conseillée quand elle existe.`;
+- Hashtags : 3 à 5 maximum, pris dans la liste conseillée quand elle existe.
+- Texte brut prêt à publier : pas de markdown (ni astérisques, ni titres avec #), et ne recopie pas le titre interne en tête du post.`;
 
-export function rediger(t: Consigne, contexte?: string | null): Promise<string> {
-  return demanderIA(
+export async function rediger(t: Consigne, contexte?: string | null): Promise<string> {
+  const texte = await demanderIA(
     [
       contexte ? `Fiche de la marque (source de vérité) :\n${contexte}\n\n${REGLES_MARQUE}\n` : "",
       CONSIGNES_TYPE[t.type] ?? CONSIGNES_TYPE.autre,
@@ -233,6 +235,7 @@ export function rediger(t: Consigne, contexte?: string | null): Promise<string> 
       .filter(Boolean)
       .join("\n"),
   );
+  return nettoyerPost(texte, t.titre);
 }
 
 // --- Images -------------------------------------------------------------------
