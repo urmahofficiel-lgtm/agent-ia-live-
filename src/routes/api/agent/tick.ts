@@ -4,11 +4,14 @@ import { publierSur } from "@/lib/publication.server";
 import { preparer, type Ecrivain } from "@/lib/preparation.server";
 import { fabriquerVideo } from "@/lib/fabrication-video.server";
 import { clientMoteur } from "@/lib/supabase-serveur";
-import { lireStyleImage, lireStyleVideo } from "@/lib/styles";
+import { lireStyleImage, lireStyleVideo, styleVideoPour } from "@/lib/styles";
+import { planifierJournees } from "@/lib/pilote.server";
 
 // Moteur de l'agent : appelé toutes les 5 minutes par pg_cron (Supabase).
 // 1. Publie les tâches validées dont l'heure est venue (texte + visuel).
-// 2. Prépare les brouillons manquants (texte + visuel) pour validation.
+// 2. Pilote automatique : planifie les publications du jour (une fois par jour).
+// 3. Prépare les brouillons manquants (texte + visuel) pour validation.
+// 4. Crée les vidéos (Reels Facebook / Instagram, vidéos TikTok).
 // Chaque étape est racontée dans le journal « en direct ».
 type Due = {
   tache_id: string;
@@ -109,6 +112,11 @@ async function tick(secret: string) {
         t.contexte,
         ecrivainMoteur(t.tache_id),
       );
+      // TikTok : la publication a attendu sa vidéo (45 min au plus) ; sans
+      // elle, on publie ce qu'on a et on le dit.
+      if (t.plateforme === "tiktok" && !t.video_url) {
+        await maj(t.tache_id, null, null, "info", `⏱️ Vidéo TikTok pas prête à temps pour « ${t.titre} » : publication ${pret.visuel_url ? "avec l'image" : "sans visuel"}.`);
+      }
       await maj(t.tache_id, null, null, "action", `🚀 Publication sur ${PLATEFORMES.find((p) => p.id === t.plateforme)?.nom}…`);
       const media = t.video_url
         ? ({ type: "video", url: t.video_url } as const)
@@ -123,7 +131,18 @@ async function tick(secret: string) {
     }
   }
 
-  // 2. Brouillons à préparer (tâches créées par une commande ou la stratégie).
+  // 2. Pilote automatique : publications du jour choisies par l'IA (léger :
+  // sauté si le passage a déjà pris du temps, repris au suivant).
+  if (Date.now() - debut < 120_000) {
+    try {
+      const n = await planifierJournees(sb, secret, debut + 200_000);
+      if (n) console.info(`Pilote automatique : ${n} publication(s) planifiée(s).`);
+    } catch (e) {
+      console.warn("Pilote automatique", e instanceof Error ? e.message : e);
+    }
+  }
+
+  // 3. Brouillons à préparer (tâches créées par une commande ou la stratégie).
   const { data: aRediger } = await sb.rpc("agent_brouillons_a_faire", { p_secret: secret });
   for (const t of (aRediger ?? []) as ARediger[]) {
     try {
@@ -135,16 +154,18 @@ async function tick(secret: string) {
     }
   }
 
-  // 3. Reels automatiques : les publications Facebook et Instagram reçoivent
-  // leur vidéo verticale (2 à 3 min de fabrication), une par passage, s'il
+  // 4. Vidéos automatiques : les publications Facebook, Instagram et TikTok
+  // reçoivent leur vidéo verticale (2 à 3 min de fabrication), une par passage, s'il
   // reste assez de temps avant la limite de 5 minutes.
   if (Date.now() - debut < 60_000) {
     const { data: aFilmer } = await sb.rpc("agent_videos_a_faire", { p_secret: secret });
     for (const v of (aFilmer ?? []) as AFilmer[]) {
       const etat = (champs: Record<string, unknown>) => maj(v.tache_id, null, champs, "info", null);
       try {
-        await maj(v.tache_id, null, { essais_video: v.essais + 1 }, "action", `🎬 Création automatique du Reel pour « ${v.titre} »`);
-        const { video: style } = await styles(v.tache_id);
+        const tiktok = v.plateforme === "tiktok";
+        await maj(v.tache_id, null, { essais_video: v.essais + 1 }, "action", `🎬 Création automatique ${tiktok ? "de la vidéo TikTok" : "du Reel"} pour « ${v.titre} »`);
+        // TikTok : style « face caméra » plutôt que classique.
+        const style = styleVideoPour(v.plateforme, (await styles(v.tache_id)).video);
         await fabriquerVideo({ id: v.tache_id, plateforme: v.plateforme, titre: v.titre, consigne: v.consigne, brouillon: v.brouillon }, v.contexte, v.site, {
           journal: (niveau, msg) => maj(v.tache_id, null, null, niveau, msg),
           etat,
@@ -161,7 +182,7 @@ async function tick(secret: string) {
         traitees++;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "erreur";
-        await maj(v.tache_id, null, { video_etat: "echec", video_erreur: msg }, "erreur", `Reel non créé pour « ${v.titre} » : ${msg}`);
+        await maj(v.tache_id, null, { video_etat: "echec", video_erreur: msg }, "erreur", `${v.plateforme === "tiktok" ? "Vidéo TikTok" : "Reel"} non créé${v.plateforme === "tiktok" ? "e" : ""} pour « ${v.titre} » : ${msg}`);
       }
     }
   }
