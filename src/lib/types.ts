@@ -18,6 +18,8 @@ export type Tache = {
     video_etat?: "en_cours" | "prete" | "echec";
     video_erreur?: string | null;
     video_debut?: string;
+    video_style?: string;
+    visuel_style?: string;
   } | null;
   created_at: string;
 };

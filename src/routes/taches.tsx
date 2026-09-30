@@ -4,7 +4,7 @@ import { AlertTriangle, Clapperboard, ImageIcon, LoaderCircle, PenLine, Plus, Ro
 import { Carte, Erreur, Pastille, Titre, bouton, boutonSecondaire, champ } from "@/components/ui";
 import { LogoPlateforme } from "@/components/LogoPlateforme";
 import { supabase } from "@/lib/supabase";
-import { useReglages, useRequete, useUserId } from "@/lib/donnees";
+import { useReglages, useRequete, useStylesParDefaut, useUserId } from "@/lib/donnees";
 import { PLATEFORMES, estManuel, nomPlateforme } from "@/lib/plateformes";
 import { creerVideo, genererBrouillon, publierTache, regenererVisuel } from "@/lib/agent.functions";
 import { jetonSession } from "@/lib/session";
@@ -13,6 +13,8 @@ import { LIBELLE_TYPE, type StatutTache, type Tache } from "@/lib/types";
 import { creerCopies, statutPourReseau, supprimerPublications } from "@/lib/publications";
 import { ChoixReseaux } from "@/components/ChoixReseaux";
 import { BoutonPartage } from "@/components/BoutonPartage";
+import { MenuStyle } from "@/components/StylesCreatifs";
+import { STYLES_IMAGE, STYLES_VIDEO, lireStyleVideo, nomStyleVideo, type StyleImage, type StyleVideo } from "@/lib/styles";
 
 export const Route = createFileRoute("/taches")({ component: Publications });
 
@@ -44,6 +46,7 @@ function Publications() {
   const [formulaire, setFormulaire] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [travail, setTravail] = useState<Travail | null>(null);
+  const styles = useStylesParDefaut();
 
   // Appel serveur commun : affiche l'erreur éventuelle puis recharge la liste.
   async function action(t: Travail, appel: (jeton: string) => Promise<{ ok: boolean; erreur?: string }>) {
@@ -67,9 +70,10 @@ function Publications() {
 
   const actions: Actions = {
     travail,
+    styles: { video: styles.video, image: styles.image },
     rediger: (id) => action({ id, quoi: "texte" }, (jeton) => genererBrouillon({ data: { tacheId: id, jeton } })),
-    image: (id) => action({ id, quoi: "image" }, (jeton) => regenererVisuel({ data: { tacheId: id, jeton } })),
-    video: (id) => action({ id, quoi: "video" }, (jeton) => creerVideo({ data: { tacheId: id, jeton } })),
+    image: (id, style) => action({ id, quoi: "image" }, (jeton) => regenererVisuel({ data: { tacheId: id, jeton, style } })),
+    video: (id, style) => action({ id, quoi: "video" }, (jeton) => creerVideo({ data: { tacheId: id, jeton, style } })),
     publier: (id) => action({ id, quoi: "publication" }, (jeton) => publierTache({ data: { tacheId: id, jeton } })),
     statut: changerStatut,
     recharger: liste.recharger,
@@ -174,9 +178,11 @@ function Publications() {
 
 type Actions = {
   travail: Travail | null;
+  // Styles par défaut (Réglages), proposés en premier dans les menus.
+  styles: { video: StyleVideo; image: StyleImage };
   rediger: (id: string) => void;
-  image: (id: string) => void;
-  video: (id: string) => void;
+  image: (id: string, style?: string) => void;
+  video: (id: string, style?: string) => void;
   publier: (id: string) => void;
   statut: (id: string, s: StatutTache) => void;
   recharger: () => Promise<void>;
@@ -208,6 +214,7 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
   const sansReseau = estPublication && !t.plateforme;
   const manuel = estManuel(t.plateforme);
   const video_etat = ici === "video" ? "en_cours" : etatVideo(t);
+  const styleVideo = t.resultat?.video_style ? lireStyleVideo(t.resultat.video_style) : null;
 
   // Une seule action principale, selon l'état de la publication.
   let principale: ReactNode = null;
@@ -248,7 +255,9 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
           {t.plateforme && <LogoPlateforme id={t.plateforme} taille={22} />}
           <h3 className="font-semibold">{t.titre}</h3>
           <Pastille ton={STATUTS[t.statut].ton}>{STATUTS[t.statut].libelle}</Pastille>
-          {video && video_etat !== "en_cours" && <Pastille ton="plan">Vidéo</Pastille>}
+          {video && video_etat !== "en_cours" && (
+            <Pastille ton="plan">Vidéo{styleVideo && styleVideo !== "classique" ? ` · ${nomStyleVideo(styleVideo)}` : ""}</Pastille>
+          )}
           {sansReseau && (
             <Pastille ton="alerte">
               <AlertTriangle size={12} aria-hidden />
@@ -303,7 +312,11 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
               {t.resultat?.video_erreur ? ` : ${t.resultat.video_erreur}` : " : création interrompue."}
             </span>
             {modifiable && (
-              <button className="inline-flex items-center gap-1.5 font-medium underline disabled:opacity-50" disabled={occupe} onClick={() => a.video(t.id)}>
+              <button
+                className="inline-flex items-center gap-1.5 font-medium underline disabled:opacity-50"
+                disabled={occupe}
+                onClick={() => a.video(t.id, styleVideo ?? undefined)}
+              >
                 <RotateCcw size={14} aria-hidden />
                 Réessayer
               </button>
@@ -337,20 +350,29 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
               </BoutonAction>
             )}
             {modifiable && estPublication && brouillon && (
-              <BoutonAction occupe={occupe} enCours={ici === "image"} onClick={() => a.image(t.id)} icone={<ImageIcon size={15} />}>
+              <MenuStyle
+                options={STYLES_IMAGE}
+                defaut={a.styles.image}
+                occupe={occupe}
+                enCours={ici === "image"}
+                icone={<ImageIcon size={15} />}
+                onChoix={(style) => a.image(t.id, style)}
+              >
                 {image ? "Nouvelle image" : "Créer l'image"}
-              </BoutonAction>
+              </MenuStyle>
             )}
             {modifiable && estPublication && (
-              <BoutonAction
+              <MenuStyle
+                options={STYLES_VIDEO}
+                defaut={a.styles.video}
                 occupe={occupe || video_etat === "en_cours"}
                 enCours={video_etat === "en_cours"}
-                onClick={() => a.video(t.id)}
                 icone={<Clapperboard size={15} />}
-                titre="Vidéo verticale de 30 à 45 s : script, séquences filmées, textes à l'écran et voix off"
+                titre="Vidéo verticale de 20 à 45 s : script, séquences filmées, textes à l'écran et voix off"
+                onChoix={(style) => a.video(t.id, style)}
               >
                 {video ? "Refaire la vidéo" : "Créer une vidéo"}
-              </BoutonAction>
+              </MenuStyle>
             )}
             {modifiable && (
               <button className="ml-auto text-sm text-doux hover:text-erreur disabled:opacity-50" disabled={occupe} onClick={() => a.statut(t.id, "annulee")}>

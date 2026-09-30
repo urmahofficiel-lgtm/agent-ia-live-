@@ -4,6 +4,7 @@ import { publierSur } from "@/lib/publication.server";
 import { preparer, type Ecrivain } from "@/lib/preparation.server";
 import { fabriquerVideo } from "@/lib/fabrication-video.server";
 import { clientMoteur } from "@/lib/supabase-serveur";
+import { lireStyleImage, lireStyleVideo } from "@/lib/styles";
 
 // Moteur de l'agent : appelé toutes les 5 minutes par pg_cron (Supabase).
 // 1. Publie les tâches validées dont l'heure est venue (texte + visuel).
@@ -51,6 +52,15 @@ async function tick(secret: string) {
     },
   });
 
+  // Styles par défaut du propriétaire de la tâche (Réglages). Fonction
+  // absente tant que la migration n'est pas appliquée : classique / photo.
+  const styles = async (tacheId: string) => {
+    const { data, error } = await sb.rpc("agent_styles_defaut", { p_secret: secret, p_tache_id: tacheId });
+    const s = (error ? null : data) as { video?: string; image?: string } | null;
+    return { video: lireStyleVideo(s?.video), image: lireStyleImage(s?.image) };
+  };
+  const styleImage = async (tacheId: string, visuel: string | null) => (visuel ? undefined : (await styles(tacheId)).image);
+
   // 1. Publications à l'heure.
   const { data, error } = await sb.rpc("agent_taches_dues", { p_secret: secret });
   if (error) throw new Error(error.message);
@@ -60,7 +70,15 @@ async function tick(secret: string) {
     if (estManuel(t.plateforme)) {
       try {
         await preparer(
-          { type: "publication", plateforme: t.plateforme, titre: t.titre, consigne: t.consigne, brouillon: t.brouillon, visuel_url: t.visuel_url },
+          {
+            type: "publication",
+            plateforme: t.plateforme,
+            titre: t.titre,
+            consigne: t.consigne,
+            brouillon: t.brouillon,
+            visuel_url: t.visuel_url,
+            style_visuel: await styleImage(t.tache_id, t.visuel_url),
+          },
           t.contexte,
           ecrivainMoteur(t.tache_id),
         );
@@ -78,7 +96,16 @@ async function tick(secret: string) {
     try {
       await maj(t.tache_id, "en_cours", null, "action", `🤖 L'agent prend en charge « ${t.titre} »`);
       const pret = await preparer(
-        { type: "publication", plateforme: t.plateforme, titre: t.titre, consigne: t.consigne, brouillon: t.brouillon, visuel_url: t.visuel_url },
+        {
+          type: "publication",
+          plateforme: t.plateforme,
+          titre: t.titre,
+          consigne: t.consigne,
+          brouillon: t.brouillon,
+          visuel_url: t.visuel_url,
+          // Vidéo déjà prête : elle est publiée à la place de l'image.
+          style_visuel: t.video_url ? undefined : await styleImage(t.tache_id, t.visuel_url),
+        },
         t.contexte,
         ecrivainMoteur(t.tache_id),
       );
@@ -100,7 +127,8 @@ async function tick(secret: string) {
   const { data: aRediger } = await sb.rpc("agent_brouillons_a_faire", { p_secret: secret });
   for (const t of (aRediger ?? []) as ARediger[]) {
     try {
-      await preparer({ type: t.type, plateforme: t.plateforme, titre: t.titre, consigne: t.consigne, brouillon: t.brouillon }, t.contexte, ecrivainMoteur(t.tache_id));
+      const style_visuel = t.type === "publication" ? await styleImage(t.tache_id, null) : undefined;
+      await preparer({ type: t.type, plateforme: t.plateforme, titre: t.titre, consigne: t.consigne, brouillon: t.brouillon, style_visuel }, t.contexte, ecrivainMoteur(t.tache_id));
       await maj(t.tache_id, null, null, "info", `Prêt à valider : « ${t.titre} »`);
     } catch (e) {
       await maj(t.tache_id, null, { essais_brouillon: 3 }, "erreur", `Rédaction impossible pour « ${t.titre} » : ${e instanceof Error ? e.message : "erreur"}`);
@@ -116,6 +144,7 @@ async function tick(secret: string) {
       const etat = (champs: Record<string, unknown>) => maj(v.tache_id, null, champs, "info", null);
       try {
         await maj(v.tache_id, null, { essais_video: v.essais + 1 }, "action", `🎬 Création automatique du Reel pour « ${v.titre} »`);
+        const { video: style } = await styles(v.tache_id);
         await fabriquerVideo({ id: v.tache_id, plateforme: v.plateforme, titre: v.titre, consigne: v.consigne, brouillon: v.brouillon }, v.contexte, v.site, {
           journal: (niveau, msg) => maj(v.tache_id, null, null, niveau, msg),
           etat,
@@ -128,7 +157,7 @@ async function tick(secret: string) {
             if (errDepot) throw new Error(`Enregistrement de la vidéo impossible : ${errDepot.message}`);
             return sb.storage.from("videos").getPublicUrl(chemin).data.publicUrl;
           },
-        });
+        }, style);
         traitees++;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "erreur";
