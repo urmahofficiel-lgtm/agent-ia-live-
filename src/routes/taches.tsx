@@ -10,7 +10,7 @@ import { creerVideo, genererBrouillon, publierTache, regenererVisuel } from "@/l
 import { jetonSession } from "@/lib/session";
 import { STATUTS } from "@/lib/statuts";
 import { LIBELLE_TYPE, type StatutTache, type Tache } from "@/lib/types";
-import { creerCopies, supprimerPublications } from "@/lib/publications";
+import { creerCopies, statutPourReseau, supprimerPublications } from "@/lib/publications";
 import { ChoixReseaux } from "@/components/ChoixReseaux";
 import { BoutonPartage } from "@/components/BoutonPartage";
 
@@ -415,7 +415,7 @@ function EditeurPublication({ tache: t, onFini }: { tache: Tache; onFini: (enreg
     const principal = t.plateforme && reseaux.includes(t.plateforme) ? t.plateforme : (reseaux[0] ?? null);
     const { error } = await supabase()
       .from("taches")
-      .update({ ...commun, plateforme: principal, resultat })
+      .update({ ...commun, plateforme: principal, resultat, statut: statutPourReseau(t.statut, principal) })
       .eq("id", t.id);
     const autres = reseaux.filter((r) => r !== principal);
     const erreurCopies =

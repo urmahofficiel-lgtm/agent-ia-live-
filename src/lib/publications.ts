@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { estManuel } from "./plateformes";
 import type { StatutTache, Tache } from "./types";
 
 type Resultat = NonNullable<Tache["resultat"]> & { visuel_id?: string };
@@ -27,6 +28,12 @@ export async function supprimerPublications(taches: Pick<Tache, "id" | "resultat
   return null;
 }
 
+// « À partager » n'existe que pour les réseaux sans API (profil Facebook perso) :
+// sur un autre réseau, la publication redevient planifiée et l'agent la publie.
+export function statutPourReseau(statut: StatutTache, plateforme: string | null): StatutTache {
+  return statut === "a_partager" && !estManuel(plateforme) ? "en_attente" : statut;
+}
+
 export type NouvellePublication = {
   titre: string;
   consigne: string;
@@ -50,7 +57,7 @@ export async function creerCopies(userId: string, base: NouvellePublication, res
   for (const plateforme of reseaux) {
     const { data: tache, error } = await sb
       .from("taches")
-      .insert({ user_id: userId, type: "publication", plateforme, ...base })
+      .insert({ user_id: userId, type: "publication", plateforme, ...base, statut: statutPourReseau(base.statut, plateforme) })
       .select("id")
       .single();
     if (error || !tache) return error?.message ?? "Création impossible.";
