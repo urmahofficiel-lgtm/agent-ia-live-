@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { traiterMessage } from "./mcp.server";
 
+vi.mock("./prospection.server", () => ({
+  chercherEntreprises: vi.fn(async () => [{ nom: "Boulangerie Martin", email: null, telephone: "04 78 00 00 00", site: null, adresse: null, osm_id: "node/1" }]),
+  redigerMessageProspect: vi.fn(async () => ({ genre: "premier", canal: "message", objet: "", texte: "Bonjour…\n\nRépondez STOP pour ne plus être contacté." })),
+}));
+
+const ID = "7c0e0c3e-8a3b-4b8e-9d7a-2f6b1c1d2e3f";
+const appeler = (name: string, args: object, appel: unknown) =>
+  traiterMessage({ jsonrpc: "2.0", id: 9, method: "tools/call", params: { name, arguments: args } }, appel as never);
+
 const appelFactice = () => vi.fn(async () => [{ reseau: "facebook" }]) as never;
 
 describe("serveur MCP", () => {
@@ -11,7 +20,8 @@ describe("serveur MCP", () => {
 
   it("liste les outils sans exposer les schémas internes", async () => {
     const r = (await traiterMessage({ jsonrpc: "2.0", id: 2, method: "tools/list" }, appelFactice())) as { result: { tools: object[] } };
-    expect(r.result.tools.length).toBe(5);
+    expect(r.result.tools.length).toBe(9);
+    expect(r.result.tools.every((o) => (o as { name: string }).name.startsWith("agent_"))).toBe(true);
     expect(r.result.tools[0]).not.toHaveProperty("executer");
   });
 
@@ -34,5 +44,40 @@ describe("serveur MCP", () => {
 
   it("ignore les notifications", async () => {
     expect(await traiterMessage({ jsonrpc: "2.0", method: "notifications/initialized" }, appelFactice())).toBeNull();
+  });
+
+  it("prospects : refuse une catégorie, un statut ou un identifiant invalides", async () => {
+    const appel = vi.fn();
+    expect(await appeler("agent_chercher_prospects", { categorie: "licorne", ville: "Lyon" }, appel)).toMatchObject({ result: { isError: true } });
+    expect(await appeler("agent_marquer_prospect", { id: ID, statut: "envoye" }, appel)).toMatchObject({ result: { isError: true } });
+    expect(await appeler("agent_rediger_message_prospect", { id: "123" }, appel)).toMatchObject({ result: { isError: true } });
+    expect(await appeler("agent_prospects", { filtre: "tous" }, appel)).toMatchObject({ result: { isError: true } });
+    expect(appel).not.toHaveBeenCalled();
+  });
+
+  it("prospects : la recherche passe par OpenStreetMap puis la base", async () => {
+    const appel = vi.fn(async () => ({ trouves: 1, ajoutes: 1 }));
+    await appeler("agent_chercher_prospects", { categorie: "boulangerie", ville: " Lyon " }, appel);
+    expect(appel).toHaveBeenCalledWith(
+      "mcp_ajouter_prospects",
+      expect.objectContaining({ p_categorie: "Boulangeries", p_ville: "Lyon", p_liste: [expect.objectContaining({ osm_id: "node/1" })] }),
+    );
+  });
+
+  it("prospects : la rédaction enregistre un brouillon et renvoie des liens, sans rien envoyer", async () => {
+    const appel = vi.fn(async (fonction: string) =>
+      fonction === "mcp_prospect_a_rediger"
+        ? { id: ID, nom: "Boulangerie Martin", email: null, telephone: "04 78 00 00 00", genre: "premier" }
+        : {},
+    );
+    const r = (await appeler("agent_rediger_message_prospect", { id: ID }, appel)) as { result: { structuredContent: { envoyer_avec: { type: string }[] } } };
+    expect(appel).toHaveBeenCalledWith("mcp_enregistrer_brouillon_prospect", expect.objectContaining({ p_id: ID }));
+    expect(r.result.structuredContent.envoyer_avec.map((l) => l.type)).toContain("whatsapp");
+  });
+
+  it("prospects : marquer transmet le statut et la note", async () => {
+    const appel = vi.fn(async () => ({ id: ID, statut: "contacte" }));
+    await appeler("agent_marquer_prospect", { id: ID, statut: "contacte" }, appel);
+    expect(appel).toHaveBeenCalledWith("mcp_marquer_prospect", { p_id: ID, p_statut: "contacte", p_contenu: null });
   });
 });

@@ -12,7 +12,9 @@ import { consigneAnalyse, demandeDepuisStrategie, lireAnalyse, lireProfilDeduit,
 import { consigneProfilDepuisSite } from "./site";
 import { lireSite } from "./site.server";
 import { fabriquerVideo } from "./fabrication-video.server";
-import { CATEGORIES, lireReponseOverpass, requeteOverpass } from "./osm";
+import { CATEGORIES } from "./osm";
+import { messageErreurProspect, type BrouillonProspect, type ProspectARediger } from "./prospection";
+import { chercherEntreprises, redigerMessageProspect } from "./prospection.server";
 import { clientMoteur, utilisateurDepuisJeton } from "./supabase-serveur";
 import { commentairesFacebook, commentairesInstagram, metaConfigure, repondreFacebook, repondreInstagram, urlConnexionMeta } from "./meta.server";
 import { GRAPH_IG, instagramConfigure, urlConnexionInstagram } from "./instagram.server";
@@ -405,7 +407,9 @@ export const planifierCommande = createServerFn({ method: "POST" })
     }
   });
 
-// --- Recherche de prospects ---------------------------------------------------
+// --- Prospection ---------------------------------------------------------------
+// L'agent trouve et rédige ; il n'envoie jamais rien. Les garde-fous
+// (opposition, limite du jour, consentement) sont vérifiés par la base.
 
 export const trouverProspects = createServerFn({ method: "POST" })
   .inputValidator((input) =>
@@ -420,46 +424,44 @@ export const trouverProspects = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }): Promise<Resultat<{ trouves: number; ajoutes: number }>> => {
     try {
-      const { sb, user } = await utilisateurDepuisJeton(data.jeton);
-      const r = await fetch("https://overpass-api.de/api/interpreter", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "User-Agent": "agent-ia-live/0.1 (prospection)",
-          Accept: "application/json",
-        },
-        body: new URLSearchParams({ data: requeteOverpass(data.categorie, data.ville, data.max) }),
-      });
-      if (!r.ok) return { ok: false, erreur: `Service de recherche indisponible (${r.status}). Réessayez.` };
-      const trouves = lireReponseOverpass(await r.text());
-
-      // Ne pas recréer un prospect déjà présent (même nom).
-      const { data: existants } = await sb.from("prospects").select("nom");
-      const deja = new Set((existants ?? []).map((p) => (p.nom as string).toLowerCase()));
+      const { sb } = await utilisateurDepuisJeton(data.jeton);
+      const trouves = await chercherEntreprises(data.categorie, data.ville, data.max);
       const categorie = CATEGORIES.find((c) => c.id === data.categorie)!;
-      const nouveaux = trouves
-        .filter((p) => !deja.has(p.nom.toLowerCase()))
-        .map((p) => ({
-          user_id: user.id,
-          type: "entreprise",
-          nom: p.nom,
-          entreprise: p.nom,
-          email: p.email,
-          telephone: p.telephone,
-          site: p.site,
-          source: `OpenStreetMap · ${categorie.nom} · ${data.ville}`,
-          notes: p.adresse,
-        }));
-      if (nouveaux.length) {
-        const { error } = await sb.from("prospects").insert(nouveaux);
-        if (error) return { ok: false, erreur: error.message };
-      }
-      await sb.from("evenements_taches").insert({
-        user_id: user.id,
-        niveau: "info",
-        message: `Prospection : ${trouves.length} ${categorie.nom.toLowerCase()} trouvés à ${data.ville}, ${nouveaux.length} nouveaux ajoutés au CRM.`,
+      // Dédoublonnage (même nom ou même fiche OSM) fait par la base.
+      const { data: r, error } = await sb.rpc("ajouter_prospects", {
+        p_categorie: categorie.nom,
+        p_ville: data.ville.trim(),
+        p_liste: trouves,
       });
-      return { ok: true, trouves: trouves.length, ajoutes: nouveaux.length };
+      if (error) return { ok: false, erreur: error.message };
+      const bilan = r as { trouves: number; ajoutes: number };
+      return { ok: true, trouves: bilan.trouves, ajoutes: bilan.ajoutes };
+    } catch (e) {
+      return { ok: false, erreur: message(e) };
+    }
+  });
+
+// Rédige un premier message ou une relance pour un prospect (brouillon à valider).
+export const redigerProspect = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        prospectId: z.string().uuid(),
+        relance: z.boolean().default(false),
+        canal: z.enum(["email", "message"]).optional(),
+        jeton,
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }): Promise<Resultat<{ brouillon: BrouillonProspect }>> => {
+    try {
+      const { sb } = await utilisateurDepuisJeton(data.jeton);
+      const { data: infos, error } = await sb.rpc("prospect_a_rediger", { p_id: data.prospectId, p_relance: data.relance });
+      if (error) return { ok: false, erreur: messageErreurProspect(error.message) ?? error.message };
+      const brouillon = await redigerMessageProspect(infos as ProspectARediger, data.canal);
+      const { error: e2 } = await sb.rpc("enregistrer_brouillon_prospect", { p_id: data.prospectId, p_brouillon: brouillon });
+      if (e2) return { ok: false, erreur: messageErreurProspect(e2.message) ?? e2.message };
+      return { ok: true, brouillon };
     } catch (e) {
       return { ok: false, erreur: message(e) };
     }
