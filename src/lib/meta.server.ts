@@ -55,11 +55,12 @@ export async function graph<T>(
   params: Record<string, string>,
   methode: "GET" | "POST" = "GET",
   base = GRAPH,
+  signal?: AbortSignal,
 ): Promise<T> {
   const q = new URLSearchParams(params);
   const r =
     methode === "GET"
-      ? await fetch(`${base}${chemin}?${q}`)
+      ? await fetch(`${base}${chemin}?${q}`, { signal })
       : await fetch(`${base}${chemin}`, { method: "POST", body: q, headers: { "Content-Type": "application/x-www-form-urlencoded" } });
   const json = (await r.json().catch(() => ({}))) as { error?: { message?: string; error_user_msg?: string } };
   if (!r.ok || json.error) throw new Error(`Meta : ${json.error?.error_user_msg || json.error?.message || `erreur ${r.status}`}`);

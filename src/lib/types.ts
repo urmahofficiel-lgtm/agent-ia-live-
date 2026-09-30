@@ -1,4 +1,5 @@
 import type { BrouillonProspect } from "./prospection";
+import type { Stats } from "./statistiques";
 
 export type StatutTache = "en_attente" | "a_valider" | "en_cours" | "a_partager" | "terminee" | "echouee" | "annulee";
 export type TypeTache = "publication" | "reponse" | "prospection" | "relance" | "appareil" | "autre";
@@ -20,6 +21,10 @@ export type Tache = {
     video_debut?: string;
     video_style?: string;
     visuel_style?: string;
+    post_id?: string;
+    publie_le?: string;
+    // Relu toutes les heures (/api/agent/stats).
+    stats?: Partial<Stats>;
   } | null;
   created_at: string;
 };
