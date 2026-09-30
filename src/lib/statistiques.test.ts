@@ -128,3 +128,14 @@ describe("apprentissage", () => {
     expect(a.resume).toContain("Toutes les données viennent de Facebook");
   });
 });
+
+describe("apprentissage : publications de test", () => {
+  it("ignore les titres commençant par « Test »", async () => {
+    const { calculerApprentissage } = await import("./statistiques");
+    const stats = { vues: 500, likes: 10, commentaires: 2, partages: 0, maj: "2026-09-30T10:00:00Z" };
+    const r = calculerApprentissage([
+      { titre: "Test de l'agent", plateforme: "linkedin", publie_le: "2026-09-29T10:00:00Z", video: false, video_style: null, visuel_style: null, stats },
+    ] as never);
+    expect(r).toBeNull();
+  });
+});

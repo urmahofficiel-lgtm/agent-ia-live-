@@ -227,7 +227,8 @@ function comparer(groupes: Groupe[], phrase: (g: Groupe, ratio: string) => strin
 // Résumé de ce qui marche, par utilisateur : 5 à 8 puces courtes, lisibles
 // par une IA qui choisit les prochains sujets. null sans aucune stat.
 export function calculerApprentissage(toutes: PubliStat[], maintenant = new Date()): Apprentissage | null {
-  const pubs = toutes.filter(aDesStats);
+  // Les publications de test ne disent rien de l'audience.
+  const pubs = toutes.filter((p) => aDesStats(p) && !/^test\b/i.test(p.titre.trim()));
   if (!pubs.length) return null;
   const classees = classer(pubs);
   const puces: string[] = [];

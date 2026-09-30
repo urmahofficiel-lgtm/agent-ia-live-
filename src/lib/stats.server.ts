@@ -30,7 +30,11 @@ async function statsFacebook(id: string, jeton: string) {
   // Post (page_post) : partages disponibles. Photo ou vidéo (Reel) : réactions
   // et commentaires ; les partages via le post associé à la photo.
   if (id.includes("_")) return { ...vide, ...lireStatsFacebook(await lire(`${compteurs},shares`)) };
-  const base = lireStatsFacebook(await lire(compteurs));
+  // Photo ou vidéo : « reactions » n'existe pas sur tous les objets ; repli sur
+  // likes + commentaires.
+  const base = lireStatsFacebook(
+    (await essayer(() => lire(compteurs))) ?? (await lire("likes.summary(total_count).limit(0),comments.summary(total_count).limit(0)")),
+  );
   let partages: number | null = null;
   let vues: number | null = null;
   const photo = await essayer(() => lire("page_story_id"));
