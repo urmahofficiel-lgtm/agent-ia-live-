@@ -20,7 +20,7 @@ describe("serveur MCP", () => {
 
   it("liste les outils sans exposer les schémas internes", async () => {
     const r = (await traiterMessage({ jsonrpc: "2.0", id: 2, method: "tools/list" }, appelFactice())) as { result: { tools: object[] } };
-    expect(r.result.tools.length).toBe(10);
+    expect(r.result.tools.length).toBe(11);
     expect(r.result.tools.every((o) => (o as { name: string }).name.startsWith("agent_"))).toBe(true);
     expect(r.result.tools[0]).not.toHaveProperty("executer");
   });
@@ -91,5 +91,27 @@ describe("serveur MCP", () => {
     expect(appel).toHaveBeenCalledWith("mcp_statistiques", { p_jours: 30 });
     expect(await appeler("agent_statistiques", { jours: 365 }, appel)).toMatchObject({ result: { isError: true } });
     expect(appel).toHaveBeenCalledTimes(1);
+  });
+
+  it("pilote : sans paramètre, lit les réglages sans rien changer", async () => {
+    const appel = vi.fn(async () => ({ actif: false }));
+    await appeler("agent_pilote", {}, appel);
+    expect(appel).toHaveBeenCalledWith("mcp_pilote", { p_actif: null, p_rythme: null, p_creneaux: null });
+  });
+
+  it("pilote : transmet l'activation, le rythme et des créneaux triés", async () => {
+    const appel = vi.fn(async () => ({ actif: true }));
+    await appeler("agent_pilote", { actif: true, rythme: { linkedin: 1, tiktok: 3 }, creneaux: ["18:30", "08:30", "08:30"] }, appel);
+    expect(appel).toHaveBeenCalledWith("mcp_pilote", { p_actif: true, p_rythme: { linkedin: 1, tiktok: 3 }, p_creneaux: ["08:30", "18:30"] });
+  });
+
+  it("pilote : refuse un rythme hors limites, un réseau non pilotable ou une heure invalide", async () => {
+    const appel = vi.fn();
+    expect(await appeler("agent_pilote", { rythme: { facebook: 6 } }, appel)).toMatchObject({ result: { isError: true } });
+    expect(await appeler("agent_pilote", { rythme: { gmail: 2 } }, appel)).toMatchObject({ result: { isError: true } });
+    expect(await appeler("agent_pilote", { rythme: { facebook_profil: 2 } }, appel)).toMatchObject({ result: { isError: true } });
+    expect(await appeler("agent_pilote", { creneaux: ["25:00"] }, appel)).toMatchObject({ result: { isError: true } });
+    expect(await appeler("agent_pilote", { creneaux: [] }, appel)).toMatchObject({ result: { isError: true } });
+    expect(appel).not.toHaveBeenCalled();
   });
 });

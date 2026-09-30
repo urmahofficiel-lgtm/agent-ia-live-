@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { PLATEFORMES } from "./plateformes";
+import { CRENEAUX_MAX, RYTHME_MAX, estPilotable, normaliserCreneaux } from "./pilote";
 import { CATEGORIES } from "./osm";
 import { liensContact, messageErreurProspect, type ProspectARediger } from "./prospection";
 import { chercherEntreprises, redigerMessageProspect } from "./prospection.server";
@@ -20,6 +21,7 @@ const STATUTS = ["a_valider", "en_attente", "a_partager", "en_cours", "terminee"
 const STATUTS_PROSPECT = ["nouveau", "contacte", "relance", "a_repondu", "client", "refus", "ne_plus_contacter"] as const;
 const MARQUES_PROSPECT = ["contacte", "a_repondu", "client", "refus", "ne_plus_contacter"] as const;
 const CATEGORIES_ID = CATEGORIES.map((c) => c.id) as [string, ...string[]];
+const PILOTABLES = PLATEFORMES.filter((p) => estPilotable(p.id)).map((p) => p.id) as [string, ...string[]];
 
 type Rpc = { jsonrpc: "2.0"; id?: string | number | null; method: string; params?: Record<string, unknown> };
 type Outil = {
@@ -67,7 +69,7 @@ const OUTILS: Outil[] = [
     title: "Créer une publication",
     description:
       "Demande une nouvelle publication à l'agent (une par réseau). L'agent rédige le texte et crée l'image à son prochain passage " +
-      "(toutes les 5 minutes) ; pour Facebook et Instagram il crée aussi un Reel. Par défaut la publication attend la validation " +
+      "(toutes les 5 minutes) ; pour Facebook, Instagram et TikTok il crée aussi une vidéo verticale. Par défaut la publication attend la validation " +
       "de l'utilisateur ; avec publier_directement, elle part seule à la date prévue (ou tout de suite si aucune date).",
     inputSchema: {
       type: "object",
@@ -261,6 +263,54 @@ const OUTILS: Outil[] = [
     executer: (a: { id: string; statut: string; note?: string }, appel) =>
       appel("mcp_marquer_prospect", { p_id: a.id, p_statut: a.statut, p_contenu: a.note ?? null }),
   },
+  {
+    name: "agent_pilote",
+    title: "Pilote automatique",
+    description:
+      "Lit ou modifie le pilote automatique : chaque jour (dès 05:00, heure de Paris), l'agent choisit seul ses sujets et planifie " +
+      "N publications par réseau connecté (3 par défaut, 1 à 5) aux créneaux horaires choisis (heure de Paris, 08:30, 12:30 et " +
+      "18:30 par défaut). Sans paramètre : lecture. actif : activer ou couper ; rythme : posts par jour par réseau, fusionné avec " +
+      "l'existant (ex. {\"linkedin\": 1}) ; creneaux : liste d'heures HH:MM (1 à 6). L'agent doit être démarré pour que le pilote " +
+      "agisse ; si « validation requise » est activée, les publications attendent la validation de l'utilisateur. Attention : les " +
+      "publications passant par Zernio (TikTok, LinkedIn page…) peuvent atteindre la limite de l'offre gratuite de Zernio ; " +
+      "LinkedIn : 1 à 2 par jour suffisent. Les changements s'appliquent à partir de la prochaine planification (le lendemain si " +
+      "la journée est déjà planifiée).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        actif: { type: "boolean", description: "Activer (true) ou couper (false) le pilote automatique." },
+        rythme: {
+          type: "object",
+          description: "Posts par jour par réseau (1 à 5), ex. {\"facebook\": 3, \"linkedin\": 1}.",
+          propertyNames: { enum: PILOTABLES },
+          additionalProperties: { type: "integer", minimum: 1, maximum: RYTHME_MAX },
+        },
+        creneaux: {
+          type: "array",
+          items: { type: "string", pattern: "^([01]\\d|2[0-3]):[0-5]\\d$" },
+          minItems: 1,
+          maxItems: CRENEAUX_MAX,
+          description: "Heures de publication (heure de Paris), ex. [\"08:30\", \"12:30\", \"18:30\"].",
+        },
+      },
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    schema: z.object({
+      actif: z.boolean().optional(),
+      rythme: z.record(z.enum(PILOTABLES), z.number().int().min(1).max(RYTHME_MAX)).optional(),
+      creneaux: z
+        .array(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "format HH:MM attendu"))
+        .min(1)
+        .max(CRENEAUX_MAX)
+        .optional(),
+    }),
+    executer: (a: { actif?: boolean; rythme?: Record<string, number>; creneaux?: string[] }, appel) =>
+      appel("mcp_pilote", {
+        p_actif: a.actif ?? null,
+        p_rythme: a.rythme && Object.keys(a.rythme).length ? a.rythme : null,
+        p_creneaux: a.creneaux ? normaliserCreneaux(a.creneaux) : null,
+      }),
+  },
 ];
 
 // Erreurs de la base traduites en consignes utiles pour l'IA qui appelle.
@@ -269,6 +319,8 @@ function messageErreur(brut: string) {
   const prospect = messageErreurProspect(brut);
   if (prospect) return prospect;
   if (/introuvable/.test(brut)) return "Publication introuvable : vérifiez l'identifiant avec agent_publications.";
+  if (/rythme invalide/.test(brut)) return "Rythme invalide : de 1 à 5 publications par jour et par réseau.";
+  if (/creneaux_check|reglages_agent_creneaux/.test(brut)) return "Créneaux invalides : 1 à 6 heures au format HH:MM.";
   if (/deja publiee/.test(brut)) return "Cette publication est déjà publiée ou en cours : action impossible.";
   return `Erreur : ${brut}`;
 }
@@ -312,7 +364,8 @@ export async function traiterMessage(msg: Rpc, appel: Appel) {
           "Prospection : agent_chercher_prospects trouve des entreprises (activité + ville), agent_rediger_message_prospect prépare " +
           "un message à valider, agent_prospects suit le CRM (filtre a_relancer pour les relances). L'agent n'envoie JAMAIS de message " +
           "de prospection : l'utilisateur l'envoie lui-même, puis agent_marquer_prospect (contacte). Ne recontactez jamais un " +
-          "prospect ne_plus_contacter et respectez la limite de contacts du jour.",
+          "prospect ne_plus_contacter et respectez la limite de contacts du jour. " +
+          "Pilote automatique (agent_pilote) : l'agent planifie seul ses publications chaque jour.",
       });
     }
     case "ping":

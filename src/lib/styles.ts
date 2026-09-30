@@ -30,3 +30,8 @@ export const lireStyleImage = (x: unknown): StyleImage =>
 
 export const nomStyleVideo = (id: StyleVideo) => STYLES_VIDEO.find((s) => s.id === id)?.nom ?? id;
 export const nomStyleImage = (id: StyleImage) => STYLES_IMAGE.find((s) => s.id === id)?.nom ?? id;
+
+// TikTok ne récompense que la vidéo « face caméra » : le style classique y
+// devient UGC ; un autre style choisi par l'utilisateur est respecté.
+export const styleVideoPour = (plateforme: string | null | undefined, style: StyleVideo): StyleVideo =>
+  plateforme === "tiktok" && style === "classique" ? "ugc" : style;
