@@ -177,3 +177,22 @@ export async function organisationsLinkedin(accountId: string) {
   const r = await appel<{ organizations: OrganisationLinkedin[] }>(`/accounts/${encodeURIComponent(accountId)}/linkedin-organizations`);
   return r.organizations ?? [];
 }
+
+// --- Statistiques (lecture seule) --------------------------------------------
+
+// Statistiques d'un post publié par Zernio (GET /v1/analytics?postId=…).
+// null si indisponibles : synchronisation en cours (202), option analytics
+// non souscrite (402), post introuvable (404) ou tous réseaux en échec (424).
+export async function statsPost(postId: string) {
+  const cle = process.env.ZERNIO_API_KEY;
+  if (!cle) throw new Error("Clé ZERNIO_API_KEY absente des variables Vercel.");
+  const r = await fetch(`${BASE}/analytics?${new URLSearchParams({ postId })}`, {
+    headers: { Authorization: `Bearer ${cle}` },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (r.status === 202) return { attente: true as const };
+  if ([402, 404, 424].includes(r.status)) return { indisponible: r.status === 402 ? "option analytics Zernio non souscrite" : `Zernio ${r.status}` };
+  const json = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!r.ok) throw new ErreurZernio(String(json.error ?? `Zernio ${r.status}`), r.status);
+  return { donnees: json };
+}

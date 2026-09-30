@@ -19,9 +19,11 @@ import { Route as EnDirectRouteImport } from './routes/en-direct'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as ParametresRouteImport } from './routes/parametres'
 import { Route as ProspectionRouteImport } from './routes/prospection'
+import { Route as StatistiquesRouteImport } from './routes/statistiques'
 import { Route as StrategieRouteImport } from './routes/strategie'
 import { Route as SuppressionDonneesRouteImport } from './routes/suppression-donnees'
 import { Route as TachesRouteImport } from './routes/taches'
+import { Route as ApiAgentStatsRouteImport } from './routes/api/agent/stats'
 import { Route as ApiAgentTickRouteImport } from './routes/api/agent/tick'
 import { Route as ApiAnimationsWebhookRouteImport } from './routes/api/animations/webhook'
 import { Route as ApiIaDiagnosticRouteImport } from './routes/api/ia/diagnostic'
@@ -81,6 +83,11 @@ const ProspectionRoute = ProspectionRouteImport.update({
   path: '/prospection',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StatistiquesRoute = StatistiquesRouteImport.update({
+  id: '/statistiques',
+  path: '/statistiques',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StrategieRoute = StrategieRouteImport.update({
   id: '/strategie',
   path: '/strategie',
@@ -94,6 +101,11 @@ const SuppressionDonneesRoute = SuppressionDonneesRouteImport.update({
 const TachesRoute = TachesRouteImport.update({
   id: '/taches',
   path: '/taches',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentStatsRoute = ApiAgentStatsRouteImport.update({
+  id: '/api/agent/stats',
+  path: '/api/agent/stats',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAgentTickRoute = ApiAgentTickRouteImport.update({
@@ -148,9 +160,11 @@ export interface FileRoutesByFullPath {
   '/messages': typeof MessagesRoute
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
+  '/statistiques': typeof StatistiquesRoute
   '/strategie': typeof StrategieRoute
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
+  '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/animations/webhook': typeof ApiAnimationsWebhookRoute
   '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
@@ -171,9 +185,11 @@ export interface FileRoutesByTo {
   '/messages': typeof MessagesRoute
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
+  '/statistiques': typeof StatistiquesRoute
   '/strategie': typeof StrategieRoute
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
+  '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/animations/webhook': typeof ApiAnimationsWebhookRoute
   '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
@@ -195,9 +211,11 @@ export interface FileRoutesById {
   '/messages': typeof MessagesRoute
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
+  '/statistiques': typeof StatistiquesRoute
   '/strategie': typeof StrategieRoute
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
+  '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/animations/webhook': typeof ApiAnimationsWebhookRoute
   '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
@@ -220,9 +238,11 @@ export interface FileRouteTypes {
     | '/messages'
     | '/parametres'
     | '/prospection'
+    | '/statistiques'
     | '/strategie'
     | '/suppression-donnees'
     | '/taches'
+    | '/api/agent/stats'
     | '/api/agent/tick'
     | '/api/animations/webhook'
     | '/api/ia/diagnostic'
@@ -243,9 +263,11 @@ export interface FileRouteTypes {
     | '/messages'
     | '/parametres'
     | '/prospection'
+    | '/statistiques'
     | '/strategie'
     | '/suppression-donnees'
     | '/taches'
+    | '/api/agent/stats'
     | '/api/agent/tick'
     | '/api/animations/webhook'
     | '/api/ia/diagnostic'
@@ -266,9 +288,11 @@ export interface FileRouteTypes {
     | '/messages'
     | '/parametres'
     | '/prospection'
+    | '/statistiques'
     | '/strategie'
     | '/suppression-donnees'
     | '/taches'
+    | '/api/agent/stats'
     | '/api/agent/tick'
     | '/api/animations/webhook'
     | '/api/ia/diagnostic'
@@ -290,9 +314,11 @@ export interface RootRouteChildren {
   MessagesRoute: typeof MessagesRoute
   ParametresRoute: typeof ParametresRoute
   ProspectionRoute: typeof ProspectionRoute
+  StatistiquesRoute: typeof StatistiquesRoute
   StrategieRoute: typeof StrategieRoute
   SuppressionDonneesRoute: typeof SuppressionDonneesRoute
   TachesRoute: typeof TachesRoute
+  ApiAgentStatsRoute: typeof ApiAgentStatsRoute
   ApiAgentTickRoute: typeof ApiAgentTickRoute
   ApiAnimationsWebhookRoute: typeof ApiAnimationsWebhookRoute
   ApiIaDiagnosticRoute: typeof ApiIaDiagnosticRoute
@@ -375,6 +401,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProspectionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/statistiques': {
+      id: '/statistiques'
+      path: '/statistiques'
+      fullPath: '/statistiques'
+      preLoaderRoute: typeof StatistiquesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/strategie': {
       id: '/strategie'
       path: '/strategie'
@@ -394,6 +427,13 @@ declare module '@tanstack/react-router' {
       path: '/taches'
       fullPath: '/taches'
       preLoaderRoute: typeof TachesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agent/stats': {
+      id: '/api/agent/stats'
+      path: '/api/agent/stats'
+      fullPath: '/api/agent/stats'
+      preLoaderRoute: typeof ApiAgentStatsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/agent/tick': {
@@ -466,9 +506,11 @@ const rootRouteChildren: RootRouteChildren = {
   MessagesRoute: MessagesRoute,
   ParametresRoute: ParametresRoute,
   ProspectionRoute: ProspectionRoute,
+  StatistiquesRoute: StatistiquesRoute,
   StrategieRoute: StrategieRoute,
   SuppressionDonneesRoute: SuppressionDonneesRoute,
   TachesRoute: TachesRoute,
+  ApiAgentStatsRoute: ApiAgentStatsRoute,
   ApiAgentTickRoute: ApiAgentTickRoute,
   ApiAnimationsWebhookRoute: ApiAnimationsWebhookRoute,
   ApiIaDiagnosticRoute: ApiIaDiagnosticRoute,

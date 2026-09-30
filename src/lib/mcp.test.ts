@@ -20,7 +20,7 @@ describe("serveur MCP", () => {
 
   it("liste les outils sans exposer les schémas internes", async () => {
     const r = (await traiterMessage({ jsonrpc: "2.0", id: 2, method: "tools/list" }, appelFactice())) as { result: { tools: object[] } };
-    expect(r.result.tools.length).toBe(9);
+    expect(r.result.tools.length).toBe(10);
     expect(r.result.tools.every((o) => (o as { name: string }).name.startsWith("agent_"))).toBe(true);
     expect(r.result.tools[0]).not.toHaveProperty("executer");
   });
@@ -79,5 +79,17 @@ describe("serveur MCP", () => {
     const appel = vi.fn(async () => ({ id: ID, statut: "contacte" }));
     await appeler("agent_marquer_prospect", { id: ID, statut: "contacte" }, appel);
     expect(appel).toHaveBeenCalledWith("mcp_marquer_prospect", { p_id: ID, p_statut: "contacte", p_contenu: null });
+  });
+
+  it("statistiques : lecture seule, période bornée", async () => {
+    const appel = vi.fn(async () => ({ periode_jours: 30, apprentissage: null, par_reseau: [], publications: [] }));
+    const liste = (await traiterMessage({ jsonrpc: "2.0", id: 5, method: "tools/list" }, appelFactice())) as {
+      result: { tools: { name: string; annotations: { readOnlyHint?: boolean } }[] };
+    };
+    expect(liste.result.tools.find((o) => o.name === "agent_statistiques")?.annotations.readOnlyHint).toBe(true);
+    await appeler("agent_statistiques", {}, appel);
+    expect(appel).toHaveBeenCalledWith("mcp_statistiques", { p_jours: 30 });
+    expect(await appeler("agent_statistiques", { jours: 365 }, appel)).toMatchObject({ result: { isError: true } });
+    expect(appel).toHaveBeenCalledTimes(1);
   });
 });

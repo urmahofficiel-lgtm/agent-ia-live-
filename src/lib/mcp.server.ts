@@ -141,6 +141,18 @@ const OUTILS: Outil[] = [
     executer: (a: { limite?: number }, appel) => appel("mcp_journal", { p_limite: a.limite ?? 20 }),
   },
   {
+    name: "agent_statistiques",
+    title: "Statistiques",
+    description:
+      "Statistiques des publications publiées (vues, likes, commentaires, partages ; null si le réseau ne les fournit pas) : " +
+      "totaux par réseau, détail par publication, et « apprentissage » : résumé de ce qui marche le mieux auprès de l'audience " +
+      "(sujets, réseau, format, style, créneau). Mis à jour toutes les heures. Utile pour choisir les prochains sujets.",
+    inputSchema: { type: "object", properties: { jours: { type: "integer", minimum: 1, maximum: 90, default: 30, description: "Période en jours." } } },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+    schema: z.object({ jours: z.number().int().min(1).max(90).optional() }),
+    executer: (a: { jours?: number }, appel) => appel("mcp_statistiques", { p_jours: a.jours ?? 30 }),
+  },
+  {
     name: "agent_prospects",
     title: "Prospects",
     description:
@@ -296,6 +308,7 @@ export async function traiterMessage(msg: Rpc, appel: Appel) {
           "Agent IA Live prépare et publie des contenus sur les réseaux sociaux de l'utilisateur. " +
           "Pour publier : agent_creer_publication, puis suivre avec agent_publications ou agent_journal. " +
           "L'agent passe toutes les 5 minutes : le texte, l'image et la vidéo arrivent quelques minutes après la demande. " +
+          "agent_statistiques indique ce qui marche (sujets, réseaux, formats, horaires) pour choisir les prochains sujets. " +
           "Prospection : agent_chercher_prospects trouve des entreprises (activité + ville), agent_rediger_message_prospect prépare " +
           "un message à valider, agent_prospects suit le CRM (filtre a_relancer pour les relances). L'agent n'envoie JAMAIS de message " +
           "de prospection : l'utilisateur l'envoie lui-même, puis agent_marquer_prospect (contacte). Ne recontactez jamais un " +

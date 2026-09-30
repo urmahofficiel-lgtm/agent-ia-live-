@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
-import { Activity, Bot, Link2, ListChecks, LogOut, MessageCircle, Settings, Target, Users, Wand2 } from "lucide-react";
+import { Activity, BarChart3, Bot, Link2, ListChecks, LogOut, MessageCircle, Settings, Target, Users, Wand2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase, supabaseConfigure } from "@/lib/supabase";
 import { Accueil } from "./Accueil";
@@ -14,6 +14,7 @@ const MENU = [
     liens: [
       { to: "/", label: "Tableau de bord", icone: Bot },
       { to: "/en-direct", label: "En direct", icone: Activity },
+      { to: "/statistiques", label: "Statistiques", icone: BarChart3 },
     ],
   },
   {
