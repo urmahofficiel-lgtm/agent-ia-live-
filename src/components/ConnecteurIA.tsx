@@ -57,7 +57,7 @@ export function ConnecteurIA() {
       </div>
       <p className="text-sm text-doux">
         Créez une adresse, puis ajoutez-la comme connecteur. Vous pourrez ensuite écrire, par exemple : « Crée un Reel sur nos chantiers
-        et publie-le demain à 18 h sur Facebook et Instagram ».
+        et publie-le demain à 18 h sur Facebook et Instagram » ou « Trouve des boulangeries à Lyon et prépare-leur un message ».
       </p>
 
       {url ? (

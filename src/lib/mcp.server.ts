@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { PLATEFORMES } from "./plateformes";
+import { CATEGORIES } from "./osm";
+import { liensContact, messageErreurProspect, type ProspectARediger } from "./prospection";
+import { chercherEntreprises, redigerMessageProspect } from "./prospection.server";
 import { clientMoteur } from "./supabase-serveur";
 
 // Serveur MCP (Model Context Protocol) : permet de piloter son agent depuis
@@ -14,6 +17,9 @@ export const empreinteCle = (cle: string) => createHash("sha256").update(cle).di
 const VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 const RESEAUX = PLATEFORMES.filter((p) => p.categorie === "reseau" || p.categorie === "local").map((p) => p.id);
 const STATUTS = ["a_valider", "en_attente", "a_partager", "en_cours", "terminee", "echouee", "annulee"] as const;
+const STATUTS_PROSPECT = ["nouveau", "contacte", "relance", "a_repondu", "client", "refus", "ne_plus_contacter"] as const;
+const MARQUES_PROSPECT = ["contacte", "a_repondu", "client", "refus", "ne_plus_contacter"] as const;
+const CATEGORIES_ID = CATEGORIES.map((c) => c.id) as [string, ...string[]];
 
 type Rpc = { jsonrpc: "2.0"; id?: string | number | null; method: string; params?: Record<string, unknown> };
 type Outil = {
@@ -134,11 +140,122 @@ const OUTILS: Outil[] = [
     schema: z.object({ limite: z.number().int().min(1).max(100).optional() }),
     executer: (a: { limite?: number }, appel) => appel("mcp_journal", { p_limite: a.limite ?? 20 }),
   },
+  {
+    name: "agent_prospects",
+    title: "Prospects",
+    description:
+      "Liste les prospects (entreprises à démarcher) du mini-CRM, les plus récents d'abord : coordonnées publiques, métier, statut, " +
+      "message à valider éventuel et indicateur a_relancer. Statuts : nouveau, contacte, relance, a_repondu, client, refus, " +
+      "ne_plus_contacter (opposition : ne jamais recontacter). Filtres : a_valider (message rédigé à relire) ou a_relancer " +
+      "(contacté sans réponse depuis le délai de relance). Indique aussi le nombre de contacts encore possibles aujourd'hui.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        statut: { type: "string", enum: STATUTS_PROSPECT, description: "Filtrer par statut (facultatif)." },
+        filtre: { type: "string", enum: ["a_valider", "a_relancer"], description: "Filtre de suivi (facultatif)." },
+        limite: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+      },
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+    schema: z.object({
+      statut: z.enum(STATUTS_PROSPECT).optional(),
+      filtre: z.enum(["a_valider", "a_relancer"]).optional(),
+      limite: z.number().int().min(1).max(100).optional(),
+    }),
+    executer: (a: { statut?: string; filtre?: string; limite?: number }, appel) =>
+      appel("mcp_prospects", { p_statut: a.statut ?? null, p_filtre: a.filtre ?? null, p_limite: a.limite ?? 20 }),
+  },
+  {
+    name: "agent_chercher_prospects",
+    title: "Chercher des prospects",
+    description:
+      "Cherche des entreprises d'une activité dans une ville (données publiques OpenStreetMap) et les ajoute au CRM, sans doublon, " +
+      "avec téléphone, site et e-mail quand ils sont renseignés. Ne contacte personne. Activités possibles : " +
+      CATEGORIES.map((c) => `${c.id} (${c.nom})`).join(", ") +
+      ".",
+    inputSchema: {
+      type: "object",
+      properties: {
+        categorie: { type: "string", enum: CATEGORIES_ID, description: "Activité recherchée." },
+        ville: { type: "string", description: "Nom exact de la commune (ex. Lyon)." },
+        max: { type: "integer", minimum: 1, maximum: 100, default: 30, description: "Nombre maximum d'entreprises." },
+      },
+      required: ["categorie", "ville"],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    schema: z.object({
+      categorie: z.enum(CATEGORIES_ID),
+      ville: z.string().trim().min(2).max(80),
+      max: z.number().int().min(1).max(100).optional(),
+    }),
+    executer: async (a: { categorie: string; ville: string; max?: number }, appel) => {
+      const trouves = await chercherEntreprises(a.categorie, a.ville, a.max ?? 30);
+      return appel("mcp_ajouter_prospects", {
+        p_categorie: CATEGORIES.find((c) => c.id === a.categorie)!.nom,
+        p_ville: a.ville,
+        p_liste: trouves,
+      });
+    },
+  },
+  {
+    name: "agent_rediger_message_prospect",
+    title: "Rédiger un message de prospection",
+    description:
+      "L'IA rédige un message court et personnalisé (offre de la marque × métier du prospect) : premier contact, ou relance si le " +
+      "prospect a déjà été contacté. Le message est enregistré « à valider » et N'EST PAS ENVOYÉ : l'utilisateur le relit puis " +
+      "l'envoie lui-même avec les liens fournis (e-mail, WhatsApp, SMS), puis marque le prospect contacté (agent_marquer_prospect). " +
+      "Une phrase permettant de s'opposer (répondre STOP) est ajoutée automatiquement. Refusé pour un prospect ne_plus_contacter.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Identifiant du prospect (voir agent_prospects)." },
+        canal: { type: "string", enum: ["email", "message"], description: "email ou message (SMS/WhatsApp). Par défaut : e-mail s'il est connu." },
+        relance: { type: "boolean", default: false, description: "Forcer une relance." },
+      },
+      required: ["id"],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    schema: z.object({ id: z.string().uuid(), canal: z.enum(["email", "message"]).optional(), relance: z.boolean().optional() }),
+    executer: async (a: { id: string; canal?: "email" | "message"; relance?: boolean }, appel) => {
+      const infos = await appel<ProspectARediger>("mcp_prospect_a_rediger", { p_id: a.id, p_relance: a.relance ?? false });
+      const brouillon = await redigerMessageProspect(infos, a.canal);
+      await appel("mcp_enregistrer_brouillon_prospect", { p_id: a.id, p_brouillon: brouillon });
+      return {
+        prospect: { id: infos.id, nom: infos.nom, email: infos.email, telephone: infos.telephone },
+        brouillon,
+        envoyer_avec: liensContact(infos, brouillon),
+        a_faire: "Relire et envoyer soi-même, puis agent_marquer_prospect avec statut « contacte ». Rien n'a été envoyé.",
+      };
+    },
+  },
+  {
+    name: "agent_marquer_prospect",
+    title: "Mettre à jour un prospect",
+    description:
+      "Change le statut d'un prospect : contacte (l'utilisateur a envoyé le message lui-même ; compte dans la limite de contacts du " +
+      "jour, devient « relance » s'il avait déjà été contacté), a_repondu, client, refus, ne_plus_contacter (opposition définitive, " +
+      "irréversible depuis le connecteur). N'envoie aucun message.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Identifiant du prospect." },
+        statut: { type: "string", enum: MARQUES_PROSPECT },
+        note: { type: "string", description: "Texte envoyé ou réponse reçue, pour l'historique (facultatif)." },
+      },
+      required: ["id", "statut"],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    schema: z.object({ id: z.string().uuid(), statut: z.enum(MARQUES_PROSPECT), note: z.string().max(4000).optional() }),
+    executer: (a: { id: string; statut: string; note?: string }, appel) =>
+      appel("mcp_marquer_prospect", { p_id: a.id, p_statut: a.statut, p_contenu: a.note ?? null }),
+  },
 ];
 
 // Erreurs de la base traduites en consignes utiles pour l'IA qui appelle.
 function messageErreur(brut: string) {
   if (/cle invalide/.test(brut)) return "Clé du connecteur invalide ou supprimée : recréez l'adresse dans Agent IA Live → Réglages.";
+  const prospect = messageErreurProspect(brut);
+  if (prospect) return prospect;
   if (/introuvable/.test(brut)) return "Publication introuvable : vérifiez l'identifiant avec agent_publications.";
   if (/deja publiee/.test(brut)) return "Cette publication est déjà publiée ou en cours : action impossible.";
   return `Erreur : ${brut}`;
@@ -178,7 +295,11 @@ export async function traiterMessage(msg: Rpc, appel: Appel) {
         instructions:
           "Agent IA Live prépare et publie des contenus sur les réseaux sociaux de l'utilisateur. " +
           "Pour publier : agent_creer_publication, puis suivre avec agent_publications ou agent_journal. " +
-          "L'agent passe toutes les 5 minutes : le texte, l'image et la vidéo arrivent quelques minutes après la demande.",
+          "L'agent passe toutes les 5 minutes : le texte, l'image et la vidéo arrivent quelques minutes après la demande. " +
+          "Prospection : agent_chercher_prospects trouve des entreprises (activité + ville), agent_rediger_message_prospect prépare " +
+          "un message à valider, agent_prospects suit le CRM (filtre a_relancer pour les relances). L'agent n'envoie JAMAIS de message " +
+          "de prospection : l'utilisateur l'envoie lui-même, puis agent_marquer_prospect (contacte). Ne recontactez jamais un " +
+          "prospect ne_plus_contacter et respectez la limite de contacts du jour.",
       });
     }
     case "ping":

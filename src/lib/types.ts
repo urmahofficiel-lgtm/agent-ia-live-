@@ -1,3 +1,5 @@
+import type { BrouillonProspect } from "./prospection";
+
 export type StatutTache = "en_attente" | "a_valider" | "en_cours" | "a_partager" | "terminee" | "echouee" | "annulee";
 export type TypeTache = "publication" | "reponse" | "prospection" | "relance" | "appareil" | "autre";
 
@@ -37,8 +39,15 @@ export type Prospect = {
   email: string | null;
   telephone: string | null;
   source: string | null;
+  site: string | null;
   statut: string;
   consentement: boolean;
+  notes: string | null;
+  categorie: string | null;
+  adresse: string | null;
+  // Message rédigé par l'IA, à relire et envoyer soi-même.
+  brouillon: BrouillonProspect | null;
+  dernier_contact_at: string | null;
   created_at: string;
 };
 
