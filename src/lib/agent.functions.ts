@@ -12,6 +12,7 @@ import { consigneAnalyse, demandeDepuisStrategie, lireAnalyse, lireProfilDeduit,
 import { consigneProfilDepuisSite } from "./site";
 import { lireSite } from "./site.server";
 import { fabriquerVideo } from "./fabrication-video.server";
+import { lireStyleImage, lireStyleVideo, STYLE_IMAGE_DEFAUT, STYLE_VIDEO_DEFAUT, type StyleImage } from "./styles";
 import { CATEGORIES, lireReponseOverpass, requeteOverpass } from "./osm";
 import { clientMoteur, utilisateurDepuisJeton } from "./supabase-serveur";
 import { commentairesFacebook, commentairesInstagram, metaConfigure, repondreFacebook, repondreInstagram, urlConnexionMeta } from "./meta.server";
@@ -76,10 +77,27 @@ async function contexteMarque(sb: Sb) {
   return (data as string | null) || null;
 }
 
+// Styles par défaut choisis dans les Réglages. Tant que la migration qui
+// ajoute ces colonnes n'est pas appliquée : classique / photo.
+async function stylesParDefaut(sb: Sb) {
+  const { data, error } = await sb.from("reglages_agent").select("style_video, style_image").maybeSingle();
+  if (error || !data) return { video: STYLE_VIDEO_DEFAUT, image: STYLE_IMAGE_DEFAUT };
+  return { video: lireStyleVideo(data.style_video), image: lireStyleImage(data.style_image) };
+}
+
 type TacheLue = { id: string; type: string; plateforme: string | null; titre: string; consigne: string; resultat: Record<string, unknown> | null };
 
-async function preparerPourUtilisateur(sb: Sb, userId: string, t: TacheLue, contexte: string | null, options: { refaireTexte?: boolean; refaireImage?: boolean } = {}) {
+async function preparerPourUtilisateur(
+  sb: Sb,
+  userId: string,
+  t: TacheLue,
+  contexte: string | null,
+  options: { refaireTexte?: boolean; refaireImage?: boolean; style?: StyleImage } = {},
+) {
   const r = t.resultat ?? {};
+  const visuel_url = options.refaireImage ? null : (r.visuel_url as string | undefined);
+  // Le style ne sert que si une image doit être créée.
+  const style_visuel = t.type === "publication" && !visuel_url ? (options.style ?? (await stylesParDefaut(sb)).image) : undefined;
   return preparer(
     {
       type: t.type,
@@ -87,7 +105,8 @@ async function preparerPourUtilisateur(sb: Sb, userId: string, t: TacheLue, cont
       titre: t.titre,
       consigne: t.consigne,
       brouillon: options.refaireTexte ? null : (r.brouillon as string | undefined),
-      visuel_url: options.refaireImage ? null : (r.visuel_url as string | undefined),
+      visuel_url,
+      style_visuel,
     },
     contexte,
     ecrivainUtilisateur(sb, userId, t.id, r),
@@ -109,16 +128,19 @@ export const genererBrouillon = createServerFn({ method: "POST" })
     }
   });
 
-// Recrée seulement l'image.
+// Recrée seulement l'image, dans le style choisi (sinon celui des Réglages).
 export const regenererVisuel = createServerFn({ method: "POST" })
-  .inputValidator((input) => z.object({ tacheId: z.string().uuid(), jeton }).parse(input))
+  .inputValidator((input) => z.object({ tacheId: z.string().uuid(), jeton, style: z.string().optional() }).parse(input))
   .handler(async ({ data }): Promise<Resultat> => {
     try {
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
       const { data: t } = await sb.from("taches").select("id, type, plateforme, titre, consigne, resultat").eq("id", data.tacheId).single();
       if (!t) return { ok: false, erreur: "Tâche introuvable." };
       const ancien = (t.resultat as { visuel_id?: string } | null)?.visuel_id;
-      const r = await preparerPourUtilisateur(sb, user.id, t as TacheLue, await contexteMarque(sb), { refaireImage: true });
+      const r = await preparerPourUtilisateur(sb, user.id, t as TacheLue, await contexteMarque(sb), {
+        refaireImage: true,
+        style: data.style ? lireStyleImage(data.style) : undefined,
+      });
       if (!r.visuel_url) return { ok: false, erreur: "L'image n'a pas pu être créée (voir En direct)." };
       // L'ancienne image ne sert plus : on libère la place.
       if (ancien) await sb.from("visuels").delete().eq("id", ancien);
@@ -827,8 +849,9 @@ async function etatVideo(sb: Sb, tacheId: string, champs: Record<string, unknown
     .eq("id", tacheId);
 }
 
+// Vidéo dans le style choisi (sinon celui des Réglages).
 export const creerVideo = createServerFn({ method: "POST" })
-  .inputValidator((input) => z.object({ tacheId: z.string().uuid(), jeton }).parse(input))
+  .inputValidator((input) => z.object({ tacheId: z.string().uuid(), jeton, style: z.string().optional() }).parse(input))
   .handler(async ({ data }): Promise<Resultat<{ video_url: string }>> => {
     try {
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
@@ -838,6 +861,7 @@ export const creerVideo = createServerFn({ method: "POST" })
         sb.from("evenements_taches").insert({ tache_id: t.id, user_id: user.id, niveau, message: msg, capture_url: image ?? null });
       const contexte = await contexteMarque(sb);
       const { data: pm } = await sb.from("profil_marque").select("site").maybeSingle();
+      const style = data.style ? lireStyleVideo(data.style) : (await stylesParDefaut(sb)).video;
       const video_url = await fabriquerVideo(
         { ...t, brouillon: (t.resultat as { brouillon?: string } | null)?.brouillon },
         contexte,
@@ -852,6 +876,7 @@ export const creerVideo = createServerFn({ method: "POST" })
             return sb.storage.from("videos").getPublicUrl(chemin).data.publicUrl;
           },
         },
+        style,
       );
       return { ok: true, video_url };
     } catch (e) {

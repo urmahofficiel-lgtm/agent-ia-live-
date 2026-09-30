@@ -8,6 +8,10 @@ export const voixConfiguree = () => Boolean(process.env.GEMINI_API_KEY);
 
 export type Audio = { donnees: Buffer; format: "wav" | "pcm"; duree: number };
 
+// Manière de lire le texte (style de la vidéo).
+export const TON_PUBLICITAIRE = "voix off publicitaire française, dynamique et chaleureuse";
+export const TON_PARLE = "voix française naturelle et enjouée, comme une personne qui parle face caméra sur TikTok : spontanée, rythme rapide, sourire dans la voix";
+
 // Durée d'un WAV (PCM 16 bits) à partir de son en-tête.
 export function dureeWav(wav: Buffer) {
   const frequence = wav.readUInt32LE(24);
@@ -23,7 +27,7 @@ export function dureeWav(wav: Buffer) {
   return 0;
 }
 
-async function viaInteractions(cle: string, modele: string, texte: string): Promise<Audio | null> {
+async function viaInteractions(cle: string, modele: string, texte: string, ton: string): Promise<Audio | null> {
   const r = await fetch(`${BASE}/interactions`, {
     method: "POST",
     signal: AbortSignal.timeout(60_000),
@@ -37,7 +41,7 @@ async function viaInteractions(cle: string, modele: string, texte: string): Prom
             {
               type: "text",
               text: texte,
-              annotations: [{ type: "speech_metadata", style: "voix off publicitaire française, dynamique et chaleureuse" }],
+              annotations: [{ type: "speech_metadata", style: ton }],
             },
           ],
         },
@@ -61,13 +65,13 @@ async function viaInteractions(cle: string, modele: string, texte: string): Prom
 }
 
 // Ancienne méthode (generateContent), gardée en secours.
-async function viaGenerateContent(cle: string, modele: string, texte: string): Promise<Audio | null> {
+async function viaGenerateContent(cle: string, modele: string, texte: string, ton: string): Promise<Audio | null> {
   const r = await fetch(`${BASE}/models/${modele}:generateContent`, {
     method: "POST",
     signal: AbortSignal.timeout(60_000),
     headers: { "x-goog-api-key": cle, "Content-Type": "application/json" },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: `Lis ce texte comme une voix off publicitaire française, dynamique et chaleureuse : ${texte}` }] }],
+      contents: [{ parts: [{ text: `Lis ce texte comme une ${ton} : ${texte}` }] }],
       generationConfig: {
         responseModalities: ["AUDIO"],
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOIX } } },
@@ -84,13 +88,13 @@ async function viaGenerateContent(cle: string, modele: string, texte: string): P
   return { donnees, format: wav ? "wav" : "pcm", duree: wav ? dureeWav(donnees) : donnees.length / 48000 };
 }
 
-export async function voixOff(texte: string): Promise<Audio | null> {
+export async function voixOff(texte: string, ton = TON_PUBLICITAIRE): Promise<Audio | null> {
   const cle = process.env.GEMINI_API_KEY;
   if (!cle) return null;
   for (const modele of [process.env.GEMINI_MODELE_TTS, ...MODELES].filter((m): m is string => Boolean(m))) {
     for (const methode of [viaInteractions, viaGenerateContent]) {
       try {
-        const a = await methode(cle, modele, texte);
+        const a = await methode(cle, modele, texte, ton);
         if (a && a.duree > 1) return a;
       } catch (e) {
         console.warn("Gemini TTS", modele, e instanceof Error ? e.message : e);

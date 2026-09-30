@@ -4,7 +4,9 @@ import { Carte, Erreur, Titre, bouton, champ } from "@/components/ui";
 import { supprimerCompte } from "@/lib/agent.functions";
 import { jetonSession } from "@/lib/session";
 import { supabase } from "@/lib/supabase";
-import { useReglages } from "@/lib/donnees";
+import { useReglages, useStylesParDefaut } from "@/lib/donnees";
+import { ChoixStyle } from "@/components/StylesCreatifs";
+import { STYLES_IMAGE, STYLES_VIDEO, lireStyleImage, lireStyleVideo } from "@/lib/styles";
 import { ConnecteurIA } from "@/components/ConnecteurIA";
 import type { Reglages } from "@/lib/types";
 
@@ -41,10 +43,66 @@ function Parametres() {
         {message && <p className="text-sm text-ok">{message}</p>}
       </Carte>
 
+      <StylesParDefaut />
+
       <ConnecteurIA />
 
       <ZoneSuppression />
     </>
+  );
+}
+
+// Studio créatif : style utilisé par défaut pour les vidéos (bouton et Reels
+// automatiques) et les images de l'agent. Enregistré dès qu'on le change.
+function StylesParDefaut() {
+  const styles = useStylesParDefaut();
+  const [message, setMessage] = useState<string | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  async function changer(valeurs: Parameters<typeof styles.enregistrer>[0]) {
+    setMessage(null);
+    const e = await styles.enregistrer(valeurs);
+    setErreur(e);
+    if (!e) setMessage("Style par défaut enregistré.");
+  }
+
+  return (
+    <section aria-labelledby="studio-creatif" className="mt-10 max-w-xl rounded-2xl border border-bord bg-carte p-5">
+      <h2 id="studio-creatif" className="text-lg font-semibold">
+        Studio créatif
+      </h2>
+      <p className="mt-1 text-sm text-doux">
+        Le style que l'agent utilise pour ses vidéos (dont les Reels automatiques) et ses images. Vous pouvez toujours en choisir un
+        autre depuis Publications.
+      </p>
+      {styles.etat === "absent" && (
+        <p className="mt-3 rounded-lg bg-alerte/10 px-3 py-2 text-sm text-alerte" role="status">
+          Réglage bientôt disponible : en attendant, l'agent utilise les styles « Classique » et « Photo ».
+        </p>
+      )}
+      <div className="mt-4 space-y-5">
+        <ChoixStyle
+          legende="Vidéos"
+          options={STYLES_VIDEO}
+          valeur={styles.video}
+          desactive={styles.etat !== "ok"}
+          onChange={(id) => changer({ style_video: lireStyleVideo(id) })}
+        />
+        <ChoixStyle
+          legende="Images"
+          options={STYLES_IMAGE}
+          valeur={styles.image}
+          desactive={styles.etat !== "ok"}
+          onChange={(id) => changer({ style_image: lireStyleImage(id) })}
+        />
+      </div>
+      <Erreur message={erreur} />
+      {message && (
+        <p className="mt-2 text-sm text-ok" role="status">
+          {message}
+        </p>
+      )}
+    </section>
   );
 }
 

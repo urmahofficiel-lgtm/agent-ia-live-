@@ -1,4 +1,5 @@
 import { lookup } from "node:dns/promises";
+import { couleurTheme } from "./couleurs";
 import { estAdressePrivee, lirePage, normaliserLien, visuelsDePage, type PageLue, type VisuelSite } from "./site";
 
 const TAILLE_MAX = 1_500_000;
@@ -75,4 +76,10 @@ export async function visuelsDuSite(saisie: string, max = 4): Promise<(VisuelSit
     }
   }
   return resultat;
+}
+
+// Couleur de la marque déclarée par son site (null si aucune ou illisible).
+export async function couleurDuSite(saisie: string) {
+  const { html } = await telecharger(normaliserLien(saisie));
+  return couleurTheme(html);
 }
