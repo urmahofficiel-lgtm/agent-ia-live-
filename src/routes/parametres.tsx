@@ -5,6 +5,7 @@ import { supprimerCompte } from "@/lib/agent.functions";
 import { jetonSession } from "@/lib/session";
 import { supabase } from "@/lib/supabase";
 import { useReglages } from "@/lib/donnees";
+import { ConnecteurIA } from "@/components/ConnecteurIA";
 import type { Reglages } from "@/lib/types";
 
 export const Route = createFileRoute("/parametres")({ component: Parametres });
@@ -39,6 +40,8 @@ function Parametres() {
         <Erreur message={erreur} />
         {message && <p className="text-sm text-ok">{message}</p>}
       </Carte>
+
+      <ConnecteurIA />
 
       <ZoneSuppression />
     </>

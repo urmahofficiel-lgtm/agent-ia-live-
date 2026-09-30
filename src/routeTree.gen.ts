@@ -27,6 +27,7 @@ import { Route as ApiAnimationsWebhookRouteImport } from './routes/api/animation
 import { Route as ApiIaDiagnosticRouteImport } from './routes/api/ia/diagnostic'
 import { Route as ApiInstagramRetourRouteImport } from './routes/api/instagram/retour'
 import { Route as ApiLinkedinRetourRouteImport } from './routes/api/linkedin/retour'
+import { Route as ApiMcpCleRouteImport } from './routes/api/mcp/$cle'
 import { Route as ApiMetaRetourRouteImport } from './routes/api/meta/retour'
 import { Route as ApiVisuelsIdRouteImport } from './routes/api/visuels/$id'
 
@@ -120,6 +121,11 @@ const ApiLinkedinRetourRoute = ApiLinkedinRetourRouteImport.update({
   path: '/api/linkedin/retour',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpCleRoute = ApiMcpCleRouteImport.update({
+  id: '/api/mcp/$cle',
+  path: '/api/mcp/$cle',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMetaRetourRoute = ApiMetaRetourRouteImport.update({
   id: '/api/meta/retour',
   path: '/api/meta/retour',
@@ -150,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
   '/api/linkedin/retour': typeof ApiLinkedinRetourRoute
+  '/api/mcp/$cle': typeof ApiMcpCleRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
@@ -172,6 +179,7 @@ export interface FileRoutesByTo {
   '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
   '/api/linkedin/retour': typeof ApiLinkedinRetourRoute
+  '/api/mcp/$cle': typeof ApiMcpCleRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
@@ -195,6 +203,7 @@ export interface FileRoutesById {
   '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
   '/api/linkedin/retour': typeof ApiLinkedinRetourRoute
+  '/api/mcp/$cle': typeof ApiMcpCleRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
@@ -219,6 +228,7 @@ export interface FileRouteTypes {
     | '/api/ia/diagnostic'
     | '/api/instagram/retour'
     | '/api/linkedin/retour'
+    | '/api/mcp/$cle'
     | '/api/meta/retour'
     | '/api/visuels/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -241,6 +251,7 @@ export interface FileRouteTypes {
     | '/api/ia/diagnostic'
     | '/api/instagram/retour'
     | '/api/linkedin/retour'
+    | '/api/mcp/$cle'
     | '/api/meta/retour'
     | '/api/visuels/$id'
   id:
@@ -263,6 +274,7 @@ export interface FileRouteTypes {
     | '/api/ia/diagnostic'
     | '/api/instagram/retour'
     | '/api/linkedin/retour'
+    | '/api/mcp/$cle'
     | '/api/meta/retour'
     | '/api/visuels/$id'
   fileRoutesById: FileRoutesById
@@ -286,6 +298,7 @@ export interface RootRouteChildren {
   ApiIaDiagnosticRoute: typeof ApiIaDiagnosticRoute
   ApiInstagramRetourRoute: typeof ApiInstagramRetourRoute
   ApiLinkedinRetourRoute: typeof ApiLinkedinRetourRoute
+  ApiMcpCleRoute: typeof ApiMcpCleRoute
   ApiMetaRetourRoute: typeof ApiMetaRetourRoute
   ApiVisuelsIdRoute: typeof ApiVisuelsIdRoute
 }
@@ -418,6 +431,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLinkedinRetourRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp/$cle': {
+      id: '/api/mcp/$cle'
+      path: '/api/mcp/$cle'
+      fullPath: '/api/mcp/$cle'
+      preLoaderRoute: typeof ApiMcpCleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/meta/retour': {
       id: '/api/meta/retour'
       path: '/api/meta/retour'
@@ -454,6 +474,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiIaDiagnosticRoute: ApiIaDiagnosticRoute,
   ApiInstagramRetourRoute: ApiInstagramRetourRoute,
   ApiLinkedinRetourRoute: ApiLinkedinRetourRoute,
+  ApiMcpCleRoute: ApiMcpCleRoute,
   ApiMetaRetourRoute: ApiMetaRetourRoute,
   ApiVisuelsIdRoute: ApiVisuelsIdRoute,
 }
