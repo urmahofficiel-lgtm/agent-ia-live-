@@ -117,7 +117,10 @@ async function rechercheWeb(p: ProspectACompleter, cle: string) {
           }),
         },
       );
-      if (!r.ok) continue;
+      if (!r.ok) {
+        console.warn("Recherche web (Gemini)", modele, r.status, (await r.text()).slice(0, 300));
+        continue;
+      }
       const json = (await r.json()) as ReponseGemini;
       const c = json.candidates?.[0];
       const texte = (c?.content?.parts ?? [])
