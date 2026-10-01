@@ -53,4 +53,10 @@ describe("osm", () => {
     expect(r).toHaveLength(1);
     expect(r[0]).toMatchObject({ nom: "Dupont Plomberie", telephone: "+33 1", adresse: "Lyon", osm_id: "node/1" });
   });
+
+  it("signale un délai dépassé au lieu de répondre « aucun résultat »", () => {
+    const panne = JSON.stringify({ elements: [], remark: "runtime error: Query timed out in \"query\" at line 3 after 26 seconds." });
+    expect(() => lireReponseOverpass(panne)).toThrow(/saturé/);
+    expect(lireReponseOverpass(JSON.stringify({ elements: [] }))).toEqual([]);
+  });
 });

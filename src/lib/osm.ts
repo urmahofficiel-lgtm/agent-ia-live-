@@ -32,8 +32,8 @@ export function requeteOverpass(categorie: string, ville: string, max: number) {
   const c = CATEGORIES.find((x) => x.id === categorie);
   if (!c) throw new Error("Catégorie inconnue.");
   const [cle, valeur] = c.tag;
-  return `[out:json][timeout:25];
-area["name"="${echapper(ville.trim())}"]["boundary"="administrative"]->.zone;
+  return `[out:json][timeout:50];
+area["name"="${echapper(ville.trim())}"]["boundary"="administrative"]["admin_level"="8"]->.zone;
 nwr(area.zone)["${cle}"="${valeur}"]["name"];
 out center tags ${Math.min(Math.max(max, 1), 200)};`;
 }
@@ -52,11 +52,16 @@ type Element = { type: string; id: number; tags?: Record<string, string> };
 export function lireReponseOverpass(texte: string): ProspectTrouve[] {
   // Overpass renvoie parfois le JSON enveloppé dans une page HTML.
   const brut = texte.trimStart().startsWith("<") ? texte.replace(/<[^>]*>/g, "") : texte;
-  let json: { elements?: Element[] };
+  let json: { elements?: Element[]; remark?: string };
   try {
     json = JSON.parse(brut.slice(brut.indexOf("{")));
   } catch {
     throw new Error("Réponse illisible du service de recherche. Réessayez dans un instant.");
+  }
+  // Délai dépassé ou serveur saturé : réponse 200 sans résultat, avec une
+  // remarque. On le traite comme une panne (serveur suivant).
+  if (!json.elements?.length && /error|timed out|out of memory/i.test(json.remark ?? "")) {
+    throw new Error(`Service de recherche saturé : ${json.remark?.slice(0, 120)}`);
   }
   const vus = new Set<string>();
   const resultats: ProspectTrouve[] = [];

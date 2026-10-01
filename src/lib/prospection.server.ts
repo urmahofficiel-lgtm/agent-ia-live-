@@ -47,7 +47,7 @@ async function chercherOsm(
         body: new URLSearchParams({
           data: requeteOverpass(categorie, ville, max),
         }),
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.timeout(55_000),
       });
       if (r.ok) return lireReponseOverpass(await r.text());
       derniere = `Service de recherche indisponible (${r.status}). Réessayez.`;
