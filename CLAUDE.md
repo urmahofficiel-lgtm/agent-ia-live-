@@ -12,3 +12,7 @@ Vérifs avant commit : `npm run typecheck`, `npm run test`, `npm run build`.
 - Code et interface en français, comme le reste du projet.
 - Aucun secret dans le code : clés IA (Gemini, NVIDIA) et jetons des réseaux → variables d'environnement / Supabase Vault.
 - Toute nouvelle table : `user_id` + RLS « propriétaire ».
+
+## Langue
+- Toujours répondre à l'utilisateur **en français**, avec des mots simples, sans jargon technique.
+- Tout sous-agent lancé doit recevoir la consigne : « Réponds et rédige ton rapport en français. »
