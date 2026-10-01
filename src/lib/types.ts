@@ -1,8 +1,16 @@
 import type { BrouillonProspect } from "./prospection";
 import type { Stats } from "./statistiques";
 
-export type StatutTache = "en_attente" | "a_valider" | "en_cours" | "a_partager" | "terminee" | "echouee" | "annulee";
-export type TypeTache = "publication" | "reponse" | "prospection" | "relance" | "appareil" | "autre";
+export type StatutTache =
+  | "en_attente"
+  | "a_valider"
+  | "en_cours"
+  | "a_partager"
+  | "terminee"
+  | "echouee"
+  | "annulee";
+export type TypeTache =
+  "publication" | "reponse" | "prospection" | "relance" | "appareil" | "autre";
 
 export type Tache = {
   id: string;
@@ -52,6 +60,9 @@ export type Prospect = {
   notes: string | null;
   categorie: string | null;
   adresse: string | null;
+  // Fiche de l'annuaire officiel des entreprises (SIRET, ancienneté, taille, RGE).
+  siret?: string | null;
+  infos?: string | null;
   // Message rédigé par l'IA, à relire et envoyer soi-même.
   brouillon: BrouillonProspect | null;
   dernier_contact_at: string | null;

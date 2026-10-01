@@ -24,6 +24,7 @@ export type ProspectARediger = {
   email: string | null;
   telephone: string | null;
   site: string | null;
+  infos?: string | null;
   statut: string;
   genre: Genre;
   dernier_contact_at: string | null;
@@ -37,8 +38,10 @@ export const MENTION_DESINSCRIPTION =
   "Vous ne souhaitez plus recevoir de message de ma part ? Répondez simplement « STOP » et je ne vous recontacterai plus.";
 export const MENTION_COURTE = "Répondez STOP pour ne plus être contacté.";
 
-export const choisirCanal = (p: { email: string | null }, prefere?: Canal): Canal =>
-  prefere ?? (p.email ? "email" : "message");
+export const choisirCanal = (
+  p: { email: string | null },
+  prefere?: Canal,
+): Canal => prefere ?? (p.email ? "email" : "message");
 
 export function consigneMessage(p: ProspectARediger, canal: Canal): string {
   const relance = p.genre === "relance";
@@ -55,9 +58,16 @@ export function consigneMessage(p: ProspectARediger, canal: Canal): string {
     p.categorie ? `- Métier : ${p.categorie}` : "",
     p.adresse ? `- Adresse : ${p.adresse}` : "",
     p.site ? `- Site : ${p.site}` : "",
+    p.infos
+      ? `- Fiche officielle : ${p.infos.replace(/SIRET [\d ]+( · )?/, "")}`
+      : "",
     "",
-    p.contexte ? `Ce que nous proposons (fiche de notre marque) :\n${p.contexte}` : "Notre marque n'a pas encore de fiche : reste général sur l'aide proposée.",
-    relance && p.dernier_message ? `\nPremier message envoyé :\n${p.dernier_message}` : "",
+    p.contexte
+      ? `Ce que nous proposons (fiche de notre marque) :\n${p.contexte}`
+      : "Notre marque n'a pas encore de fiche : reste général sur l'aide proposée.",
+    relance && p.dernier_message
+      ? `\nPremier message envoyé :\n${p.dernier_message}`
+      : "",
     "",
     "Règles :",
     "- Vouvoiement, en français, ton simple et humain, pas de formules creuses ni d'emoji.",
@@ -67,7 +77,8 @@ export function consigneMessage(p: ProspectARediger, canal: Canal): string {
     "- Signe avec le nom de notre marque si on le connaît.",
     "- N'ajoute PAS de mention de désinscription : elle est ajoutée automatiquement.",
     "",
-    'Réponds uniquement en JSON : {"objet": "…", "texte": "…"}' + (canal === "message" ? ' (objet vide "").' : "."),
+    'Réponds uniquement en JSON : {"objet": "…", "texte": "…"}' +
+      (canal === "message" ? ' (objet vide "").' : "."),
   ]
     .join("\n")
     .replace(/\n{3,}/g, "\n\n");
@@ -82,14 +93,21 @@ export function avecDesinscription(texte: string, canal: Canal): string {
 
 // Lit la réponse de l'IA (JSON, éventuellement entouré de texte) ; à défaut,
 // prend le texte brut.
-export function lireMessage(reponse: string, canal: Canal, genre: Genre): BrouillonProspect {
+export function lireMessage(
+  reponse: string,
+  canal: Canal,
+  genre: Genre,
+): BrouillonProspect {
   let objet = "";
   let texte = reponse.trim();
   const debut = reponse.indexOf("{");
   const fin = reponse.lastIndexOf("}");
   if (debut >= 0 && fin > debut) {
     try {
-      const json = JSON.parse(reponse.slice(debut, fin + 1)) as { objet?: unknown; texte?: unknown };
+      const json = JSON.parse(reponse.slice(debut, fin + 1)) as {
+        objet?: unknown;
+        texte?: unknown;
+      };
       if (typeof json.texte === "string" && json.texte.trim()) {
         texte = json.texte;
         objet = typeof json.objet === "string" ? json.objet.trim() : "";
@@ -100,8 +118,17 @@ export function lireMessage(reponse: string, canal: Canal, genre: Genre): Brouil
   }
   texte = texte.replace(/^```\w*\s*|```$/g, "").trim();
   if (!texte) throw new Error("L'IA n'a pas rédigé de message. Réessayez.");
-  if (canal === "email" && !objet) objet = genre === "relance" ? "Suite à mon message" : "Une idée pour votre activité";
-  return { genre, canal, objet: canal === "email" ? objet.slice(0, 120) : "", texte: avecDesinscription(texte, canal) };
+  if (canal === "email" && !objet)
+    objet =
+      genre === "relance"
+        ? "Suite à mon message"
+        : "Une idée pour votre activité";
+  return {
+    genre,
+    canal,
+    objet: canal === "email" ? objet.slice(0, 120) : "",
+    texte: avecDesinscription(texte, canal),
+  };
 }
 
 // Numéro au format international sans « + » (pour wa.me), France par défaut.
@@ -113,25 +140,49 @@ export function numeroInternational(tel: string): string | null {
   return /^\d{8,15}$/.test(n) ? n : null;
 }
 
-export type LienContact = { type: "email" | "whatsapp" | "sms" | "telephone"; libelle: string; href: string };
+export type LienContact = {
+  type: "email" | "whatsapp" | "sms" | "telephone";
+  libelle: string;
+  href: string;
+};
 
 // Liens qui ouvrent l'application de l'utilisateur avec le texte prérempli :
 // rien n'est envoyé tant qu'il n'a pas appuyé lui-même sur « Envoyer ».
-export function liensContact(p: { email: string | null; telephone: string | null }, b: { objet: string; texte: string } | null): LienContact[] {
+export function liensContact(
+  p: { email: string | null; telephone: string | null },
+  b: { objet: string; texte: string } | null,
+): LienContact[] {
   const liens: LienContact[] = [];
   const texte = b?.texte ?? "";
   // Adresse issue de données publiques : on n'accepte qu'une adresse simple
   // (pas de « ? » ou « & » qui ajouteraient des destinataires cachés).
   const email = p.email?.split(/[;,]/)[0].trim();
   if (email && /^[^\s@?&#]+@[^\s@?&#]+\.[^\s@?&#]+$/.test(email)) {
-    const params = [b?.objet ? `subject=${encodeURIComponent(b.objet)}` : "", texte ? `body=${encodeURIComponent(texte)}` : ""].filter(Boolean).join("&");
-    liens.push({ type: "email", libelle: "E-mail", href: `mailto:${email}${params ? `?${params}` : ""}` });
+    const params = [
+      b?.objet ? `subject=${encodeURIComponent(b.objet)}` : "",
+      texte ? `body=${encodeURIComponent(texte)}` : "",
+    ]
+      .filter(Boolean)
+      .join("&");
+    liens.push({
+      type: "email",
+      libelle: "E-mail",
+      href: `mailto:${email}${params ? `?${params}` : ""}`,
+    });
   }
   const tel = p.telephone?.split(/[;,]/)[0].trim();
   const intl = tel ? numeroInternational(tel) : null;
   if (tel && intl) {
-    liens.push({ type: "whatsapp", libelle: "WhatsApp", href: `https://wa.me/${intl}${texte ? `?text=${encodeURIComponent(texte)}` : ""}` });
-    liens.push({ type: "sms", libelle: "SMS", href: `sms:+${intl}${texte ? `?body=${encodeURIComponent(texte)}` : ""}` });
+    liens.push({
+      type: "whatsapp",
+      libelle: "WhatsApp",
+      href: `https://wa.me/${intl}${texte ? `?text=${encodeURIComponent(texte)}` : ""}`,
+    });
+    liens.push({
+      type: "sms",
+      libelle: "SMS",
+      href: `sms:+${intl}${texte ? `?body=${encodeURIComponent(texte)}` : ""}`,
+    });
     liens.push({ type: "telephone", libelle: "Appeler", href: `tel:+${intl}` });
   }
   return liens;
@@ -143,16 +194,29 @@ export function estARelancer(
   jours: number,
   maintenant = new Date(),
 ): boolean {
-  if (!["contacte", "relance"].includes(p.statut) || !p.dernier_contact_at || p.brouillon) return false;
-  return maintenant.getTime() - new Date(p.dernier_contact_at).getTime() >= jours * 86_400_000;
+  if (
+    !["contacte", "relance"].includes(p.statut) ||
+    !p.dernier_contact_at ||
+    p.brouillon
+  )
+    return false;
+  return (
+    maintenant.getTime() - new Date(p.dernier_contact_at).getTime() >=
+    jours * 86_400_000
+  );
 }
 
 // Erreurs de la base traduites pour l'utilisateur.
 export function messageErreurProspect(brut: string): string | null {
-  if (/oppose/.test(brut)) return "Ce prospect a demandé à ne plus être contacté.";
-  if (/limite de contacts/.test(brut)) return "Limite de contacts du jour atteinte (réglable dans Prospection). Reprenez demain.";
-  if (/sans consentement|Particulier sans consentement/.test(brut)) return "Particulier sans accord préalable : démarchage interdit (RGPD).";
-  if (/deja client ou a refuse/.test(brut)) return "Ce prospect est déjà client ou a refusé : pas de message à rédiger.";
-  if (/prospect introuvable/.test(brut)) return "Prospect introuvable : vérifiez l'identifiant.";
+  if (/oppose/.test(brut))
+    return "Ce prospect a demandé à ne plus être contacté.";
+  if (/limite de contacts/.test(brut))
+    return "Limite de contacts du jour atteinte (réglable dans Prospection). Reprenez demain.";
+  if (/sans consentement|Particulier sans consentement/.test(brut))
+    return "Particulier sans accord préalable : démarchage interdit (RGPD).";
+  if (/deja client ou a refuse/.test(brut))
+    return "Ce prospect est déjà client ou a refusé : pas de message à rédiger.";
+  if (/prospect introuvable/.test(brut))
+    return "Prospect introuvable : vérifiez l'identifiant.";
   return null;
 }
