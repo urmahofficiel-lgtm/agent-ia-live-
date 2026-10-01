@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  confirmeEntreprise,
   estAnnuaire,
   extraireEmails,
   extraireTelephones,
   lienContact,
-  lireProposition,
   normaliserTelephone,
   numeroPresent,
+  requeteRecherche,
+  telephoneProche,
   texteDePage,
 } from "./coordonnees";
 
@@ -53,21 +55,43 @@ describe("coordonnées des prospects", () => {
     ).toBeNull();
   });
 
-  it("lit la réponse de la recherche et écarte les annuaires", () => {
+  it("confirme l'entreprise par son nom et son code postal", () => {
     expect(
-      lireProposition(
-        '```json\n{"telephone": "04 78 12 34 56", "site": "plomberie-martin.fr"}\n```',
+      confirmeEntreprise(
+        "Rakor Plomberie, 42 rue Antonin Perrin, 69100 Villeurbanne",
+        "Rakor Plomberie",
+        "42 Rue Antonin Perrin 69100 Villeurbanne",
       ),
-    ).toEqual({
-      telephone: "04 78 12 34 56",
-      site: "https://plomberie-martin.fr/",
-    });
+    ).toBe(true);
     expect(
-      lireProposition(
-        '{"telephone": null, "site": "https://www.pagesjaunes.fr/pros/123"}',
+      confirmeEntreprise(
+        "Rakor Plomberie, 75011 Paris",
+        "Rakor Plomberie",
+        "42 Rue Antonin Perrin 69100 Villeurbanne",
       ),
-    ).toEqual({ telephone: null, site: null });
-    expect(lireProposition("rien")).toEqual({ telephone: null, site: null });
+    ).toBe(false);
+    expect(
+      confirmeEntreprise(
+        "Autre entreprise 69100",
+        "Rakor Plomberie",
+        "69100 Villeurbanne",
+      ),
+    ).toBe(false);
     expect(estAnnuaire("https://www.societe.com/x")).toBe(true);
+  });
+
+  it("prend le numéro le plus proche du nom sur une page d'annuaire", () => {
+    const texte =
+      "Plomberie Dupont 01 23 45 67 80 ... Rakor Plomberie, 69100 Villeurbanne, tél. 04 78 11 22 33";
+    expect(telephoneProche(texte, "Rakor Plomberie")).toBe("04 78 11 22 33");
+  });
+
+  it("construit la requête de recherche", () => {
+    expect(
+      requeteRecherche({
+        nom: "Rakor Plomberie",
+        adresse: "42 Rue Antonin Perrin 69100 Villeurbanne",
+      }),
+    ).toBe('"Rakor Plomberie" Villeurbanne téléphone');
   });
 });

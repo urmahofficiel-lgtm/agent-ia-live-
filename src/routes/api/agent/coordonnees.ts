@@ -5,18 +5,20 @@ import {
   type ProspectACompleter,
 } from "@/lib/coordonnees.server";
 
-// Coordonnées des prospects : appelé toutes les 10 minutes par pg_cron.
+// Coordonnées des prospects : appelé toutes les heures de 7 h à 20 h par
+// pg_cron, 2 prospects à la fois (offre gratuite Tavily : 1 000 recherches
+// par mois).
 // Cherche le téléphone (et l'e-mail) des prospects qui n'en ont pas, par
 // petits lots. Rien n'est envoyé à personne : on complète seulement la fiche.
 const BUDGET = 180_000;
-const LOT = 1; // une recherche à la fois : quotas par minute de Gemini
+const LOT = 1;
 
 async function completer(secret: string) {
   const debut = Date.now();
   const sb = clientMoteur();
   const { data, error } = await sb.rpc("agent_prospects_a_completer", {
     p_secret: secret,
-    p_limite: 6,
+    p_limite: 2,
   });
   if (error) throw new Error(error.message);
   const liste = (data ?? []) as (ProspectACompleter & { user_id: string })[];

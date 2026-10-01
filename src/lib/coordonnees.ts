@@ -1,3 +1,5 @@
+import { cleNom } from "./annuaire";
+
 // Coordonnées professionnelles publiées par l'entreprise elle-même (son site,
 // ou une page trouvée par la recherche) : extraction et vérification. Un
 // numéro n'est retenu que s'il figure réellement sur une page lue : jamais de
@@ -98,44 +100,50 @@ const ANNUAIRES =
   /pagesjaunes|societe\.com|pappers|infogreffe|annuaire|kompass|verif\.com|manageo|facebook|linkedin|instagram|google\.|yelp|mappy|118|starofservice|habitatpresto|travaux\.com/i;
 export const estAnnuaire = (url: string) => ANNUAIRES.test(url);
 
-export type Proposition = { telephone: string | null; site: string | null };
-
-// Réponse JSON de l'IA (recherche web).
-export function lireProposition(reponse: string): Proposition {
-  const debut = reponse.indexOf("{");
-  const fin = reponse.lastIndexOf("}");
-  if (debut < 0 || fin <= debut) return { telephone: null, site: null };
-  try {
-    const j = JSON.parse(reponse.slice(debut, fin + 1)) as {
-      telephone?: unknown;
-      site?: unknown;
-    };
-    const telephone =
-      typeof j.telephone === "string" ? normaliserTelephone(j.telephone) : null;
-    const site = typeof j.site === "string" ? urlSite(j.site) : null;
-    return { telephone, site: site && !estAnnuaire(site) ? site : null };
-  } catch {
-    return { telephone: null, site: null };
-  }
+// La page parle-t-elle bien de cette entreprise ? Un mot distinctif du nom
+// et, si on le connaît, le code postal.
+export function confirmeEntreprise(
+  texte: string,
+  nom: string,
+  adresse: string | null,
+): boolean {
+  const t = cleNom(texte.slice(0, 200_000));
+  const mots = cleNom(nom)
+    .split(" ")
+    .filter((m) => m.length >= 4);
+  if (mots.length && !mots.some((m) => t.includes(m))) return false;
+  const cp = adresse?.match(/\b\d{5}\b/)?.[0];
+  return !cp || texte.includes(cp);
 }
 
-export function consigneRecherche(p: {
+// Sur une page qui liste plusieurs entreprises (annuaire), le numéro le plus
+// proche du nom de l'entreprise.
+export function telephoneProche(texte: string, nom: string): string | null {
+  const mot = cleNom(nom)
+    .split(" ")
+    .find((m) => m.length >= 4);
+  const bas = texte.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+  const ancre = mot ? bas.indexOf(mot) : -1;
+  let meilleur: { n: string; d: number } | null = null;
+  for (const m of texte.matchAll(RE_TEL)) {
+    const n = normaliserTelephone(m[0]);
+    if (!n || exclu(n)) continue;
+    // Le numéro suit en général le nom : un numéro placé avant compte triple.
+    const pos = m.index ?? 0;
+    const d = ancre < 0 ? 0 : pos >= ancre ? pos - ancre : (ancre - pos) * 3;
+    if (!meilleur || d < meilleur.d) meilleur = { n, d };
+  }
+  return meilleur?.n ?? extraireTelephones(texte)[0] ?? null;
+}
+
+// Requête de recherche web : nom exact + ville (ou code postal).
+export function requeteRecherche(p: {
   nom: string;
   adresse: string | null;
-  siret: string | null;
-  categorie: string | null;
-}) {
-  return [
-    "Cherche sur le web les coordonnées PROFESSIONNELLES publiques de cette entreprise française :",
-    `- Nom : ${p.nom}`,
-    p.categorie ? `- Activité : ${p.categorie}` : "",
-    p.adresse ? `- Adresse : ${p.adresse}` : "",
-    p.siret ? `- SIRET : ${p.siret}` : "",
-    "",
-    "Je veux son numéro de téléphone professionnel et son site internet officiel (pas un annuaire).",
-    "Vérifie que c'est bien la même entreprise (même nom et même ville). N'invente rien : si tu ne trouves pas, mets null.",
-    'Réponds uniquement en JSON : {"telephone": "04 00 00 00 00" ou null, "site": "https://..." ou null}',
-  ]
-    .filter((l) => l !== "")
-    .join("\n");
+}): string {
+  const lieu =
+    p.adresse?.match(/\b\d{5}\s+(.+)$/)?.[1] ??
+    p.adresse?.match(/\b\d{5}\b/)?.[0] ??
+    "";
+  return `"${p.nom}" ${lieu} téléphone`.replace(/\s+/g, " ").trim();
 }

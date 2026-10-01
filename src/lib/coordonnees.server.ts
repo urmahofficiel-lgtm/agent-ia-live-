@@ -1,21 +1,20 @@
-import { cleNom } from "./annuaire";
-import { listerGemini } from "./ia.server";
 import {
-  consigneRecherche,
+  confirmeEntreprise,
   estAnnuaire,
   extraireEmails,
   extraireTelephones,
   lienContact,
-  lireProposition,
-  numeroPresent,
+  requeteRecherche,
+  telephoneProche,
   texteDePage,
   urlSite,
 } from "./coordonnees";
 
 // Recherche automatique du téléphone (et de l'e-mail) d'un prospect :
 // 1. son site, s'il est connu (accueil puis page contact) ;
-// 2. sinon une recherche web (Gemini + Google Search), puis vérification sur
-//    les pages trouvées : le numéro doit y figurer réellement.
+// 2. sinon une recherche web (Tavily, offre gratuite : 1 000 recherches par
+//    mois, clé TAVILY_API_KEY). Un numéro n'est retenu que s'il figure sur une
+//    page qui cite bien l'entreprise (nom et code postal).
 
 export type ProspectACompleter = {
   id: string;
@@ -55,25 +54,12 @@ async function lirePage(url: string): Promise<Page | null> {
   }
 }
 
-// La page parle-t-elle bien de cette entreprise ? (un mot distinctif du nom)
-function memeEntreprise(nom: string, texte: string) {
-  const mots = cleNom(nom)
-    .split(" ")
-    .filter((m) => m.length >= 4);
-  if (!mots.length) return true;
-  const t = cleNom(texte.slice(0, 200_000));
-  return mots.some((m) => t.includes(m));
-}
-
-// Accueil puis page contact du site officiel.
-async function depuisSite(
-  site: string,
-  nom: string,
-): Promise<{ telephones: string[]; emails: string[]; url: string } | null> {
+// Accueil puis page contact du site de l'entreprise.
+async function depuisSite(site: string, p: ProspectACompleter) {
   const url = urlSite(site);
   if (!url || estAnnuaire(url)) return null;
   const accueil = await lirePage(url);
-  if (!accueil || !memeEntreprise(nom, accueil.texte)) return null;
+  if (!accueil || !confirmeEntreprise(accueil.texte, p.nom, null)) return null;
   let telephones = extraireTelephones(accueil.texte);
   let emails = extraireEmails(accueil.texte);
   if (!telephones.length || !emails.length) {
@@ -89,70 +75,54 @@ async function depuisSite(
   return { telephones, emails, url: accueil.url };
 }
 
-type ReponseGemini = {
-  candidates?: {
-    content?: { parts?: { text?: string; thought?: boolean }[] };
-    groundingMetadata?: { groundingChunks?: { web?: { uri?: string } }[] };
-  }[];
+type ResultatTavily = {
+  url?: string;
+  content?: string;
+  raw_content?: string | null;
 };
 
-async function rechercheWeb(p: ProspectACompleter, cle: string) {
-  // Modèles « lite » et plus anciens d'abord : quota gratuit de recherche plus large.
-  for (const modele of [...(await listerGemini(cle))].reverse()) {
-    try {
-      const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/${modele}:generateContent`,
-        {
-          method: "POST",
-          headers: {
-            "x-goog-api-key": cle,
-            "Content-Type": "application/json",
-          },
-          signal: AbortSignal.timeout(40_000),
-          body: JSON.stringify({
-            contents: [
-              { role: "user", parts: [{ text: consigneRecherche(p) }] },
-            ],
-            tools: [{ google_search: {} }],
-            generationConfig: { temperature: 0 },
-          }),
-        },
+async function rechercheTavily(
+  requete: string,
+  cle: string,
+): Promise<ResultatTavily[] | null> {
+  try {
+    const r = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${cle}`,
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(30_000),
+      body: JSON.stringify({
+        query: requete,
+        max_results: 5,
+        search_depth: "basic",
+        include_raw_content: "text",
+        country: "france",
+      }),
+    });
+    if (!r.ok) {
+      console.warn(
+        "Recherche web (Tavily)",
+        r.status,
+        (await r.text()).slice(0, 300),
       );
-      if (!r.ok) {
-        console.warn("Recherche web (Gemini)", modele, r.status, (await r.text()).replace(/\s+/g, " ").slice(0, 900));
-        continue;
-      }
-      const json = (await r.json()) as ReponseGemini;
-      const c = json.candidates?.[0];
-      const texte = (c?.content?.parts ?? [])
-        .filter((x) => !x.thought)
-        .map((x) => x.text ?? "")
-        .join("");
-      const sources = (c?.groundingMetadata?.groundingChunks ?? [])
-        .map((g) => g.web?.uri)
-        .filter((u): u is string => Boolean(u));
-      return { proposition: lireProposition(texte), sources };
-    } catch {
-      // modèle suivant
+      return null;
     }
+    return ((await r.json()) as { results?: ResultatTavily[] }).results ?? [];
+  } catch (e) {
+    console.warn("Recherche web (Tavily)", e instanceof Error ? e.message : e);
+    return null;
   }
-  return null;
 }
 
-// « plus_tard » : recherche web indisponible (quota, panne) : on réessaiera.
+// « plus_tard » : recherche web non configurée ou indisponible : on réessaiera.
 export async function trouverCoordonnees(
   p: ProspectACompleter,
 ): Promise<Coordonnees | "plus_tard"> {
-  const vide: Coordonnees = {
-    telephone: null,
-    email: null,
-    site: null,
-    source: null,
-  };
-
   // 1. Site déjà connu.
   if (p.site) {
-    const s = await depuisSite(p.site, p.nom);
+    const s = await depuisSite(p.site, p);
     if (s?.telephones.length)
       return {
         telephone: s.telephones[0],
@@ -163,49 +133,30 @@ export async function trouverCoordonnees(
   }
 
   // 2. Recherche web.
-  const cle = process.env.GEMINI_API_KEY;
-  if (!cle) return vide;
-  const web = await rechercheWeb(p, cle);
-  if (!web) return "plus_tard";
-  const { proposition, sources } = web;
+  const cle = process.env.TAVILY_API_KEY;
+  if (!cle) return "plus_tard";
+  const resultats = await rechercheTavily(requeteRecherche(p), cle);
+  if (!resultats) return "plus_tard";
 
-  // Site officiel proposé : on le lit nous-mêmes.
-  const officiel =
-    proposition.site && !p.site
-      ? await depuisSite(proposition.site, p.nom)
-      : null;
-  if (officiel?.telephones.length) {
-    const telephone =
-      proposition.telephone &&
-      officiel.telephones.includes(proposition.telephone)
-        ? proposition.telephone
-        : officiel.telephones[0];
+  // Le site de l'entreprise d'abord (téléphone + e-mail), puis les autres
+  // pages (annuaires compris) : le texte doit citer l'entreprise.
+  const tries = [...resultats].sort(
+    (a, b) =>
+      Number(estAnnuaire(a.url ?? "")) - Number(estAnnuaire(b.url ?? "")),
+  );
+  for (const r of tries) {
+    if (!r.url) continue;
+    const texte = `${r.content ?? ""} ${r.raw_content ?? ""}`;
+    if (!confirmeEntreprise(texte, p.nom, p.adresse)) continue;
+    const telephone = telephoneProche(texte, p.nom);
+    if (!telephone) continue;
+    const officiel = !estAnnuaire(r.url) && !p.site;
     return {
       telephone,
-      email: officiel.emails[0] ?? null,
-      site: officiel.url,
-      source: officiel.url,
+      email: officiel ? (extraireEmails(texte)[0] ?? null) : null,
+      site: officiel ? new URL(r.url).origin : null,
+      source: r.url,
     };
   }
-
-  // Numéro proposé : retenu seulement s'il figure sur une des pages trouvées
-  // qui parle bien de cette entreprise.
-  if (proposition.telephone) {
-    for (const url of sources.slice(0, 4)) {
-      const page = await lirePage(url);
-      if (
-        page &&
-        numeroPresent(proposition.telephone, page.texte) &&
-        memeEntreprise(p.nom, page.texte)
-      ) {
-        return {
-          telephone: proposition.telephone,
-          email: null,
-          site: officiel?.url ?? null,
-          source: page.url,
-        };
-      }
-    }
-  }
-  return { ...vide, site: officiel?.url ?? null };
+  return { telephone: null, email: null, site: null, source: null };
 }
