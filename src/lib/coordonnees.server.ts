@@ -97,7 +97,8 @@ type ReponseGemini = {
 };
 
 async function rechercheWeb(p: ProspectACompleter, cle: string) {
-  for (const modele of (await listerGemini(cle)).slice(0, 3)) {
+  // Modèles « lite » et plus anciens d'abord : quota gratuit de recherche plus large.
+  for (const modele of [...(await listerGemini(cle))].reverse()) {
     try {
       const r = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/${modele}:generateContent`,
@@ -118,7 +119,7 @@ async function rechercheWeb(p: ProspectACompleter, cle: string) {
         },
       );
       if (!r.ok) {
-        console.warn("Recherche web (Gemini)", modele, r.status, (await r.text()).slice(0, 300));
+        console.warn("Recherche web (Gemini)", modele, r.status, (await r.text()).replace(/\s+/g, " ").slice(0, 900));
         continue;
       }
       const json = (await r.json()) as ReponseGemini;

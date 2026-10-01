@@ -9,7 +9,7 @@ import {
 // Cherche le téléphone (et l'e-mail) des prospects qui n'en ont pas, par
 // petits lots. Rien n'est envoyé à personne : on complète seulement la fiche.
 const BUDGET = 180_000;
-const LOT = 3;
+const LOT = 1; // une recherche à la fois : quotas par minute de Gemini
 
 async function completer(secret: string) {
   const debut = Date.now();
