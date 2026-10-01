@@ -35,6 +35,14 @@ import {
   type LienContact,
 } from "@/lib/prospection";
 
+const hote = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "le web";
+  }
+};
+
 export const Route = createFileRoute("/prospection")({
   component: Prospection,
 });
@@ -512,7 +520,25 @@ function ProspectCarte({
             Fiche officielle
           </a>
         )}
-        {!p.email && !p.telephone && (
+        {p.telephone && p.coordonnees_source && (
+          <a
+            href={p.coordonnees_source}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 underline"
+          >
+            Trouvé sur {hote(p.coordonnees_source)}
+          </a>
+        )}
+        {!p.telephone &&
+          !p.coordonnees_cherchees_at &&
+          p.type === "entreprise" && (
+            <span className="inline-flex items-center gap-1">
+              <LoaderCircle className="size-3.5 animate-spin" aria-hidden />
+              Recherche du téléphone en cours…
+            </span>
+          )}
+        {!p.email && !p.telephone && p.coordonnees_cherchees_at && (
           <a
             href={`https://www.google.com/search?q=${encodeURIComponent([p.nom, p.adresse].filter(Boolean).join(" "))}`}
             target="_blank"

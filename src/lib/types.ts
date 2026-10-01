@@ -63,6 +63,9 @@ export type Prospect = {
   // Fiche de l'annuaire officiel des entreprises (SIRET, ancienneté, taille, RGE).
   siret?: string | null;
   infos?: string | null;
+  // Recherche automatique du téléphone : date et page où il a été trouvé.
+  coordonnees_cherchees_at?: string | null;
+  coordonnees_source?: string | null;
   // Message rédigé par l'IA, à relire et envoyer soi-même.
   brouillon: BrouillonProspect | null;
   dernier_contact_at: string | null;

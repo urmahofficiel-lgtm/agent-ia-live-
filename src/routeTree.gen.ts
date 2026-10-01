@@ -23,6 +23,7 @@ import { Route as StatistiquesRouteImport } from './routes/statistiques'
 import { Route as StrategieRouteImport } from './routes/strategie'
 import { Route as SuppressionDonneesRouteImport } from './routes/suppression-donnees'
 import { Route as TachesRouteImport } from './routes/taches'
+import { Route as ApiAgentCoordonneesRouteImport } from './routes/api/agent/coordonnees'
 import { Route as ApiAgentStatsRouteImport } from './routes/api/agent/stats'
 import { Route as ApiAgentTickRouteImport } from './routes/api/agent/tick'
 import { Route as ApiAnimationsWebhookRouteImport } from './routes/api/animations/webhook'
@@ -103,6 +104,11 @@ const TachesRoute = TachesRouteImport.update({
   path: '/taches',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentCoordonneesRoute = ApiAgentCoordonneesRouteImport.update({
+  id: '/api/agent/coordonnees',
+  path: '/api/agent/coordonnees',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentStatsRoute = ApiAgentStatsRouteImport.update({
   id: '/api/agent/stats',
   path: '/api/agent/stats',
@@ -164,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/strategie': typeof StrategieRoute
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
+  '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/animations/webhook': typeof ApiAnimationsWebhookRoute
@@ -189,6 +196,7 @@ export interface FileRoutesByTo {
   '/strategie': typeof StrategieRoute
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
+  '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/animations/webhook': typeof ApiAnimationsWebhookRoute
@@ -215,6 +223,7 @@ export interface FileRoutesById {
   '/strategie': typeof StrategieRoute
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
+  '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/animations/webhook': typeof ApiAnimationsWebhookRoute
@@ -242,6 +251,7 @@ export interface FileRouteTypes {
     | '/strategie'
     | '/suppression-donnees'
     | '/taches'
+    | '/api/agent/coordonnees'
     | '/api/agent/stats'
     | '/api/agent/tick'
     | '/api/animations/webhook'
@@ -267,6 +277,7 @@ export interface FileRouteTypes {
     | '/strategie'
     | '/suppression-donnees'
     | '/taches'
+    | '/api/agent/coordonnees'
     | '/api/agent/stats'
     | '/api/agent/tick'
     | '/api/animations/webhook'
@@ -292,6 +303,7 @@ export interface FileRouteTypes {
     | '/strategie'
     | '/suppression-donnees'
     | '/taches'
+    | '/api/agent/coordonnees'
     | '/api/agent/stats'
     | '/api/agent/tick'
     | '/api/animations/webhook'
@@ -318,6 +330,7 @@ export interface RootRouteChildren {
   StrategieRoute: typeof StrategieRoute
   SuppressionDonneesRoute: typeof SuppressionDonneesRoute
   TachesRoute: typeof TachesRoute
+  ApiAgentCoordonneesRoute: typeof ApiAgentCoordonneesRoute
   ApiAgentStatsRoute: typeof ApiAgentStatsRoute
   ApiAgentTickRoute: typeof ApiAgentTickRoute
   ApiAnimationsWebhookRoute: typeof ApiAnimationsWebhookRoute
@@ -429,6 +442,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TachesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/coordonnees': {
+      id: '/api/agent/coordonnees'
+      path: '/api/agent/coordonnees'
+      fullPath: '/api/agent/coordonnees'
+      preLoaderRoute: typeof ApiAgentCoordonneesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/stats': {
       id: '/api/agent/stats'
       path: '/api/agent/stats'
@@ -510,6 +530,7 @@ const rootRouteChildren: RootRouteChildren = {
   StrategieRoute: StrategieRoute,
   SuppressionDonneesRoute: SuppressionDonneesRoute,
   TachesRoute: TachesRoute,
+  ApiAgentCoordonneesRoute: ApiAgentCoordonneesRoute,
   ApiAgentStatsRoute: ApiAgentStatsRoute,
   ApiAgentTickRoute: ApiAgentTickRoute,
   ApiAnimationsWebhookRoute: ApiAnimationsWebhookRoute,
