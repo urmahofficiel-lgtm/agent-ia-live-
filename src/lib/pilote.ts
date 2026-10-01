@@ -18,24 +18,37 @@ export type Rythme = Record<string, number>;
 // de réseau « manuel » (profil Facebook perso, sans API).
 export const estPilotable = (id: string) => {
   const p = PLATEFORMES.find((x) => x.id === id);
-  return Boolean(p && !p.manuel && (p.categorie === "reseau" || p.categorie === "local"));
+  return Boolean(
+    p && !p.manuel && (p.categorie === "reseau" || p.categorie === "local"),
+  );
 };
 
 // Nombre de posts par jour d'un réseau : 3 par défaut, entre 1 et 5.
 export function postsParJour(rythme: unknown, plateforme: string) {
-  const brut = rythme && typeof rythme === "object" ? (rythme as Rythme)[plateforme] : undefined;
+  const brut =
+    rythme && typeof rythme === "object"
+      ? (rythme as Rythme)[plateforme]
+      : undefined;
   const n = Math.round(Number(brut ?? RYTHME_DEFAUT));
-  return Number.isFinite(n) ? Math.min(RYTHME_MAX, Math.max(1, n)) : RYTHME_DEFAUT;
+  return Number.isFinite(n)
+    ? Math.min(RYTHME_MAX, Math.max(1, n))
+    : RYTHME_DEFAUT;
 }
 
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
-const versMinutes = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
-const versHeure = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+const versMinutes = (h: string) =>
+  Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
+const versHeure = (m: number) =>
+  `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 
 // Créneaux valides (« 8:30 » accepté), sans doublon, triés ; défaut si vide.
 export function normaliserCreneaux(liste: unknown): string[] {
   const propres = (Array.isArray(liste) ? liste : [])
-    .map((x) => String(x ?? "").trim().replace(/^(\d):/, "0$1:"))
+    .map((x) =>
+      String(x ?? "")
+        .trim()
+        .replace(/^(\d):/, "0$1:"),
+    )
     .filter((x) => HHMM.test(x));
   const uniques = [...new Set(propres)].sort().slice(0, CRENEAUX_MAX);
   return uniques.length ? uniques : [...CRENEAUX_DEFAUT];
@@ -50,20 +63,45 @@ export function heuresDuJour(n: number, creneaux: string[]): string[] {
   if (n === c.length) return c;
   if (n < c.length) {
     if (n === 1) return [c[Math.floor((c.length - 1) / 2)]];
-    return Array.from({ length: n }, (_, i) => c[Math.round((i * (c.length - 1)) / (n - 1))]);
+    return Array.from(
+      { length: n },
+      (_, i) => c[Math.round((i * (c.length - 1)) / (n - 1))],
+    );
   }
   const debut = 8 * 60;
   const fin = 21 * 60;
-  return Array.from({ length: n }, (_, i) => versHeure(Math.round((debut + (i * (fin - debut)) / (n - 1)) / 5) * 5));
+  return Array.from({ length: n }, (_, i) =>
+    versHeure(Math.round((debut + (i * (fin - debut)) / (n - 1)) / 5) * 5),
+  );
 }
 
 // --- Mélange des sujets ------------------------------------------------------
 
 export const CATEGORIES_SUJET = [
-  { id: "conseil", poids: 4, consigne: "Conseil utile pour la clientèle visée (un problème concret qu'elle rencontre et comment le résoudre)." },
-  { id: "demo", poids: 3, consigne: "Démonstration concrète du produit ou du service : une fonctionnalité réelle, montrée en situation." },
-  { id: "coulisses", poids: 2, consigne: "Coulisses, terrain ou pédagogie : comment on travaille, ce qu'on apprend, une notion expliquée simplement." },
-  { id: "offre", poids: 1, consigne: "Offre directe : ce que la marque propose, pour qui, et l'appel à l'action (sans promesse inventée)." },
+  {
+    id: "conseil",
+    poids: 4,
+    consigne:
+      "Conseil utile pour la clientèle visée (un problème concret qu'elle rencontre et comment le résoudre).",
+  },
+  {
+    id: "demo",
+    poids: 3,
+    consigne:
+      "Démonstration concrète du produit ou du service : une fonctionnalité réelle, montrée en situation.",
+  },
+  {
+    id: "coulisses",
+    poids: 2,
+    consigne:
+      "Coulisses, terrain ou pédagogie : comment on travaille, ce qu'on apprend, une notion expliquée simplement.",
+  },
+  {
+    id: "offre",
+    poids: 1,
+    consigne:
+      "Offre directe : ce que la marque propose, pour qui, et l'appel à l'action (sans promesse inventée).",
+  },
 ] as const;
 
 export type CategorieSujet = (typeof CATEGORIES_SUJET)[number]["id"];
@@ -87,8 +125,13 @@ export const CYCLE_SUJETS: CategorieSujet[] = (() => {
 // (3 sujets par jour : sur 10 jours, 12 conseils, 9 démos, 6 coulisses, 3 offres).
 export function melangeDuJour(jour: string, k: number): CategorieSujet[] {
   const numero = Math.floor(Date.parse(`${jour}T00:00:00Z`) / 86_400_000);
-  const depart = (((numero * k) % CYCLE_SUJETS.length) + CYCLE_SUJETS.length) % CYCLE_SUJETS.length;
-  return Array.from({ length: k }, (_, i) => CYCLE_SUJETS[(depart + i) % CYCLE_SUJETS.length]);
+  const depart =
+    (((numero * k) % CYCLE_SUJETS.length) + CYCLE_SUJETS.length) %
+    CYCLE_SUJETS.length;
+  return Array.from(
+    { length: k },
+    (_, i) => CYCLE_SUJETS[(depart + i) % CYCLE_SUJETS.length],
+  );
 }
 
 // --- Heure de Paris ----------------------------------------------------------
@@ -107,11 +150,15 @@ function partiesParis(instant: Date) {
       .formatToParts(instant)
       .map((x) => [x.type, x.value]),
   );
-  return { jour: `${p.year}-${p.month}-${p.day}`, minutes: Number(p.hour) * 60 + Number(p.minute) };
+  return {
+    jour: `${p.year}-${p.month}-${p.day}`,
+    minutes: Number(p.hour) * 60 + Number(p.minute),
+  };
 }
 
 export const jourParis = (instant = new Date()) => partiesParis(instant).jour;
-export const minutesParis = (instant = new Date()) => partiesParis(instant).minutes;
+export const minutesParis = (instant = new Date()) =>
+  partiesParis(instant).minutes;
 
 // « 2026-10-01 » + « 08:30 » (heure de Paris) → instant UTC.
 export function instantParis(jour: string, heure: string): Date {
@@ -129,7 +176,12 @@ export function instantParis(jour: string, heure: string): Date {
 
 // --- Plan du jour ------------------------------------------------------------
 
-export type Creneau = { plateforme: string; heure: string; quand: string; sujet: number };
+export type Creneau = {
+  plateforme: string;
+  heure: string;
+  quand: string;
+  sujet: number;
+};
 
 // Créneaux restant à planifier aujourd'hui pour chaque réseau pilotable. Un
 // même sujet par heure (décliné sur tous les réseaux), des sujets différents
@@ -152,7 +204,12 @@ export function planDuJour(
   const heures = [...new Set(brut.map((c) => c.heure))].sort();
   return {
     heures,
-    creneaux: brut.map((c) => ({ plateforme: c.plateforme, heure: c.heure, quand: c.quand.toISOString(), sujet: heures.indexOf(c.heure) })),
+    creneaux: brut.map((c) => ({
+      plateforme: c.plateforme,
+      heure: c.heure,
+      quand: c.quand.toISOString(),
+      sujet: heures.indexOf(c.heure),
+    })),
   };
 }
 
@@ -167,23 +224,51 @@ export function consigneSujets(p: {
   titresRecents: string[];
   apprentissage?: string | null;
   jour: string;
+  ferie?: string | null;
 }) {
   const lignes = p.categories
-    .map((c, i) => `${i + 1}. ${CATEGORIES_SUJET.find((x) => x.id === c)?.consigne}`)
+    .map(
+      (c, i) =>
+        `${i + 1}. ${CATEGORIES_SUJET.find((x) => x.id === c)?.consigne}`,
+    )
     .join("\n");
-  const recents = p.titresRecents.slice(0, 80).map((t) => `- ${t}`).join("\n");
+  const recents = p.titresRecents
+    .slice(0, 80)
+    .map((t) => `- ${t}`)
+    .join("\n");
   return `Tu es le responsable éditorial des réseaux sociaux de cette entreprise. Choisis les ${p.categories.length} sujets de publication du ${p.jour}.
 
 ${p.contexte ? `Contexte de la marque (source fiable) :\n${p.contexte.slice(0, 5000)}\n` : ""}
 Un sujet par ligne, dans cet ordre et de ce type :
 ${lignes}
 ${recents ? `\nSujets déjà traités ces 30 derniers jours (ne les répète pas, ni sous une autre formulation) :\n${recents}\n` : ""}${
-    p.apprentissage ? `\nCe qui marche le mieux d'après les résultats passés (inspire-t'en) :\n${p.apprentissage.slice(0, 1500)}\n` : ""
-  }
+    p.apprentissage
+      ? `\nCe qui marche le mieux d'après les résultats passés (inspire-t'en) :\n${p.apprentissage.slice(0, 1500)}\n`
+      : ""
+  }${p.ferie ? `\nCalendrier : ${p.ferie}. Tu peux t'en servir pour un sujet de saison, sans obligation.\n` : ""}
 Les ${p.categories.length} sujets doivent être tous différents, concrets et propres à cette marque (ses vraies fonctionnalités, sa vraie clientèle).
 ${REGLES_PILOTE}
 Réponds UNIQUEMENT par un objet JSON valide, sans texte autour :
 {"sujets": [{"titre": "titre court (6 à 10 mots)", "consigne": "angle, accroche et appel à l'action en 1 à 3 phrases"}]}`;
+}
+
+// Jours fériés (liste Nager.Date : [{date, localName}]) : celui du jour, sinon
+// le prochain dans les 3 jours. null s'il n'y en a pas ou si la liste est illisible.
+export function ferieProche(liste: unknown, jour: string): string | null {
+  if (!Array.isArray(liste)) return null;
+  const base = Date.parse(`${jour}T00:00:00Z`);
+  for (const f of liste) {
+    const date = typeof f?.date === "string" ? f.date : "";
+    const nom = typeof f?.localName === "string" ? f.localName : "";
+    const ecart = Math.round(
+      (Date.parse(`${date}T00:00:00Z`) - base) / 86_400_000,
+    );
+    if (!nom || Number.isNaN(ecart) || ecart < 0 || ecart > 3) continue;
+    return ecart === 0
+      ? `aujourd'hui, c'est ${nom} (jour férié)`
+      : `${nom} (jour férié) dans ${ecart} jour${ecart > 1 ? "s" : ""}`;
+  }
+  return null;
 }
 
 const cle = (s: string) =>
@@ -194,7 +279,11 @@ const cle = (s: string) =>
 
 const schemaSujets = z.object({
   sujets: z
-    .array(z.object({ titre: z.string().catch(""), consigne: z.string().catch("") }).catch({ titre: "", consigne: "" }))
+    .array(
+      z
+        .object({ titre: z.string().catch(""), consigne: z.string().catch("") })
+        .catch({ titre: "", consigne: "" }),
+    )
     .catch([]),
 });
 
@@ -202,7 +291,11 @@ export type Sujet = { titre: string; consigne: string };
 
 // Lit la réponse de l'IA : exactement k sujets distincts, jamais un titre des
 // 30 derniers jours. null si la réponse est inutilisable (réessai plus tard).
-export function lireSujets(reponse: string, k: number, titresRecents: string[] = []): Sujet[] | null {
+export function lireSujets(
+  reponse: string,
+  k: number,
+  titresRecents: string[] = [],
+): Sujet[] | null {
   const debut = reponse.indexOf("{");
   const fin = reponse.lastIndexOf("}");
   if (debut === -1 || fin <= debut || k <= 0) return null;
@@ -215,8 +308,15 @@ export function lireSujets(reponse: string, k: number, titresRecents: string[] =
   const vus = new Set(titresRecents.map(cle));
   const sujets: Sujet[] = [];
   for (const s of brut.sujets) {
-    const titre = s.titre.replace(/[*_#`]/g, "").replace(/\s+/g, " ").trim().slice(0, 120);
-    const consigne = s.consigne.replace(/[*_#`]/g, "").trim().slice(0, 1200);
+    const titre = s.titre
+      .replace(/[*_#`]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 120);
+    const consigne = s.consigne
+      .replace(/[*_#`]/g, "")
+      .trim()
+      .slice(0, 1200);
     if (!titre || vus.has(cle(titre))) continue;
     vus.add(cle(titre));
     sujets.push({ titre, consigne: consigne || titre });
@@ -225,7 +325,11 @@ export function lireSujets(reponse: string, k: number, titresRecents: string[] =
 }
 
 // Tâches prêtes à enregistrer : un sujet par heure, décliné sur chaque réseau.
-export function tachesDuJour(creneaux: Creneau[], sujets: Sujet[], categories: CategorieSujet[]) {
+export function tachesDuJour(
+  creneaux: Creneau[],
+  sujets: Sujet[],
+  categories: CategorieSujet[],
+) {
   return creneaux.map((c) => {
     const s = sujets[c.sujet];
     const type = CATEGORIES_SUJET.find((x) => x.id === categories[c.sujet]);

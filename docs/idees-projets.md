@@ -49,3 +49,12 @@ Projets étudiés avec recherches à l'appui, mis de côté pour plus tard
 - Audit retraite (Compétence Retraite propose déjà une analyse IA gratuite puis 99 €).
 - Trop-perçu de loyer (verifier-mon-loyer.fr, et la loi sur l'encadrement peut s'arrêter en novembre 2026).
 - Confirmation de commandes en paiement à la livraison au Maghreb (UpConfirm, Replyk, Nawras…).
+
+## APIs gratuites repérées (liste github.com/public-apis/public-apis)
+- **Nager.Date** (jours fériés FR, sans clé) : branché dans le pilote automatique.
+- **Recherche d'entreprises / INSEE (api.gouv.fr), adresse.data.gouv.fr** : enrichir la prospection (SIRET, effectif, adresse exacte) en plus d'OpenStreetMap.
+- **Pixabay** (clé gratuite) : 2ᵉ source de vidéos/photos libres si Pexels n'a rien.
+- **QR code (goqr.me, sans clé)** : QR vers le site sur les visuels/affiches.
+- **Open-Meteo** : météo (alertes intempéries chantier) — usage non commercial seulement, à vérifier avant revente.
+- **Disify / MailCheck.ai** : bloquer les e-mails jetables à l'inscription (utile au moment de la revente).
+- Pour BTP Ecosystem : **annuaire DGFiP des plateformes agréées** (sujets Factur-X), **PolyDoc** (PDF Factur-X).
