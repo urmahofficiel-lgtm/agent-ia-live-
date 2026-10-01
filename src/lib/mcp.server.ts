@@ -649,8 +649,9 @@ export async function traiterMessage(msg: Rpc, appel: Appel) {
           "L'agent passe toutes les 5 minutes : le texte, l'image et la vidéo arrivent quelques minutes après la demande. " +
           "agent_statistiques indique ce qui marche (sujets, réseaux, formats, horaires) pour choisir les prochains sujets. " +
           "Prospection : agent_chercher_prospects trouve des entreprises (activité + ville), agent_rediger_message_prospect prépare " +
-          "un message à valider, agent_prospects suit le CRM (filtre a_relancer pour les relances). L'agent n'envoie JAMAIS de message " +
-          "de prospection : l'utilisateur l'envoie lui-même, puis agent_marquer_prospect (contacte). Ne recontactez jamais un " +
+          "un message à valider, agent_prospects suit le CRM (filtre a_relancer pour les relances). Seul l'agent e-mail (réglé par " +
+          "l'utilisateur dans Prospection) envoie des e-mails, avec lien de désinscription ; les SMS / WhatsApp ne partent jamais " +
+          "seuls : l'utilisateur les envoie, puis agent_marquer_prospect (contacte). Ne recontactez jamais un " +
           "prospect ne_plus_contacter et respectez la limite de contacts du jour. " +
           "Pilote automatique (agent_pilote) : l'agent planifie seul ses publications chaque jour.",
       });

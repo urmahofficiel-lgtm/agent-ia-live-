@@ -25,7 +25,11 @@ import { supabase } from "@/lib/supabase";
 import { useRequete, useUserId } from "@/lib/donnees";
 import type { Prospect } from "@/lib/types";
 import { CATEGORIES } from "@/lib/osm";
-import { redigerProspect, trouverProspects } from "@/lib/agent.functions";
+import {
+  envoyerEmail,
+  redigerProspect,
+  trouverProspects,
+} from "@/lib/agent.functions";
 import { jetonSession } from "@/lib/session";
 import {
   estARelancer,
@@ -42,6 +46,105 @@ const hote = (url: string) => {
     return "le web";
   }
 };
+
+// Réglages de l'agent e-mail : rédaction automatique, validation ou envoi
+// direct, nombre d'e-mails par jour, adresses d'expédition et de réponse.
+function AgentEmail({
+  reglages: r,
+  enregistrer,
+}: {
+  reglages: ReglagesProspection;
+  enregistrer: (v: Partial<ReglagesProspection>) => Promise<void>;
+}) {
+  const adresse = (v: string) => v.trim().toLowerCase() || null;
+  return (
+    <Carte className="mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-2 font-medium">
+          <Mail className="size-4" aria-hidden />
+          Agent e-mail
+        </p>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={r.email_auto}
+            disabled={!r.email_expediteur}
+            onChange={(e) => void enregistrer({ email_auto: e.target.checked })}
+          />
+          {r.email_auto ? "Activé" : "Désactivé"}
+        </label>
+      </div>
+      <p className="mt-1 text-xs text-doux">
+        En semaine de 8 h à 18 h, l'agent écrit aux nouveaux prospects qui ont
+        une adresse e-mail, puis relance une fois sans réponse. Chaque e-mail
+        contient un lien de désinscription en 1 clic ; un prospect désinscrit ou
+        qui signale un spam n'est plus jamais contacté.
+      </p>
+      <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+        <label className="grid gap-1">
+          Adresse d'expédition
+          <input
+            type="email"
+            className={champ}
+            placeholder="prospection@btp-ecosystem.com"
+            defaultValue={r.email_expediteur ?? ""}
+            key={`exp-${r.email_expediteur}`}
+            onBlur={(e) => {
+              const v = adresse(e.target.value);
+              if (v !== r.email_expediteur)
+                void enregistrer({ email_expediteur: v });
+            }}
+          />
+        </label>
+        <label className="grid gap-1">
+          Les réponses arrivent sur
+          <input
+            type="email"
+            className={champ}
+            placeholder="votre adresse habituelle"
+            defaultValue={r.email_reponse ?? ""}
+            key={`rep-${r.email_reponse}`}
+            onBlur={(e) => {
+              const v = adresse(e.target.value);
+              if (v !== r.email_reponse) void enregistrer({ email_reponse: v });
+            }}
+          />
+        </label>
+        <label className="flex items-center gap-2">
+          E-mails par jour
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={100}
+            className={`${champ} w-20`}
+            defaultValue={r.email_par_jour}
+            key={`jour-${r.email_par_jour}`}
+            onBlur={(e) => {
+              const v = borner(e.target.value, 1, 100, r.email_par_jour);
+              if (v !== r.email_par_jour)
+                void enregistrer({ email_par_jour: v });
+            }}
+          />
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={r.email_validation}
+            onChange={(e) =>
+              void enregistrer({ email_validation: e.target.checked })
+            }
+          />
+          Je relis chaque e-mail avant l'envoi
+        </label>
+      </div>
+      <p className="mt-2 text-xs text-doux">
+        Conseil : commencez à 10 par jour avec la relecture, puis montez
+        progressivement (20, puis 30) pour ne pas tomber dans les indésirables.
+      </p>
+    </Carte>
+  );
+}
 
 export const Route = createFileRoute("/prospection")({
   component: Prospection,
@@ -84,6 +187,11 @@ const FILTRES: { id: Filtre; libelle: string }[] = [
 type ReglagesProspection = {
   limite_contacts_jour: number;
   relance_apres_jours: number;
+  email_auto: boolean;
+  email_validation: boolean;
+  email_par_jour: number;
+  email_expediteur: string | null;
+  email_reponse: string | null;
 };
 
 const erreurLisible = (m: string) => messageErreurProspect(m) ?? m;
@@ -104,7 +212,9 @@ function Prospection() {
     () =>
       supabase()
         .from("reglages_agent")
-        .select("limite_contacts_jour, relance_apres_jours")
+        .select(
+          "limite_contacts_jour, relance_apres_jours, email_auto, email_validation, email_par_jour, email_expediteur, email_reponse",
+        )
         .maybeSingle(),
     [userId],
   );
@@ -156,7 +266,7 @@ function Prospection() {
 
   return (
     <>
-      <Titre sous="Trouvez des entreprises, laissez l'IA préparer un message sur mesure, envoyez-le vous-même. L'agent n'envoie jamais rien à votre place.">
+      <Titre sous="Trouvez des entreprises, laissez l'IA préparer un message sur mesure. Les e-mails peuvent partir seuls (agent e-mail) ; SMS et WhatsApp, c'est vous qui envoyez.">
         Prospection
       </Titre>
 
@@ -216,6 +326,13 @@ function Prospection() {
         </p>
         <Erreur message={erreur ?? reglages.erreur} />
       </Carte>
+
+      {reglages.data && (
+        <AgentEmail
+          reglages={reglages.data}
+          enregistrer={enregistrerReglages}
+        />
+      )}
 
       <nav
         className="mb-3 flex flex-wrap gap-2"
@@ -376,7 +493,7 @@ function ProspectCarte({
 }) {
   const [texte, setTexte] = useState(p.brouillon?.texte ?? "");
   const [objet, setObjet] = useState(p.brouillon?.objet ?? "");
-  const [etat, setEtat] = useState<"libre" | Canal | "maj">("libre");
+  const [etat, setEtat] = useState<"libre" | Canal | "maj" | "envoi">("libre");
   const [erreur, setErreur] = useState<string | null>(null);
   const [statutOuvert, setStatutOuvert] = useState(false);
 
@@ -423,6 +540,23 @@ function ProspectCarte({
       p_brouillon: { ...p.brouillon, objet, texte },
     });
     setErreur(error ? erreurLisible(error.message) : null);
+  }
+
+  // Envoi direct de l'e-mail (Resend), après avoir gardé les retouches.
+  async function envoyer() {
+    setEtat("envoi");
+    setErreur(null);
+    try {
+      await sauverBrouillon();
+      const r = await envoyerEmail({
+        data: { prospectId: p.id, jeton: await jetonSession() },
+      });
+      if (!r.ok) setErreur(r.erreur);
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Erreur");
+    }
+    setEtat("libre");
+    await onChange();
   }
 
   async function marquer(nouveau: string) {
@@ -581,6 +715,20 @@ function ProspectCarte({
             onBlur={sauverBrouillon}
           />
           <div className="flex flex-wrap gap-2">
+            {brouillon.canal === "email" && p.email && (
+              <button
+                className={`${bouton} inline-flex items-center gap-1.5`}
+                disabled={occupe || sansAccord}
+                onClick={envoyer}
+              >
+                {etat === "envoi" ? (
+                  <LoaderCircle className="size-4 animate-spin" aria-hidden />
+                ) : (
+                  <Send className="size-4" aria-hidden />
+                )}
+                Envoyer l'e-mail
+              </button>
+            )}
             {liens
               .filter((l) => l.type !== "telephone")
               .map((l) => {

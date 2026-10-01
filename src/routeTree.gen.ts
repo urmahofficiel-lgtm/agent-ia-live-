@@ -23,7 +23,9 @@ import { Route as StatistiquesRouteImport } from './routes/statistiques'
 import { Route as StrategieRouteImport } from './routes/strategie'
 import { Route as SuppressionDonneesRouteImport } from './routes/suppression-donnees'
 import { Route as TachesRouteImport } from './routes/taches'
+import { Route as DesinscriptionJetonRouteImport } from './routes/desinscription/$jeton'
 import { Route as ApiAgentCoordonneesRouteImport } from './routes/api/agent/coordonnees'
+import { Route as ApiAgentEmailsRouteImport } from './routes/api/agent/emails'
 import { Route as ApiAgentStatsRouteImport } from './routes/api/agent/stats'
 import { Route as ApiAgentTickRouteImport } from './routes/api/agent/tick'
 import { Route as ApiAnimationsWebhookRouteImport } from './routes/api/animations/webhook'
@@ -32,6 +34,7 @@ import { Route as ApiInstagramRetourRouteImport } from './routes/api/instagram/r
 import { Route as ApiLinkedinRetourRouteImport } from './routes/api/linkedin/retour'
 import { Route as ApiMcpCleRouteImport } from './routes/api/mcp/$cle'
 import { Route as ApiMetaRetourRouteImport } from './routes/api/meta/retour'
+import { Route as ApiResendWebhookRouteImport } from './routes/api/resend/webhook'
 import { Route as ApiVisuelsIdRouteImport } from './routes/api/visuels/$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -104,9 +107,19 @@ const TachesRoute = TachesRouteImport.update({
   path: '/taches',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DesinscriptionJetonRoute = DesinscriptionJetonRouteImport.update({
+  id: '/desinscription/$jeton',
+  path: '/desinscription/$jeton',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentCoordonneesRoute = ApiAgentCoordonneesRouteImport.update({
   id: '/api/agent/coordonnees',
   path: '/api/agent/coordonnees',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentEmailsRoute = ApiAgentEmailsRouteImport.update({
+  id: '/api/agent/emails',
+  path: '/api/agent/emails',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAgentStatsRoute = ApiAgentStatsRouteImport.update({
@@ -149,6 +162,11 @@ const ApiMetaRetourRoute = ApiMetaRetourRouteImport.update({
   path: '/api/meta/retour',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiResendWebhookRoute = ApiResendWebhookRouteImport.update({
+  id: '/api/resend/webhook',
+  path: '/api/resend/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVisuelsIdRoute = ApiVisuelsIdRouteImport.update({
   id: '/api/visuels/$id',
   path: '/api/visuels/$id',
@@ -170,7 +188,9 @@ export interface FileRoutesByFullPath {
   '/strategie': typeof StrategieRoute
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
+  '/desinscription/$jeton': typeof DesinscriptionJetonRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
+  '/api/agent/emails': typeof ApiAgentEmailsRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/animations/webhook': typeof ApiAnimationsWebhookRoute
@@ -179,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/api/linkedin/retour': typeof ApiLinkedinRetourRoute
   '/api/mcp/$cle': typeof ApiMcpCleRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
+  '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
 export interface FileRoutesByTo {
@@ -196,7 +217,9 @@ export interface FileRoutesByTo {
   '/strategie': typeof StrategieRoute
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
+  '/desinscription/$jeton': typeof DesinscriptionJetonRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
+  '/api/agent/emails': typeof ApiAgentEmailsRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/animations/webhook': typeof ApiAnimationsWebhookRoute
@@ -205,6 +228,7 @@ export interface FileRoutesByTo {
   '/api/linkedin/retour': typeof ApiLinkedinRetourRoute
   '/api/mcp/$cle': typeof ApiMcpCleRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
+  '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
 export interface FileRoutesById {
@@ -223,7 +247,9 @@ export interface FileRoutesById {
   '/strategie': typeof StrategieRoute
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
+  '/desinscription/$jeton': typeof DesinscriptionJetonRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
+  '/api/agent/emails': typeof ApiAgentEmailsRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/animations/webhook': typeof ApiAnimationsWebhookRoute
@@ -232,6 +258,7 @@ export interface FileRoutesById {
   '/api/linkedin/retour': typeof ApiLinkedinRetourRoute
   '/api/mcp/$cle': typeof ApiMcpCleRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
+  '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
 export interface FileRouteTypes {
@@ -251,7 +278,9 @@ export interface FileRouteTypes {
     | '/strategie'
     | '/suppression-donnees'
     | '/taches'
+    | '/desinscription/$jeton'
     | '/api/agent/coordonnees'
+    | '/api/agent/emails'
     | '/api/agent/stats'
     | '/api/agent/tick'
     | '/api/animations/webhook'
@@ -260,6 +289,7 @@ export interface FileRouteTypes {
     | '/api/linkedin/retour'
     | '/api/mcp/$cle'
     | '/api/meta/retour'
+    | '/api/resend/webhook'
     | '/api/visuels/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -277,7 +307,9 @@ export interface FileRouteTypes {
     | '/strategie'
     | '/suppression-donnees'
     | '/taches'
+    | '/desinscription/$jeton'
     | '/api/agent/coordonnees'
+    | '/api/agent/emails'
     | '/api/agent/stats'
     | '/api/agent/tick'
     | '/api/animations/webhook'
@@ -286,6 +318,7 @@ export interface FileRouteTypes {
     | '/api/linkedin/retour'
     | '/api/mcp/$cle'
     | '/api/meta/retour'
+    | '/api/resend/webhook'
     | '/api/visuels/$id'
   id:
     | '__root__'
@@ -303,7 +336,9 @@ export interface FileRouteTypes {
     | '/strategie'
     | '/suppression-donnees'
     | '/taches'
+    | '/desinscription/$jeton'
     | '/api/agent/coordonnees'
+    | '/api/agent/emails'
     | '/api/agent/stats'
     | '/api/agent/tick'
     | '/api/animations/webhook'
@@ -312,6 +347,7 @@ export interface FileRouteTypes {
     | '/api/linkedin/retour'
     | '/api/mcp/$cle'
     | '/api/meta/retour'
+    | '/api/resend/webhook'
     | '/api/visuels/$id'
   fileRoutesById: FileRoutesById
 }
@@ -330,7 +366,9 @@ export interface RootRouteChildren {
   StrategieRoute: typeof StrategieRoute
   SuppressionDonneesRoute: typeof SuppressionDonneesRoute
   TachesRoute: typeof TachesRoute
+  DesinscriptionJetonRoute: typeof DesinscriptionJetonRoute
   ApiAgentCoordonneesRoute: typeof ApiAgentCoordonneesRoute
+  ApiAgentEmailsRoute: typeof ApiAgentEmailsRoute
   ApiAgentStatsRoute: typeof ApiAgentStatsRoute
   ApiAgentTickRoute: typeof ApiAgentTickRoute
   ApiAnimationsWebhookRoute: typeof ApiAnimationsWebhookRoute
@@ -339,6 +377,7 @@ export interface RootRouteChildren {
   ApiLinkedinRetourRoute: typeof ApiLinkedinRetourRoute
   ApiMcpCleRoute: typeof ApiMcpCleRoute
   ApiMetaRetourRoute: typeof ApiMetaRetourRoute
+  ApiResendWebhookRoute: typeof ApiResendWebhookRoute
   ApiVisuelsIdRoute: typeof ApiVisuelsIdRoute
 }
 
@@ -442,11 +481,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TachesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/desinscription/$jeton': {
+      id: '/desinscription/$jeton'
+      path: '/desinscription/$jeton'
+      fullPath: '/desinscription/$jeton'
+      preLoaderRoute: typeof DesinscriptionJetonRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/coordonnees': {
       id: '/api/agent/coordonnees'
       path: '/api/agent/coordonnees'
       fullPath: '/api/agent/coordonnees'
       preLoaderRoute: typeof ApiAgentCoordonneesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agent/emails': {
+      id: '/api/agent/emails'
+      path: '/api/agent/emails'
+      fullPath: '/api/agent/emails'
+      preLoaderRoute: typeof ApiAgentEmailsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/agent/stats': {
@@ -505,6 +558,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMetaRetourRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/resend/webhook': {
+      id: '/api/resend/webhook'
+      path: '/api/resend/webhook'
+      fullPath: '/api/resend/webhook'
+      preLoaderRoute: typeof ApiResendWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/visuels/$id': {
       id: '/api/visuels/$id'
       path: '/api/visuels/$id'
@@ -530,7 +590,9 @@ const rootRouteChildren: RootRouteChildren = {
   StrategieRoute: StrategieRoute,
   SuppressionDonneesRoute: SuppressionDonneesRoute,
   TachesRoute: TachesRoute,
+  DesinscriptionJetonRoute: DesinscriptionJetonRoute,
   ApiAgentCoordonneesRoute: ApiAgentCoordonneesRoute,
+  ApiAgentEmailsRoute: ApiAgentEmailsRoute,
   ApiAgentStatsRoute: ApiAgentStatsRoute,
   ApiAgentTickRoute: ApiAgentTickRoute,
   ApiAnimationsWebhookRoute: ApiAnimationsWebhookRoute,
@@ -539,6 +601,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiLinkedinRetourRoute: ApiLinkedinRetourRoute,
   ApiMcpCleRoute: ApiMcpCleRoute,
   ApiMetaRetourRoute: ApiMetaRetourRoute,
+  ApiResendWebhookRoute: ApiResendWebhookRoute,
   ApiVisuelsIdRoute: ApiVisuelsIdRoute,
 }
 export const routeTree = rootRouteImport

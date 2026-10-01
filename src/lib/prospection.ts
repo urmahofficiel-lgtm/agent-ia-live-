@@ -216,6 +216,10 @@ export function messageErreurProspect(brut: string): string | null {
     return "Particulier sans accord préalable : démarchage interdit (RGPD).";
   if (/deja client ou a refuse/.test(brut))
     return "Ce prospect est déjà client ou a refusé : pas de message à rédiger.";
+  if (/adresse e-mail invalide/.test(brut))
+    return "Adresse e-mail invalide ou en erreur : envoi impossible.";
+  if (/expedition non configuree/.test(brut))
+    return "Choisissez d'abord l'adresse d'expédition (Prospection → Agent e-mail).";
   if (/prospect introuvable/.test(brut))
     return "Prospect introuvable : vérifiez l'identifiant.";
   return null;
