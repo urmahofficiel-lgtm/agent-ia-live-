@@ -21,26 +21,42 @@ import {
 } from "./prospection";
 
 // OpenStreetMap (Overpass) : souvent téléphone, e-mail et site.
+// Serveurs Overpass publics : le principal est souvent saturé, on essaie les
+// miroirs ensuite.
+const OVERPASS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+];
+
 async function chercherOsm(
   categorie: string,
   ville: string,
   max: number,
 ): Promise<ProspectTrouve[]> {
-  const r = await fetch("https://overpass-api.de/api/interpreter", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "User-Agent": "agent-ia-live/0.1 (prospection)",
-      Accept: "application/json",
-    },
-    body: new URLSearchParams({ data: requeteOverpass(categorie, ville, max) }),
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!r.ok)
-    throw new Error(
-      `Service de recherche indisponible (${r.status}). Réessayez.`,
-    );
-  return lireReponseOverpass(await r.text());
+  let derniere = "Service de recherche indisponible. Réessayez.";
+  for (const url of OVERPASS) {
+    try {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent": "agent-ia-live/0.1 (prospection)",
+          Accept: "application/json",
+        },
+        body: new URLSearchParams({
+          data: requeteOverpass(categorie, ville, max),
+        }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (r.ok) return lireReponseOverpass(await r.text());
+      derniere = `Service de recherche indisponible (${r.status}). Réessayez.`;
+    } catch (e) {
+      derniere = e instanceof Error ? e.message : derniere;
+    }
+    console.warn("OpenStreetMap", url, derniere);
+  }
+  throw new Error(derniere);
 }
 
 // Annuaire officiel des entreprises : codes postaux de la commune (API Géo),
