@@ -146,6 +146,7 @@ export async function traiterEmails(secret: string, echeance: number) {
       const brouillon = await redigerMessageProspect(
         infos as ProspectARediger,
         "email",
+        Math.min(150_000, echeance - Date.now()),
       );
       const { error: e2 } = await sb.rpc(
         "agent_enregistrer_brouillon_prospect",

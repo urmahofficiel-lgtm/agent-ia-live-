@@ -101,13 +101,16 @@ export async function chercherEntreprises(
 export async function redigerMessageProspect(
   p: ProspectARediger,
   prefere?: Canal,
+  // Bouton de la page : réponse rapide. Moteur (agent e-mail) : plus de
+  // patience quand les IA gratuites sont lentes.
+  delaiTotal = 50_000,
 ): Promise<BrouillonProspect> {
   const canal = choisirCanal(p, prefere);
   const reponse = await demanderIA(consigneMessage(p, canal), {
     systeme:
       "Tu rédiges des messages de prospection B2B honnêtes et concis. Tu réponds uniquement en JSON valide.",
     maxTokens: 600,
-    delaiTotal: 50_000,
+    delaiTotal,
   });
   return lireMessage(reponse, canal, p.genre);
 }
