@@ -21,6 +21,7 @@ import { Route as ParametresRouteImport } from './routes/parametres'
 import { Route as ProspectionRouteImport } from './routes/prospection'
 import { Route as StatistiquesRouteImport } from './routes/statistiques'
 import { Route as StrategieRouteImport } from './routes/strategie'
+import { Route as StudioVideoRouteImport } from './routes/studio-video'
 import { Route as SuppressionDonneesRouteImport } from './routes/suppression-donnees'
 import { Route as TachesRouteImport } from './routes/taches'
 import { Route as DesinscriptionJetonRouteImport } from './routes/desinscription/$jeton'
@@ -96,6 +97,11 @@ const StatistiquesRoute = StatistiquesRouteImport.update({
 const StrategieRoute = StrategieRouteImport.update({
   id: '/strategie',
   path: '/strategie',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudioVideoRoute = StudioVideoRouteImport.update({
+  id: '/studio-video',
+  path: '/studio-video',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SuppressionDonneesRoute = SuppressionDonneesRouteImport.update({
@@ -192,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/prospection': typeof ProspectionRoute
   '/statistiques': typeof StatistiquesRoute
   '/strategie': typeof StrategieRoute
+  '/studio-video': typeof StudioVideoRoute
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
   '/desinscription/$jeton': typeof DesinscriptionJetonRoute
@@ -222,6 +229,7 @@ export interface FileRoutesByTo {
   '/prospection': typeof ProspectionRoute
   '/statistiques': typeof StatistiquesRoute
   '/strategie': typeof StrategieRoute
+  '/studio-video': typeof StudioVideoRoute
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
   '/desinscription/$jeton': typeof DesinscriptionJetonRoute
@@ -253,6 +261,7 @@ export interface FileRoutesById {
   '/prospection': typeof ProspectionRoute
   '/statistiques': typeof StatistiquesRoute
   '/strategie': typeof StrategieRoute
+  '/studio-video': typeof StudioVideoRoute
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
   '/desinscription/$jeton': typeof DesinscriptionJetonRoute
@@ -285,6 +294,7 @@ export interface FileRouteTypes {
     | '/prospection'
     | '/statistiques'
     | '/strategie'
+    | '/studio-video'
     | '/suppression-donnees'
     | '/taches'
     | '/desinscription/$jeton'
@@ -315,6 +325,7 @@ export interface FileRouteTypes {
     | '/prospection'
     | '/statistiques'
     | '/strategie'
+    | '/studio-video'
     | '/suppression-donnees'
     | '/taches'
     | '/desinscription/$jeton'
@@ -345,6 +356,7 @@ export interface FileRouteTypes {
     | '/prospection'
     | '/statistiques'
     | '/strategie'
+    | '/studio-video'
     | '/suppression-donnees'
     | '/taches'
     | '/desinscription/$jeton'
@@ -376,6 +388,7 @@ export interface RootRouteChildren {
   ProspectionRoute: typeof ProspectionRoute
   StatistiquesRoute: typeof StatistiquesRoute
   StrategieRoute: typeof StrategieRoute
+  StudioVideoRoute: typeof StudioVideoRoute
   SuppressionDonneesRoute: typeof SuppressionDonneesRoute
   TachesRoute: typeof TachesRoute
   DesinscriptionJetonRoute: typeof DesinscriptionJetonRoute
@@ -478,6 +491,13 @@ declare module '@tanstack/react-router' {
       path: '/strategie'
       fullPath: '/strategie'
       preLoaderRoute: typeof StrategieRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/studio-video': {
+      id: '/studio-video'
+      path: '/studio-video'
+      fullPath: '/studio-video'
+      preLoaderRoute: typeof StudioVideoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/suppression-donnees': {
@@ -608,6 +628,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProspectionRoute: ProspectionRoute,
   StatistiquesRoute: StatistiquesRoute,
   StrategieRoute: StrategieRoute,
+  StudioVideoRoute: StudioVideoRoute,
   SuppressionDonneesRoute: SuppressionDonneesRoute,
   TachesRoute: TachesRoute,
   DesinscriptionJetonRoute: DesinscriptionJetonRoute,

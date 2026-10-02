@@ -16,11 +16,19 @@ export const cheminFfmpeg = () => ffmpeg as unknown as string;
 
 function executer(args: string[], dossier: string) {
   return new Promise<void>((resolve, reject) => {
-    const p = spawn(cheminFfmpeg(), ["-hide_banner", "-loglevel", "error", "-y", ...args], { cwd: dossier });
+    const p = spawn(
+      cheminFfmpeg(),
+      ["-hide_banner", "-loglevel", "error", "-y", ...args],
+      { cwd: dossier },
+    );
     let erreurs = "";
     p.stderr.on("data", (d) => (erreurs += d.toString()));
     p.on("error", reject);
-    p.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg ${code} : ${erreurs.slice(-500)}`))));
+    p.on("close", (code) =>
+      code === 0
+        ? resolve()
+        : reject(new Error(`ffmpeg ${code} : ${erreurs.slice(-500)}`)),
+    );
   });
 }
 
@@ -29,7 +37,11 @@ function executer(args: string[], dossier: string) {
 export function extensionImage(image?: Buffer) {
   if (!image || image.length < 12) return "jpg";
   if (image.readUInt32BE(0) === 0x89504e47) return "png";
-  if (image.toString("ascii", 0, 4) === "RIFF" && image.toString("ascii", 8, 12) === "WEBP") return "webp";
+  if (
+    image.toString("ascii", 0, 4) === "RIFF" &&
+    image.toString("ascii", 8, 12) === "WEBP"
+  )
+    return "webp";
   return "jpg";
 }
 
@@ -48,7 +60,14 @@ export async function dossierPolices() {
 // `cadre` : image montrée en entier (capture du produit, logo) sur un fond
 // flouté tiré d'elle-même, au lieu d'être recadrée plein écran.
 // `voix` : texte parlé (sous-titres mot à mot) ; `repere` : numéro, AVANT…
-export type SceneMontage = { image?: Buffer; clip?: Buffer; cadre?: boolean; texte_ecran: string; voix?: string; repere?: string };
+export type SceneMontage = {
+  image?: Buffer;
+  clip?: Buffer;
+  cadre?: boolean;
+  texte_ecran: string;
+  voix?: string;
+  repere?: string;
+};
 
 // Réglages du montage selon le style ; `accent` : couleur de la marque.
 export type OptionsMontage = { style?: StyleVideo; accent?: string };
@@ -74,21 +93,39 @@ export async function monterVideo(
       scenes.map((s, i) =>
         s.clip
           ? writeFile(path.join(dossier, `s${i}.mp4`), s.clip)
-          : writeFile(path.join(dossier, `s${i}.${extensionImage(s.image)}`), s.image ?? Buffer.alloc(0)),
+          : writeFile(
+              path.join(dossier, `s${i}.${extensionImage(s.image)}`),
+              s.image ?? Buffer.alloc(0),
+            ),
       ),
     );
-    await writeFile(path.join(dossier, "textes.ass"), sousTitresStyle(style, scenes, d, LARGEUR, HAUTEUR, accent));
+    await writeFile(
+      path.join(dossier, "textes.ass"),
+      sousTitresStyle(style, scenes, d, LARGEUR, HAUTEUR, accent),
+    );
     // Avant / après : la dernière scène « AVANT » dure un peu plus, le temps
     // du balayage vers la scène « APRÈS » (la frise totale ne change pas).
-    const bascule = style === "avant_apres" ? indexTransition(scenes.map((s) => s.repere ?? "")) : -1;
-    const rendu = d.map((x, i) => (i === bascule - 1 ? Math.round((x + TRANSITION) * 100) / 100 : x));
+    const bascule =
+      style === "avant_apres"
+        ? indexTransition(scenes.map((s) => s.repere ?? ""))
+        : -1;
+    const rendu = d.map((x, i) =>
+      i === bascule - 1 ? Math.round((x + TRANSITION) * 100) / 100 : x,
+    );
 
     const entrees: string[] = [];
     const filtres: string[] = [];
     scenes.forEach((s, i) => {
       if (s.clip) {
         // Séquence réelle : recadrée en vertical, bouclée si trop courte.
-        entrees.push("-stream_loop", "-1", "-t", String(rendu[i]), "-i", `s${i}.mp4`);
+        entrees.push(
+          "-stream_loop",
+          "-1",
+          "-t",
+          String(rendu[i]),
+          "-i",
+          `s${i}.mp4`,
+        );
         filtres.push(
           `[${i}:v]scale=${LARGEUR}:${HAUTEUR}:force_original_aspect_ratio=increase,crop=${LARGEUR}:${HAUTEUR},` +
             `fps=${IMAGES_PAR_SECONDE},trim=duration=${rendu[i]},setpts=PTS-STARTPTS,setsar=1[v${i}]`,
@@ -96,7 +133,14 @@ export async function monterVideo(
         return;
       }
       if (s.cadre) {
-        entrees.push("-loop", "1", "-t", String(rendu[i]), "-i", `s${i}.${extensionImage(s.image)}`);
+        entrees.push(
+          "-loop",
+          "1",
+          "-t",
+          String(rendu[i]),
+          "-i",
+          `s${i}.${extensionImage(s.image)}`,
+        );
         // Fond : l'image elle-même, agrandie, floutée et assombrie. Devant :
         // l'image entière, qui remonte lentement pour donner du mouvement.
         filtres.push(
@@ -113,7 +157,10 @@ export async function monterVideo(
       entrees.push("-i", `s${i}.${extensionImage(s.image)}`);
       const images = Math.ceil(rendu[i] * IMAGES_PAR_SECONDE);
       // Zoom avant ou arrière en alternance, pour du mouvement.
-      const zoom = i % 2 === 0 ? "min(1+0.12*on/" + images + ",1.12)" : "max(1.12-0.12*on/" + images + ",1)";
+      const zoom =
+        i % 2 === 0
+          ? "min(1+0.12*on/" + images + ",1.12)"
+          : "max(1.12-0.12*on/" + images + ",1)";
       filtres.push(
         `[${i}:v]scale=${LARGEUR * 2}:${HAUTEUR * 2}:force_original_aspect_ratio=increase,crop=${LARGEUR * 2}:${HAUTEUR * 2},` +
           `zoompan=z='${zoom}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${images}:s=${LARGEUR}x${HAUTEUR}:fps=${IMAGES_PAR_SECONDE},trim=duration=${rendu[i]},setpts=PTS-STARTPTS,setsar=1[v${i}]`,
@@ -122,7 +169,9 @@ export async function monterVideo(
     // Teinte selon le style : l'« avant » est terne, l'« après » éclatant.
     const segments = scenes.map((s, i) => {
       if (style !== "avant_apres" || !s.repere) return `[v${i}]`;
-      filtres.push(`[v${i}]eq=${s.repere === "AVANT" ? "saturation=0.35:contrast=0.92:brightness=-0.04" : "saturation=1.25:contrast=1.06"}[t${i}]`);
+      filtres.push(
+        `[v${i}]eq=${s.repere === "AVANT" ? "saturation=0.35:contrast=0.92:brightness=-0.04" : "saturation=1.25:contrast=1.06"}[t${i}]`,
+      );
       return `[t${i}]`;
     });
     if (style === "ugc") {
@@ -131,10 +180,14 @@ export async function monterVideo(
       const plans: string[] = [];
       segments.forEach((seg, i) => {
         const coupes = coupesSaccadees(rendu[i]);
-        filtres.push(`${seg}split=${coupes.length}${coupes.map((_, k) => `[p${i}_${k}]`).join("")}`);
+        filtres.push(
+          `${seg}split=${coupes.length}${coupes.map((_, k) => `[p${i}_${k}]`).join("")}`,
+        );
         coupes.forEach(([a, b], k) => {
           const z = [1, 1.16, 1.07, 1.22][(i + k) % 4];
-          const x = ["(iw-ow)/2", "(iw-ow)*0.3", "(iw-ow)*0.7", "(iw-ow)/2"][(i + 2 * k) % 4];
+          const x = ["(iw-ow)/2", "(iw-ow)*0.3", "(iw-ow)*0.7", "(iw-ow)/2"][
+            (i + 2 * k) % 4
+          ];
           filtres.push(
             `[p${i}_${k}]trim=start=${a}:end=${b},setpts=PTS-STARTPTS,crop=iw/${z}:ih/${z}:${x}:(ih-oh)/2,scale=${LARGEUR}:${HAUTEUR},setsar=1[c${i}_${k}]`,
           );
@@ -150,11 +203,19 @@ export async function monterVideo(
       const avant = segments.slice(0, bascule);
       const apres = segments.slice(bascule);
       const debutBascule = d.slice(0, bascule).reduce((a, b) => a + b, 0);
-      filtres.push(`${avant.join("")}concat=n=${avant.length}:v=1:a=0,fps=${IMAGES_PAR_SECONDE},format=yuv420p[avant]`);
-      filtres.push(`${apres.join("")}concat=n=${apres.length}:v=1:a=0,fps=${IMAGES_PAR_SECONDE},format=yuv420p[apres]`);
-      filtres.push(`[avant][apres]xfade=transition=wiperight:duration=${TRANSITION}:offset=${debutBascule.toFixed(2)}[brut]`);
+      filtres.push(
+        `${avant.join("")}concat=n=${avant.length}:v=1:a=0,fps=${IMAGES_PAR_SECONDE},format=yuv420p[avant]`,
+      );
+      filtres.push(
+        `${apres.join("")}concat=n=${apres.length}:v=1:a=0,fps=${IMAGES_PAR_SECONDE},format=yuv420p[apres]`,
+      );
+      filtres.push(
+        `[avant][apres]xfade=transition=wiperight:duration=${TRANSITION}:offset=${debutBascule.toFixed(2)}[brut]`,
+      );
     } else {
-      filtres.push(`${segments.join("")}concat=n=${scenes.length}:v=1:a=0[brut]`);
+      filtres.push(
+        `${segments.join("")}concat=n=${scenes.length}:v=1:a=0[brut]`,
+      );
     }
     filtres.push(`[brut]subtitles=textes.ass:fontsdir=${polices}[video]`);
 
@@ -162,19 +223,87 @@ export async function monterVideo(
     const duree = d.reduce((a, b) => a + b, 0);
     if (voix) {
       await writeFile(path.join(dossier, `voix.${voix.format}`), voix.donnees);
-      if (voix.format === "pcm") args.push("-f", "s16le", "-ar", "24000", "-ac", "1");
+      if (voix.format === "pcm")
+        args.push("-f", "s16le", "-ar", "24000", "-ac", "1");
       args.push("-i", `voix.${voix.format}`);
     }
     args.push("-filter_complex", filtres.join(";"), "-map", "[video]");
-    if (voix) args.push("-map", `${scenes.length}:a`, "-c:a", "aac", "-b:a", "128k", "-af", "apad");
+    if (voix)
+      args.push(
+        "-map",
+        `${scenes.length}:a`,
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-af",
+        "apad",
+      );
     args.push(
-      "-t", duree.toFixed(2),
-      "-c:v", "libx264", "-preset", "veryfast", "-crf", "24", "-pix_fmt", "yuv420p",
-      "-r", String(IMAGES_PAR_SECONDE), "-movflags", "+faststart",
+      "-t",
+      duree.toFixed(2),
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-crf",
+      "24",
+      "-pix_fmt",
+      "yuv420p",
+      "-r",
+      String(IMAGES_PAR_SECONDE),
+      "-movflags",
+      "+faststart",
       "sortie.mp4",
     );
     await executer(args, dossier);
     return await readFile(path.join(dossier, "sortie.mp4"));
+  } finally {
+    await rm(dossier, { recursive: true, force: true });
+  }
+}
+
+// Recolle des morceaux de vidéo (Studio vidéo IA : génération + prolongations)
+// en un seul MP4, ré-encodé pour supporter des réglages différents.
+export async function recollerVideos(morceaux: Uint8Array[]): Promise<Buffer> {
+  const dossier = await mkdtemp(path.join(tmpdir(), "recoller-"));
+  try {
+    const noms = await Promise.all(
+      morceaux.map(async (m, i) => {
+        const nom = `m${i}.mp4`;
+        await writeFile(path.join(dossier, nom), m);
+        return nom;
+      }),
+    );
+    await writeFile(
+      path.join(dossier, "liste.txt"),
+      noms.map((n) => `file '${n}'`).join("\n"),
+    );
+    await executer(
+      [
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        "liste.txt",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "20",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-movflags",
+        "+faststart",
+        "final.mp4",
+      ],
+      dossier,
+    );
+    return await readFile(path.join(dossier, "final.mp4"));
   } finally {
     await rm(dossier, { recursive: true, force: true });
   }
