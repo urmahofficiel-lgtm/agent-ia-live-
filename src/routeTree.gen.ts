@@ -37,6 +37,7 @@ import { Route as ApiMcpCleRouteImport } from './routes/api/mcp/$cle'
 import { Route as ApiMetaReglagesRouteImport } from './routes/api/meta/reglages'
 import { Route as ApiMetaRetourRouteImport } from './routes/api/meta/retour'
 import { Route as ApiResendWebhookRouteImport } from './routes/api/resend/webhook'
+import { Route as ApiStudioTestRouteImport } from './routes/api/studio/test'
 import { Route as ApiVisuelsIdRouteImport } from './routes/api/visuels/$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -179,6 +180,11 @@ const ApiResendWebhookRoute = ApiResendWebhookRouteImport.update({
   path: '/api/resend/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiStudioTestRoute = ApiStudioTestRouteImport.update({
+  id: '/api/studio/test',
+  path: '/api/studio/test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVisuelsIdRoute = ApiVisuelsIdRouteImport.update({
   id: '/api/visuels/$id',
   path: '/api/visuels/$id',
@@ -214,6 +220,7 @@ export interface FileRoutesByFullPath {
   '/api/meta/reglages': typeof ApiMetaReglagesRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
   '/api/resend/webhook': typeof ApiResendWebhookRoute
+  '/api/studio/test': typeof ApiStudioTestRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
 export interface FileRoutesByTo {
@@ -245,6 +252,7 @@ export interface FileRoutesByTo {
   '/api/meta/reglages': typeof ApiMetaReglagesRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
   '/api/resend/webhook': typeof ApiResendWebhookRoute
+  '/api/studio/test': typeof ApiStudioTestRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
 export interface FileRoutesById {
@@ -277,6 +285,7 @@ export interface FileRoutesById {
   '/api/meta/reglages': typeof ApiMetaReglagesRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
   '/api/resend/webhook': typeof ApiResendWebhookRoute
+  '/api/studio/test': typeof ApiStudioTestRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
 export interface FileRouteTypes {
@@ -310,6 +319,7 @@ export interface FileRouteTypes {
     | '/api/meta/reglages'
     | '/api/meta/retour'
     | '/api/resend/webhook'
+    | '/api/studio/test'
     | '/api/visuels/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -341,6 +351,7 @@ export interface FileRouteTypes {
     | '/api/meta/reglages'
     | '/api/meta/retour'
     | '/api/resend/webhook'
+    | '/api/studio/test'
     | '/api/visuels/$id'
   id:
     | '__root__'
@@ -372,6 +383,7 @@ export interface FileRouteTypes {
     | '/api/meta/reglages'
     | '/api/meta/retour'
     | '/api/resend/webhook'
+    | '/api/studio/test'
     | '/api/visuels/$id'
   fileRoutesById: FileRoutesById
 }
@@ -404,6 +416,7 @@ export interface RootRouteChildren {
   ApiMetaReglagesRoute: typeof ApiMetaReglagesRoute
   ApiMetaRetourRoute: typeof ApiMetaRetourRoute
   ApiResendWebhookRoute: typeof ApiResendWebhookRoute
+  ApiStudioTestRoute: typeof ApiStudioTestRoute
   ApiVisuelsIdRoute: typeof ApiVisuelsIdRoute
 }
 
@@ -605,6 +618,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiResendWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/studio/test': {
+      id: '/api/studio/test'
+      path: '/api/studio/test'
+      fullPath: '/api/studio/test'
+      preLoaderRoute: typeof ApiStudioTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/visuels/$id': {
       id: '/api/visuels/$id'
       path: '/api/visuels/$id'
@@ -644,6 +664,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMetaReglagesRoute: ApiMetaReglagesRoute,
   ApiMetaRetourRoute: ApiMetaRetourRoute,
   ApiResendWebhookRoute: ApiResendWebhookRoute,
+  ApiStudioTestRoute: ApiStudioTestRoute,
   ApiVisuelsIdRoute: ApiVisuelsIdRoute,
 }
 export const routeTree = rootRouteImport
