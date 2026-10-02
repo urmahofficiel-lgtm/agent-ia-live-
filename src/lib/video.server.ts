@@ -308,3 +308,28 @@ export async function recollerVideos(morceaux: Uint8Array[]): Promise<Buffer> {
     await rm(dossier, { recursive: true, force: true });
   }
 }
+
+// Dernière image d'une vidéo (JPEG) : point de départ du morceau suivant.
+export async function derniereImage(video: Uint8Array): Promise<Buffer> {
+  const dossier = await mkdtemp(path.join(tmpdir(), "derniere-"));
+  try {
+    await writeFile(path.join(dossier, "v.mp4"), video);
+    await executer(
+      [
+        "-sseof",
+        "-0.2",
+        "-i",
+        "v.mp4",
+        "-frames:v",
+        "1",
+        "-q:v",
+        "2",
+        "fin.jpg",
+      ],
+      dossier,
+    );
+    return await readFile(path.join(dossier, "fin.jpg"));
+  } finally {
+    await rm(dossier, { recursive: true, force: true });
+  }
+}

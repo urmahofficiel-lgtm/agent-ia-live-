@@ -2,36 +2,28 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
   DUREES,
-  QUALITES,
-  consigneSuite,
-  coutEstime,
-  decouper,
-  lireStatutXai,
-  progressionGlobale,
-  videoComplete,
-  type Qualite,
-  type Segment,
+  consigneMorceau,
+  dureeMorceau,
+  nombreMorceaux,
+  progression,
+  type Morceau,
 } from "./studio-video";
-import {
-  genererVideo,
-  prolongerVideo,
-  statutVideo,
-  xaiConfigure,
-} from "./xai.server";
-import { recollerVideos } from "./video.server";
+import { compteHF, hfConfigure, imageVersVideoHF } from "./hf.server";
+import { derniereImage, recollerVideos } from "./video.server";
 import { utilisateurDepuisJeton } from "./supabase-serveur";
 
-// Studio vidéo IA : la page lance la génération puis appelle « suivre »
-// toutes les quelques secondes ; chaque appel fait avancer d'une étape
-// (morceau suivant, prolongation, recollage, enregistrement).
+// Studio vidéo IA (gratuit, Hugging Face) : la page appelle « avancer » en
+// boucle ; chaque appel calcule UN morceau de 5 s (une fonction serveur dure
+// 5 min au plus), puis le dernier appel recolle la vidéo finale.
 
 type Resultat<T = object> = ({ ok: true } & T) | { ok: false; erreur: string };
 type Sb = Awaited<ReturnType<typeof utilisateurDepuisJeton>>["sb"];
 
 const texte = (e: unknown) =>
   e instanceof Error ? e.message : "Erreur inattendue.";
-const PAR_JOUR = 10; // garde-fou de coût
-const PERDUE_MS = 40 * 60_000;
+const PAR_JOUR = 10;
+const DELAI_MORCEAU_MS = 260_000;
+const VERROU_MS = 5 * 60_000;
 
 type VideoIA = {
   id: string;
@@ -40,10 +32,7 @@ type VideoIA = {
   image_chemin: string;
   prompt: string;
   duree: number;
-  format: string;
-  qualite: Qualite;
-  segments: Segment[];
-  created_at: string;
+  segments: Morceau[];
 };
 
 export const lancerVideoIA = createServerFn({ method: "POST" })
@@ -51,27 +40,19 @@ export const lancerVideoIA = createServerFn({ method: "POST" })
     z
       .object({
         image: z.string().min(3).max(300),
-        prompt: z.string().trim().min(3).max(4000),
-        duree: z.union(
-          DUREES.map((d) => z.literal(d)) as [
-            z.ZodLiteral<10>,
-            z.ZodLiteral<15>,
-            z.ZodLiteral<20>,
-            z.ZodLiteral<30>,
-          ],
-        ),
-        format: z.enum(["9:16", "16:9", "1:1"]),
-        qualite: z.enum(["standard", "premium"]),
+        prompt: z.string().trim().min(3).max(2000),
+        duree: z
+          .number()
+          .refine((d) => (DUREES as readonly number[]).includes(d)),
         jeton: z.string().min(10),
       })
       .parse(input),
   )
   .handler(async ({ data }): Promise<Resultat<{ id: string }>> => {
-    if (!xaiConfigure())
+    if (!hfConfigure())
       return {
         ok: false,
-        erreur:
-          "Studio vidéo pas encore activé : ajoutez la clé XAI_API_KEY dans Vercel.",
+        erreur: "Studio vidéo non activé : la clé HF_TOKEN manque dans Vercel.",
       };
     try {
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
@@ -87,15 +68,6 @@ export const lancerVideoIA = createServerFn({ method: "POST" })
           ok: false,
           erreur: `Limite de ${PAR_JOUR} vidéos par 24 h atteinte.`,
         };
-
-      const lien = await sb.storage
-        .from("animations")
-        .createSignedUrl(data.image, 7200);
-      if (!lien.data)
-        return {
-          ok: false,
-          erreur: "Image introuvable : importez-la à nouveau.",
-        };
       const { data: ligne, error } = await sb
         .from("videos_ia")
         .insert({
@@ -103,10 +75,8 @@ export const lancerVideoIA = createServerFn({ method: "POST" })
           image_chemin: data.image,
           prompt: data.prompt,
           duree: data.duree,
-          format: data.format,
-          qualite: data.qualite,
-          cout_estime: coutEstime(data.duree, data.qualite),
           statut: "en_cours",
+          segments: [],
         })
         .select("id")
         .single();
@@ -115,139 +85,134 @@ export const lancerVideoIA = createServerFn({ method: "POST" })
           ok: false,
           erreur: error?.message ?? "Enregistrement impossible.",
         };
-      try {
-        const premier = decouper(data.duree)[0];
-        const request_id = await genererVideo({
-          modele: QUALITES[data.qualite].modele,
-          prompt: data.prompt,
-          imageUrl: lien.data.signedUrl,
-          duree: premier,
-          format: data.format,
-        });
-        const segments: Segment[] = [
-          {
-            request_id,
-            duree: premier,
-            genre: "generation",
-            statut: "en_cours",
-          },
-        ];
-        await sb.from("videos_ia").update({ segments }).eq("id", ligne.id);
-      } catch (e) {
-        await sb
-          .from("videos_ia")
-          .update({ statut: "echouee", erreur: texte(e) })
-          .eq("id", ligne.id);
-        return { ok: false, erreur: texte(e) };
-      }
       return { ok: true, id: ligne.id };
     } catch (e) {
       return { ok: false, erreur: texte(e) };
     }
   });
 
-async function telecharger(url: string) {
-  const r = await fetch(url, { signal: AbortSignal.timeout(90_000) });
-  if (!r.ok) throw new Error("Téléchargement de la vidéo générée impossible.");
-  return new Uint8Array(await r.arrayBuffer());
+async function lireFichier(sb: Sb, seau: string, chemin: string) {
+  const { data } = await sb.storage.from(seau).download(chemin);
+  if (!data) throw new Error("Fichier introuvable : relancez la vidéo.");
+  return new Uint8Array(await data.arrayBuffer());
 }
 
-// Toutes les parties prêtes : vidéo finale dans notre stockage (les liens xAI
-// sont temporaires).
-async function finaliser(sb: Sb, v: VideoIA, segments: Segment[]) {
-  const urls = segments
-    .map((s) => s.url)
-    .filter((u): u is string => Boolean(u));
-  const donnees = videoComplete(segments, v.duree)
-    ? await telecharger(urls[urls.length - 1])
-    : await recollerVideos(await Promise.all(urls.map(telecharger)));
-  const chemin = `${v.user_id}/studio-${v.id}.mp4`;
-  const { error } = await sb.storage
-    .from("videos")
-    .upload(chemin, donnees, { contentType: "video/mp4", upsert: true });
-  if (error)
-    throw new Error(`Enregistrement de la vidéo impossible : ${error.message}`);
-  const resultat_url = sb.storage.from("videos").getPublicUrl(chemin)
-    .data.publicUrl;
-  await sb
-    .from("videos_ia")
-    .update({
-      statut: "terminee",
-      segments,
-      progression: 100,
-      resultat_url,
-      erreur: null,
-    })
-    .eq("id", v.id);
+async function messageRefus(e: unknown) {
+  const m = texte(e);
+  if (!m.startsWith("Hugging Face a refusé")) return m;
+  const compte = await compteHF();
+  return compte.valide
+    ? "Quota gratuit de Hugging Face épuisé pour aujourd'hui (ou modèle saturé). Réessayez plus tard ou demain."
+    : "La clé HF_TOKEN est refusée par Hugging Face : recréez-la (type Read) dans Vercel.";
 }
 
-export const suivreVideoIA = createServerFn({ method: "POST" })
+export const avancerVideoIA = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z.object({ id: z.string().uuid(), jeton: z.string().min(10) }).parse(input),
   )
   .handler(async ({ data }): Promise<Resultat> => {
     try {
       const { sb } = await utilisateurDepuisJeton(data.jeton);
+      // Prise en charge : un seul calcul à la fois pour cette vidéo.
+      const libre = new Date(Date.now() - VERROU_MS).toISOString();
       const { data: v } = await sb
         .from("videos_ia")
-        .select("*")
+        .update({ verrou: new Date().toISOString() })
         .eq("id", data.id)
-        .single<VideoIA>();
-      if (!v) return { ok: false, erreur: "Vidéo introuvable." };
-      if (v.statut !== "en_cours") return { ok: true };
+        .eq("statut", "en_cours")
+        .or(`verrou.is.null,verrou.lt.${libre}`)
+        .select("*")
+        .maybeSingle<VideoIA>();
+      if (!v) return { ok: true };
       try {
-        if (Date.now() - new Date(v.created_at).getTime() > PERDUE_MS)
-          throw new Error("La génération a pris trop de temps. Réessayez.");
-        const plan = decouper(v.duree);
-        const segments = [...(v.segments ?? [])];
-        const courant = segments.find((s) => s.statut === "en_cours");
-        if (!courant) return { ok: true };
-        const etat = lireStatutXai(await statutVideo(courant.request_id));
-        if (etat.statut === "echoue")
-          throw new Error(etat.erreur ?? "La génération a échoué.");
-        if (etat.statut === "en_cours") {
+        const morceaux = [...(v.segments ?? [])];
+        const total = nombreMorceaux(v.duree);
+        if (morceaux.length < total) {
+          const n = morceaux.length;
+          // Point de départ : l'image importée, puis la dernière image du morceau précédent.
+          const depart =
+            n === 0
+              ? {
+                  donnees: new Blob([
+                    await lireFichier(sb, "animations", v.image_chemin),
+                  ]),
+                  nom: v.image_chemin.split("/").pop() ?? "image.jpg",
+                }
+              : {
+                  donnees: new Blob([
+                    new Uint8Array(
+                      await derniereImage(
+                        await lireFichier(sb, "videos", morceaux[n - 1].chemin),
+                      ),
+                    ),
+                  ]),
+                  nom: "suite.jpg",
+                };
+          const duree = dureeMorceau(v.duree, n);
+          const { donnees } = await imageVersVideoHF(
+            depart,
+            consigneMorceau(v.prompt, n),
+            duree,
+            async () => undefined,
+            DELAI_MORCEAU_MS,
+          );
+          const chemin = `${v.user_id}/studio-${v.id}-${n}.mp4`;
+          const { error } = await sb.storage
+            .from("videos")
+            .upload(chemin, donnees, {
+              contentType: "video/mp4",
+              upsert: true,
+            });
+          if (error)
+            throw new Error(
+              `Enregistrement du morceau impossible : ${error.message}`,
+            );
+          morceaux.push({ numero: n, duree, chemin });
           await sb
             .from("videos_ia")
             .update({
-              progression: progressionGlobale(plan, segments, etat.progression),
+              segments: morceaux,
+              progression: progression(v.duree, morceaux.length),
+              verrou: null,
             })
             .eq("id", v.id);
           return { ok: true };
         }
-        Object.assign(courant, {
-          statut: "termine",
-          url: etat.url,
-          duree_obtenue: etat.duree,
-        });
-        if (segments.length < plan.length) {
-          // Morceau suivant : prolongation de la dernière vidéo obtenue.
-          const duree = plan[segments.length];
-          const request_id = await prolongerVideo({
-            modele: QUALITES[v.qualite].modele,
-            prompt: consigneSuite(v.prompt),
-            videoUrl: etat.url!,
-            duree,
-          });
-          segments.push({
-            request_id,
-            duree,
-            genre: "prolongation",
-            statut: "en_cours",
-          });
-          await sb
-            .from("videos_ia")
-            .update({
-              segments,
-              progression: progressionGlobale(plan, segments, 0),
-            })
-            .eq("id", v.id);
-          return { ok: true };
-        }
-        await finaliser(sb, v, segments);
-      } catch (e) {
+        // Tous les morceaux sont prêts : vidéo finale.
+        const finale = await recollerVideos(
+          await Promise.all(
+            morceaux.map((m) => lireFichier(sb, "videos", m.chemin)),
+          ),
+        );
+        const chemin = `${v.user_id}/studio-${v.id}.mp4`;
+        const { error } = await sb.storage
+          .from("videos")
+          .upload(chemin, finale, { contentType: "video/mp4", upsert: true });
+        if (error)
+          throw new Error(
+            `Enregistrement de la vidéo impossible : ${error.message}`,
+          );
+        await sb.storage.from("videos").remove(morceaux.map((m) => m.chemin));
+        const resultat_url = sb.storage.from("videos").getPublicUrl(chemin)
+          .data.publicUrl;
         await sb
           .from("videos_ia")
-          .update({ statut: "echouee", erreur: texte(e) })
+          .update({
+            statut: "terminee",
+            progression: 100,
+            resultat_url,
+            verrou: null,
+            erreur: null,
+          })
+          .eq("id", v.id);
+      } catch (e) {
+        const message =
+          e instanceof Error && e.name === "TimeoutError"
+            ? "Le calcul a pris trop de temps (modèle saturé). Réessayez plus tard."
+            : await messageRefus(e);
+        await sb
+          .from("videos_ia")
+          .update({ statut: "echouee", erreur: message, verrou: null })
           .eq("id", v.id);
       }
       return { ok: true };
@@ -256,6 +221,21 @@ export const suivreVideoIA = createServerFn({ method: "POST" })
     }
   });
 
-export const studioVideoActif = createServerFn({ method: "GET" }).handler(
-  async () => ({ actif: xaiConfigure() }),
-);
+// Relance une vidéo échouée là où elle s'est arrêtée (morceaux déjà faits gardés).
+export const reprendreVideoIA = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ id: z.string().uuid(), jeton: z.string().min(10) }).parse(input),
+  )
+  .handler(async ({ data }): Promise<Resultat> => {
+    try {
+      const { sb } = await utilisateurDepuisJeton(data.jeton);
+      const { error } = await sb
+        .from("videos_ia")
+        .update({ statut: "en_cours", erreur: null, verrou: null })
+        .eq("id", data.id)
+        .eq("statut", "echouee");
+      return error ? { ok: false, erreur: error.message } : { ok: true };
+    } catch (e) {
+      return { ok: false, erreur: texte(e) };
+    }
+  });

@@ -1,69 +1,29 @@
 import { describe, expect, it } from "vitest";
 import {
-  coutEstime,
-  decouper,
-  lireStatutXai,
-  progressionGlobale,
-  videoComplete,
-  type Segment,
+  consigneMorceau,
+  dureeMorceau,
+  nombreMorceaux,
+  progression,
 } from "./studio-video";
 
 describe("studio vidéo IA", () => {
-  it("découpe en génération (15 s max) puis prolongations (10 s max)", () => {
-    expect(decouper(10)).toEqual([10]);
-    expect(decouper(15)).toEqual([15]);
-    expect(decouper(20)).toEqual([15, 5]);
-    expect(decouper(30)).toEqual([15, 10, 5]);
+  it("découpe la vidéo en morceaux de 5 s", () => {
+    expect(nombreMorceaux(10)).toBe(2);
+    expect(nombreMorceaux(15)).toBe(3);
+    expect(nombreMorceaux(30)).toBe(6);
+    expect([0, 1].map((n) => dureeMorceau(10, n))).toEqual([5, 5]);
   });
 
-  it("estime le coût", () => {
-    expect(coutEstime(10, "standard")).toBe(0.7);
-    expect(coutEstime(30, "premium")).toBe(2.4);
+  it("suit l'avancement", () => {
+    expect(progression(20, 0)).toBe(0);
+    expect(progression(20, 2)).toBe(50);
+    expect(progression(10, 2)).toBe(99);
   });
 
-  it("lit les réponses de xAI", () => {
-    expect(lireStatutXai({ status: "pending", progress: 42 })).toMatchObject({
-      statut: "en_cours",
-      progression: 42,
-    });
-    expect(
-      lireStatutXai({
-        status: "done",
-        video: { url: "https://x/v.mp4", duration: 15 },
-      }),
-    ).toMatchObject({ statut: "termine", url: "https://x/v.mp4", duree: 15 });
-    expect(lireStatutXai({ status: "failed" }).statut).toBe("echoue");
-    expect(
-      lireStatutXai({ status: "done", video: { respect_moderation: false } })
-        .erreur,
-    ).toMatch(/modération/);
-  });
-
-  it("suit l'avancement global et sait si la vidéo est complète", () => {
-    const segs: Segment[] = [
-      {
-        request_id: "a",
-        duree: 15,
-        genre: "generation",
-        statut: "termine",
-        url: "u1",
-        duree_obtenue: 15,
-      },
-      { request_id: "b", duree: 5, genre: "prolongation", statut: "en_cours" },
-    ];
-    expect(progressionGlobale([15, 5], segs, 50)).toBe(88);
-    expect(videoComplete([{ ...segs[0] }], 15)).toBe(true);
-    expect(
-      videoComplete(
-        [segs[0], { ...segs[1], statut: "termine", duree_obtenue: 20 }],
-        20,
-      ),
-    ).toBe(true);
-    expect(
-      videoComplete(
-        [segs[0], { ...segs[1], statut: "termine", duree_obtenue: 5 }],
-        20,
-      ),
-    ).toBe(false);
+  it("demande une suite fluide après le premier morceau", () => {
+    expect(consigneMorceau("Un chat danse", 0)).toBe("Un chat danse");
+    expect(consigneMorceau("Un chat danse", 1)).toMatch(
+      /Continue the same scene/,
+    );
   });
 });

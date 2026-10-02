@@ -5,8 +5,8 @@ import {
   Download,
   ImageIcon,
   LoaderCircle,
+  RotateCcw,
   Trash2,
-  Upload,
   X,
 } from "lucide-react";
 import {
@@ -21,19 +21,11 @@ import {
 import { supabase } from "@/lib/supabase";
 import { jetonSession } from "@/lib/session";
 import { useUserId } from "@/lib/donnees";
+import { DUREES, nombreMorceaux, type Duree } from "@/lib/studio-video";
 import {
-  DUREES,
-  FORMATS,
-  QUALITES,
-  coutEstime,
-  type Duree,
-  type Format,
-  type Qualite,
-} from "@/lib/studio-video";
-import {
+  avancerVideoIA,
   lancerVideoIA,
-  studioVideoActif,
-  suivreVideoIA,
+  reprendreVideoIA,
 } from "@/lib/studio-video.functions";
 
 export const Route = createFileRoute("/studio-video")({
@@ -46,10 +38,8 @@ type VideoIA = {
   image_chemin: string;
   prompt: string;
   duree: number;
-  format: string;
-  qualite: Qualite;
   progression: number;
-  cout_estime: number | null;
+  segments: unknown[];
   resultat_url: string | null;
   erreur: string | null;
   created_at: string;
@@ -58,10 +48,11 @@ type VideoIA = {
 const TAILLE_MAX = 10 * 1024 * 1024;
 const TYPES = ["image/jpeg", "image/png", "image/webp"];
 
+// Le modèle comprend mieux l'anglais ; le français marche aussi.
 const EXEMPLES = [
-  "La personne sourit, tourne lentement la tête vers la caméra et fait un signe de la main. Lumière douce, caméra qui avance doucement.",
-  "Style dessin animé : le personnage se met à danser joyeusement, des confettis tombent, couleurs vives.",
-  "Plan cinématographique : la caméra tourne autour du sujet, le vent fait bouger les cheveux et les vêtements, ambiance golden hour.",
+  "The person smiles, slowly turns the head to the camera and waves. Soft light, slow camera push-in.",
+  "Cartoon style: the character starts dancing happily, confetti falling, bright colors.",
+  "Cinematic shot: the camera orbits around the subject, wind moving hair and clothes, golden hour.",
 ];
 
 function StudioVideo() {
@@ -71,18 +62,9 @@ function StudioVideo() {
   );
   const [prompt, setPrompt] = useState("");
   const [duree, setDuree] = useState<Duree>(10);
-  const [format, setFormat] = useState<Format>("9:16");
-  const [qualite, setQualite] = useState<Qualite>("standard");
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [videos, setVideos] = useState<VideoIA[]>([]);
-  const [actif, setActif] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    void studioVideoActif()
-      .then((r) => setActif(r.actif))
-      .catch(() => setActif(null));
-  }, []);
 
   // Liste + mises à jour en direct.
   useEffect(() => {
@@ -114,8 +96,8 @@ function StudioVideo() {
     };
   }, [userId]);
 
-  // Tant qu'une vidéo est en cours, le serveur fait avancer la génération
-  // (un appel à la fois, toutes les 5 s).
+  // Tant qu'une vidéo est en cours, on fait calculer le morceau suivant (un
+  // appel à la fois ; chacun dure 1 à 4 minutes).
   const enCours = videos
     .filter((v) => v.statut === "en_cours")
     .map((v) => v.id)
@@ -127,8 +109,8 @@ function StudioVideo() {
       while (!arret) {
         const jeton = await jetonSession();
         for (const id of enCours.split(","))
-          await suivreVideoIA({ data: { id, jeton } }).catch(() => null);
-        await new Promise((r) => setTimeout(r, 5000));
+          await avancerVideoIA({ data: { id, jeton } }).catch(() => null);
+        await new Promise((r) => setTimeout(r, 3000));
       }
     };
     void boucle();
@@ -175,8 +157,6 @@ function StudioVideo() {
           image: chemin,
           prompt: prompt.trim(),
           duree,
-          format,
-          qualite,
           jeton: await jetonSession(),
         },
       });
@@ -189,31 +169,37 @@ function StudioVideo() {
     setEnvoi(false);
   }
 
+  async function reprendre(v: VideoIA) {
+    const r = await reprendreVideoIA({
+      data: { id: v.id, jeton: await jetonSession() },
+    });
+    if (!r.ok) setErreur(r.erreur);
+  }
+
   async function supprimer(v: VideoIA) {
     if (!window.confirm("Supprimer cette vidéo ?")) return;
     const sb = supabase();
     await sb.storage.from("animations").remove([v.image_chemin]);
-    if (v.resultat_url)
-      await sb.storage.from("videos").remove([`${userId}/studio-${v.id}.mp4`]);
+    await sb.storage
+      .from("videos")
+      .remove([
+        `${userId}/studio-${v.id}.mp4`,
+        ...Array.from(
+          { length: nombreMorceaux(v.duree) },
+          (_, n) => `${userId}/studio-${v.id}-${n}.mp4`,
+        ),
+      ]);
     await sb.from("videos_ia").delete().eq("id", v.id);
     setVideos((l) => l.filter((x) => x.id !== v.id));
   }
 
-  const pret = image && prompt.trim().length >= 3 && !envoi && actif !== false;
+  const pret = image && prompt.trim().length >= 3 && !envoi;
 
   return (
     <>
       <Titre sous="Une image + votre consigne = une vidéo de 10 à 30 secondes. Photo, dessin, produit, personnage de dessin animé : tout peut s'animer.">
         Studio vidéo IA
       </Titre>
-
-      {actif === false && (
-        <Carte className="mb-4 text-sm">
-          Le studio n'est pas encore activé : il faut ajouter la clé{" "}
-          <strong>XAI_API_KEY</strong> (Grok Imagine, console.x.ai) dans les
-          variables Vercel.
-        </Carte>
-      )}
 
       <Carte className="mb-6 p-5">
         <div className="grid gap-5 md:grid-cols-2">
@@ -224,7 +210,7 @@ function StudioVideo() {
                 <img
                   src={image.apercu}
                   alt="Image choisie"
-                  className="max-h-72 w-full rounded-xl object-contain bg-fond"
+                  className="max-h-72 w-full rounded-xl bg-fond object-contain"
                 />
                 <button
                   type="button"
@@ -239,7 +225,10 @@ function StudioVideo() {
               <label className="flex h-56 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-bord text-sm text-doux hover:bg-bord/40">
                 <ImageIcon className="size-8" aria-hidden />
                 Choisir une photo ou un dessin
-                <span className="text-xs">JPG, PNG, WebP · 10 Mo max</span>
+                <span className="text-xs">
+                  JPG, PNG, WebP · 10 Mo max · la vidéo garde le format de
+                  l'image
+                </span>
                 <input
                   type="file"
                   accept={TYPES.join(",")}
@@ -258,7 +247,7 @@ function StudioVideo() {
               <textarea
                 className={`${champ} min-h-32 font-normal`}
                 value={prompt}
-                maxLength={4000}
+                maxLength={2000}
                 placeholder="Décrivez l'action, les mouvements, la caméra, l'ambiance, le style…"
                 onChange={(e) => setPrompt(e.target.value)}
               />
@@ -293,37 +282,6 @@ function StudioVideo() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-1 text-sm">
-                Format
-                <select
-                  className={champ}
-                  value={format}
-                  onChange={(e) => setFormat(e.target.value as Format)}
-                >
-                  {FORMATS.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.nom}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="grid gap-1 text-sm">
-                Qualité
-                <select
-                  className={champ}
-                  value={qualite}
-                  onChange={(e) => setQualite(e.target.value as Qualite)}
-                >
-                  {(Object.keys(QUALITES) as Qualite[]).map((q) => (
-                    <option key={q} value={q}>
-                      {QUALITES[q].nom}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
             <button
               className={`${bouton} inline-flex items-center justify-center gap-2`}
               disabled={!pret}
@@ -334,14 +292,13 @@ function StudioVideo() {
               ) : (
                 <Clapperboard className="size-4" aria-hidden />
               )}
-              Générer la vidéo ({duree} s · env.{" "}
-              {coutEstime(duree, qualite).toFixed(2).replace(".", ",")} $)
+              Générer la vidéo ({duree} s, gratuit)
             </button>
             <p className="text-xs text-doux">
-              Comptez 1 à 5 minutes. Au-delà de 15 s, la vidéo est prolongée
-              automatiquement en plusieurs morceaux. Utilisez uniquement des
-              images dont vous avez les droits ; les visages de vraies personnes
-              nécessitent leur accord.
+              La vidéo est fabriquée par morceaux de 5 s (environ 1 à 3 min
+              chacun) : gardez la page ouverte. Gratuit avec le quota quotidien
+              de Hugging Face : les vidéos courtes passent mieux. Utilisez des
+              images dont vous avez les droits.
             </p>
             <Erreur message={erreur} />
           </div>
@@ -371,11 +328,9 @@ function StudioVideo() {
                   ? "Prête"
                   : v.statut === "echouee"
                     ? "Échec"
-                    : `En cours · ${v.progression} %`}
+                    : `Morceau ${Math.min((v.segments?.length ?? 0) + 1, nombreMorceaux(v.duree))}/${nombreMorceaux(v.duree)} · ${v.progression} %`}
               </Pastille>
-              <span className="text-xs text-doux">
-                {v.duree} s · {v.format}
-              </span>
+              <span className="text-xs text-doux">{v.duree} s</span>
             </div>
             {v.resultat_url ? (
               <video
@@ -405,6 +360,15 @@ function StudioVideo() {
                   Télécharger
                 </a>
               )}
+              {v.statut === "echouee" && (
+                <button
+                  className={`${boutonSecondaire} inline-flex items-center gap-1.5`}
+                  onClick={() => reprendre(v)}
+                >
+                  <RotateCcw className="size-4" aria-hidden />
+                  Reprendre
+                </button>
+              )}
               <button
                 className={`${boutonSecondaire} inline-flex items-center`}
                 onClick={() => supprimer(v)}
@@ -416,9 +380,8 @@ function StudioVideo() {
           </Carte>
         ))}
       </div>
-      <p className="mt-4 flex items-center gap-1.5 text-xs text-doux">
-        <Upload className="size-3.5" aria-hidden /> Vidéos générées avec Grok
-        Imagine (xAI).
+      <p className="mt-4 text-xs text-doux">
+        Vidéos générées avec Wan 2.2 (modèle libre), sur Hugging Face.
       </p>
     </>
   );
