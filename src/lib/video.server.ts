@@ -22,13 +22,22 @@ function executer(args: string[], dossier: string) {
       { cwd: dossier },
     );
     let erreurs = "";
+    // Garde-fou : un montage bloqué est arrêté au lieu de figer la fonction.
+    const minuteur = setTimeout(() => p.kill("SIGKILL"), 180_000);
     p.stderr.on("data", (d) => (erreurs += d.toString()));
     p.on("error", reject);
-    p.on("close", (code) =>
-      code === 0
-        ? resolve()
-        : reject(new Error(`ffmpeg ${code} : ${erreurs.slice(-500)}`)),
-    );
+    p.on("close", (code) => {
+      clearTimeout(minuteur);
+      if (code === 0) resolve();
+      else
+        reject(
+          new Error(
+            code === null
+              ? "Montage vidéo trop long : arrêté."
+              : `ffmpeg ${code} : ${erreurs.slice(-500)}`,
+          ),
+        );
+    });
   });
 }
 
@@ -356,8 +365,15 @@ export async function ajouterVoix(
         "0:v",
         "-map",
         "[a]",
+        // Ré-encodage : avec « -c:v copy », apad + -shortest ne s'arrête jamais.
         "-c:v",
-        "copy",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "20",
+        "-pix_fmt",
+        "yuv420p",
         "-c:a",
         "aac",
         "-shortest",
