@@ -42,6 +42,15 @@ type VideoIA = {
   segments: unknown[];
   resultat_url: string | null;
   erreur: string | null;
+  etape: "morceaux" | "levres";
+  voix: {
+    parole: string | null;
+    langue: string;
+    age: string | null;
+    sexe: string | null;
+    levres?: string;
+    note?: string;
+  } | null;
   created_at: string;
 };
 
@@ -328,7 +337,9 @@ function StudioVideo() {
                   ? "Prête"
                   : v.statut === "echouee"
                     ? "Échec"
-                    : `Morceau ${Math.min((v.segments?.length ?? 0) + 1, nombreMorceaux(v.duree))}/${nombreMorceaux(v.duree)} · ${v.progression} %`}
+                    : v.etape === "levres"
+                      ? `Voix et lèvres · ${v.progression} %`
+                      : `Morceau ${Math.min((v.segments?.length ?? 0) + 1, nombreMorceaux(v.duree))}/${nombreMorceaux(v.duree)} · ${v.progression} %`}
               </Pastille>
               <span className="text-xs text-doux">{v.duree} s</span>
             </div>
@@ -348,6 +359,17 @@ function StudioVideo() {
               </div>
             ) : null}
             <p className="line-clamp-3 text-sm">{v.prompt}</p>
+            {v.voix?.parole && (
+              <p className="mt-1 text-xs text-doux">
+                🗣️ Voix{" "}
+                {[v.voix.sexe, v.voix.age].filter(Boolean).join(" ") ||
+                  "adaptée"}{" "}
+                · {v.voix.langue.toUpperCase()} · « {v.voix.parole} »
+              </p>
+            )}
+            {v.voix?.note && (
+              <p className="mt-1 text-xs text-alerte">{v.voix.note}</p>
+            )}
             {v.erreur && <p className="mt-1 text-xs text-erreur">{v.erreur}</p>}
             <div className="mt-3 flex gap-2">
               {v.resultat_url && (

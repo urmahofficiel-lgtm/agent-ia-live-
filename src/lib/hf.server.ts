@@ -233,6 +233,32 @@ export function imageVersVideoHF(
   );
 }
 
+// --- Synchronisation des lèvres sur une voix (LatentSync) ------------------
+
+const ESPACE_LEVRES: Espace = {
+  id: "fffiloni/LatentSync",
+  hote: "https://fffiloni-latentsync.hf.space",
+  prefixe: "/gradio_api",
+  point: "generate_lip_sync_video",
+};
+
+export function synchroniserLevresHF(
+  video: Uint8Array,
+  voixWav: Buffer,
+  delaiMs: number,
+) {
+  return executerGradio(
+    ESPACE_LEVRES,
+    [
+      { donnees: new Blob([new Uint8Array(video)]), nom: "video.mp4" },
+      { donnees: new Blob([new Uint8Array(voixWav)]), nom: "voix.wav" },
+    ],
+    ([v, a]) => [v, a],
+    async () => undefined,
+    delaiMs,
+  );
+}
+
 // Diagnostic après un refus : la clé HF_TOKEN est-elle acceptée, et par quel compte ?
 export async function compteHF(): Promise<{ valide: boolean; nom?: string }> {
   if (!process.env.HF_TOKEN) return { valide: false };

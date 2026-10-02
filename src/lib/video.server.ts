@@ -333,3 +333,42 @@ export async function derniereImage(video: Uint8Array): Promise<Buffer> {
     await rm(dossier, { recursive: true, force: true });
   }
 }
+
+// Pose une voix (WAV) sur une vidéo : la voix commence au début, la vidéo
+// garde sa durée (silence ajouté si la voix est plus courte).
+export async function ajouterVoix(
+  video: Uint8Array,
+  voixWav: Buffer,
+): Promise<Buffer> {
+  const dossier = await mkdtemp(path.join(tmpdir(), "voix-"));
+  try {
+    await writeFile(path.join(dossier, "v.mp4"), video);
+    await writeFile(path.join(dossier, "a.wav"), voixWav);
+    await executer(
+      [
+        "-i",
+        "v.mp4",
+        "-i",
+        "a.wav",
+        "-filter_complex",
+        "[1:a]apad[a]",
+        "-map",
+        "0:v",
+        "-map",
+        "[a]",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-shortest",
+        "-movflags",
+        "+faststart",
+        "final.mp4",
+      ],
+      dossier,
+    );
+    return await readFile(path.join(dossier, "final.mp4"));
+  } finally {
+    await rm(dossier, { recursive: true, force: true });
+  }
+}
