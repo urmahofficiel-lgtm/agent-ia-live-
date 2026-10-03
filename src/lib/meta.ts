@@ -11,9 +11,9 @@ export const PERMISSIONS_META = [
   "business_management",
   "instagram_basic",
   "instagram_content_publish",
-  // Page Messages : lire les commentaires et y répondre.
-  "pages_manage_engagement",
-  "instagram_manage_comments",
+  // Pas de pages_manage_engagement / instagram_manage_comments : tant que ces
+  // droits ne sont pas activés dans l'app Meta, Facebook refuse toute la
+  // connexion. pages_read_engagement suffit pour lire les commentaires.
 ];
 
 export type PageMeta = {
