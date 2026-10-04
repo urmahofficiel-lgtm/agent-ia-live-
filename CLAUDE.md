@@ -16,3 +16,8 @@ Vérifs avant commit : `npm run typecheck`, `npm run test`, `npm run build`.
 ## Langue
 - Toujours répondre à l'utilisateur **en français**, avec des mots simples, sans jargon technique.
 - Tout sous-agent lancé doit recevoir la consigne : « Réponds et rédige ton rapport en français. »
+
+## Vidéos de présentation (skill /brag)
+- Skills `brag` et `brag-slim` (latent-spaces/brag, licence MIT) : transforment le projet ou une URL en vidéo de lancement courte (musique, animations, texte de partage). Rendu par Hyperframes (Apache-2.0), sans carte graphique ni quota.
+- Prérequis sur la machine : `ffmpeg` + `ffprobe` dans le PATH, `npx hyperframes browser ensure` (Chrome).
+- Les vidéos générées vont dans `brag-output/` (ignoré par git) ; rien n'est publié sans validation de l'utilisateur.
