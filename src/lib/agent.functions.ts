@@ -1,3 +1,4 @@
+import { avecVeille } from "./veille";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
@@ -135,7 +136,7 @@ function ecrivainUtilisateur(
 
 async function contexteMarque(sb: Sb) {
   const { data } = await sb.rpc("mon_contexte_marque");
-  return (data as string | null) || null;
+  return avecVeille((data as string | null) || null);
 }
 
 // Styles par défaut choisis dans les Réglages. Tant que la migration qui

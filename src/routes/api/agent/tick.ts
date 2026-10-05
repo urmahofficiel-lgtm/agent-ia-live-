@@ -1,3 +1,4 @@
+import { avecVeille } from "@/lib/veille";
 import { createFileRoute } from "@tanstack/react-router";
 import { PLATEFORMES, estManuel } from "@/lib/plateformes";
 import { publierSur } from "@/lib/publication.server";
@@ -82,7 +83,7 @@ async function tick(secret: string) {
             visuel_url: t.visuel_url,
             style_visuel: await styleImage(t.tache_id, t.visuel_url),
           },
-          t.contexte,
+          avecVeille(t.contexte),
           ecrivainMoteur(t.tache_id),
         );
         await maj(t.tache_id, "a_partager", null, "action", `📲 « ${t.titre} » est prêt : partagez-le en 1 clic depuis Publications → À partager.`);
@@ -109,7 +110,7 @@ async function tick(secret: string) {
           // Vidéo déjà prête : elle est publiée à la place de l'image.
           style_visuel: t.video_url ? undefined : await styleImage(t.tache_id, t.visuel_url),
         },
-        t.contexte,
+        avecVeille(t.contexte),
         ecrivainMoteur(t.tache_id),
       );
       // TikTok : la publication a attendu sa vidéo (45 min au plus) ; sans
@@ -147,7 +148,7 @@ async function tick(secret: string) {
   for (const t of (aRediger ?? []) as ARediger[]) {
     try {
       const style_visuel = t.type === "publication" ? await styleImage(t.tache_id, null) : undefined;
-      await preparer({ type: t.type, plateforme: t.plateforme, titre: t.titre, consigne: t.consigne, brouillon: t.brouillon, style_visuel }, t.contexte, ecrivainMoteur(t.tache_id));
+      await preparer({ type: t.type, plateforme: t.plateforme, titre: t.titre, consigne: t.consigne, brouillon: t.brouillon, style_visuel }, avecVeille(t.contexte), ecrivainMoteur(t.tache_id));
       await maj(t.tache_id, null, null, "info", `Prêt à valider : « ${t.titre} »`);
     } catch (e) {
       await maj(t.tache_id, null, { essais_brouillon: 3 }, "erreur", `Rédaction impossible pour « ${t.titre} » : ${e instanceof Error ? e.message : "erreur"}`);
@@ -166,7 +167,7 @@ async function tick(secret: string) {
         await maj(v.tache_id, null, { essais_video: v.essais + 1 }, "action", `🎬 Création automatique ${tiktok ? "de la vidéo TikTok" : "du Reel"} pour « ${v.titre} »`);
         // TikTok : style « face caméra » plutôt que classique.
         const style = styleVideoPour(v.plateforme, (await styles(v.tache_id)).video);
-        await fabriquerVideo({ id: v.tache_id, plateforme: v.plateforme, titre: v.titre, consigne: v.consigne, brouillon: v.brouillon }, v.contexte, v.site, {
+        await fabriquerVideo({ id: v.tache_id, plateforme: v.plateforme, titre: v.titre, consigne: v.consigne, brouillon: v.brouillon }, avecVeille(v.contexte), v.site, {
           journal: (niveau, msg) => maj(v.tache_id, null, null, niveau, msg),
           etat,
           deposer: async (mp4) => {

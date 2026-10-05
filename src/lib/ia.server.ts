@@ -218,6 +218,11 @@ const REGLES_MARQUE = `Règles impératives :
 - Tu écris pour cette marque précise : nomme-la, et fais la promotion de SON offre (pas d'un produit générique).
 - Chaque post met en avant UNE fonctionnalité ou UN bénéfice réel de la fiche, avec un exemple concret tiré de la vie de la clientèle visée.
 - N'utilise que les faits de la fiche. N'invente AUCUN chiffre, pourcentage, témoignage, nom de client, étude de cas ou garantie qui n'y figure pas.
+- Ne décris JAMAIS le fonctionnement d'une fonctionnalité au-delà de ce que dit la fiche : pas d'exemple de résultat inventé (quantités, corrections automatiques, validations, avenants) ; reste sur le bénéfice et sur ce que la fiche affirme.
+- Pas de promesse juridique ni de garantie (« 100 % conforme », « conformité garantie », « sans risque d'erreur ») : parle de ce que fait l'outil, pas de ce que la loi exige de toi.
+- Prix : ne cite un prix que s'il figure dans la fiche, avec sa condition (« en paiement annuel »).
+- Ne cite jamais un concurrent, même pour comparer.
+- Première phrase = accroche concrète (une situation de chantier, une question, un POV), jamais le nom du site ni de la marque seul.
 - Termine par l'appel à l'action de la fiche et le lien du site, écrit en entier.
 - Le post est un texte accompagné d'une image : si la consigne parle de vidéo, live, PDF ou infographie, transforme-la en post texte sur le même sujet.
 - Hashtags : 3 à 5 maximum, pris dans la liste conseillée quand elle existe.

@@ -1,3 +1,4 @@
+import { avecVeille } from "./veille";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { demanderIA } from "./ia.server";
 import {
@@ -66,7 +67,7 @@ export async function planifierJournees(
         const ferie = await ferieDuJour(u.jour);
         const reponse = await demanderIA(
           consigneSujets({
-            contexte: u.contexte,
+            contexte: avecVeille(u.contexte),
             categories,
             titresRecents: titres,
             apprentissage: u.apprentissage,
