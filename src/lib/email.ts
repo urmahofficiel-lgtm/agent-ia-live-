@@ -104,7 +104,7 @@ function signatureTexte(g: SignatureEmail): string {
 }
 
 function signatureHtml(g: SignatureEmail): string {
-  const lien = (url: string, texte: string, couleur = "#ea580c") =>
+  const lien = (url: string, texte: string, couleur = "#c2410c") =>
     `<a href="${echapper(url)}" style="color:${couleur};text-decoration:none">${echapper(texte)}</a>`;
   const contacts = [
     g.telephone && lien(telephoneLien(g.telephone), g.telephone, "#111111"),
@@ -119,7 +119,7 @@ function signatureHtml(g: SignatureEmail): string {
 <div style="color:#6b7280">${echapper(g.fonction)} · ${echapper(g.entreprise)}</div>
 <div style="margin-top:6px">${contacts.join(' <span style="color:#d1d5db">|</span> ')}</div>
 ${g.reseaux.length ? `<div style="margin-top:6px;font-size:13px">${g.reseaux.map((r) => lien(r.url, r.nom)).join(' <span style="color:#d1d5db">·</span> ')}</div>` : ""}
-</td></tr></table>${g.mentions ? `<p style="margin:10px 0 0 0;font-size:11px;line-height:16px;color:#9ca3af">${echapper(g.mentions)}</p>` : ""}`;
+</td></tr></table>${g.mentions ? `<p style="margin:10px 0 0 0;font-size:11px;line-height:16px;color:#6b7280">${echapper(g.mentions)}</p>` : ""}`;
 }
 
 export function composerEmail(p: {
