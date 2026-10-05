@@ -5,6 +5,7 @@ import {
   domaineAutorise,
   expediteur,
   lienDesinscription,
+  signatureMarque,
 } from "./email";
 
 describe("agent e-mail", () => {
@@ -47,5 +48,28 @@ describe("agent e-mail", () => {
     expect(m.html).toContain("&lt;b&gt;Jean&lt;/b&gt;");
     expect(m.html).toContain(`href="${lienDesinscription(jeton)}"`);
     expect(m.html).toContain('<a href="https://www.btp-ecosystem.com"');
+  });
+
+  it("ajoute la fiche professionnelle (logo, téléphone, réseaux, mentions)", () => {
+    const g = signatureMarque("BTP Ecosystem", "https://www.btp-ecosystem.com");
+    expect(g).not.toBeNull();
+    expect(signatureMarque("Autre marque", "https://autre.fr")).toBeNull();
+    const m = composerEmail({
+      objet: "Bonjour",
+      texte: "Message.",
+      marque: "BTP Ecosystem",
+      site: "https://www.btp-ecosystem.com",
+      jeton,
+      signature: g,
+    });
+    expect(m.html).toContain("icon-512.png");
+    expect(m.html).toContain('href="tel:+33744563043"');
+    expect(m.html).toContain("tiktok.com/@btpecosystem");
+    expect(m.html).toContain("SIREN 930 526 579");
+    expect(m.texte).toContain("Tél. 07 44 56 30 43");
+    expect(m.texte).toContain("LinkedIn : https://www.linkedin.com/");
+    // le lien de désinscription reste présent
+    expect(m.texte).toContain(lienDesinscription(jeton));
+    expect(m.html).toContain(`href="${lienDesinscription(jeton)}"`);
   });
 });
