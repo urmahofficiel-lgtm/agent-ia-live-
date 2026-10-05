@@ -66,3 +66,25 @@ describe("prospection", () => {
     expect(estARelancer({ ...p, statut: "a_repondu" }, 7, maintenant)).toBe(false);
   });
 });
+
+describe("consigne : certification RGE", () => {
+  it("demande de mentionner la certification RGE seulement si elle figure sur la fiche", () => {
+    const consigne = consigneMessage(
+      {
+        id: "1",
+        nom: "Martin Plomberie",
+        entreprise: "Martin Plomberie",
+        categorie: "Plombiers",
+        adresse: null,
+        site: null,
+        infos: "SIRET 412 660 508 00257 · créée en 1997 · certifiée RGE",
+        contexte: "BTP Ecosystem",
+        genre: "premier",
+        dernier_message: null,
+      } as never,
+      "email",
+    );
+    expect(consigne).toContain("certifiée RGE");
+    expect(consigne).toMatch(/sinon, ne parle pas de RGE/);
+  });
+});

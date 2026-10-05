@@ -73,6 +73,7 @@ export function consigneMessage(p: ProspectARediger, canal: Canal): string {
     "- Vouvoiement, en français, ton simple et humain, pas de formules creuses ni d'emoji.",
     "- Fais le lien concret entre notre offre et LE MÉTIER du destinataire (c'est ce qui rend le message légitime).",
     "- N'invente aucun chiffre, client, témoignage ni fait sur le destinataire.",
+    "- Si la fiche officielle indique « certifiée RGE », mentionne-le en une demi-phrase (fait officiel) et relie l'offre aux chantiers de rénovation énergétique ; sinon, ne parle pas de RGE.",
     "- Une seule question ou proposition claire à la fin (ex. un appel de 10 minutes).",
     "- Signe avec le nom de notre marque si on le connaît.",
     "- N'ajoute PAS de mention de désinscription : elle est ajoutée automatiquement.",

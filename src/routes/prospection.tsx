@@ -171,6 +171,7 @@ type Filtre =
   | "a_valider"
   | "a_relancer"
   | "nouveau"
+  | "rge"
   | "contactes"
   | "a_repondu"
   | "client";
@@ -179,6 +180,7 @@ const FILTRES: { id: Filtre; libelle: string }[] = [
   { id: "a_valider", libelle: "À valider" },
   { id: "a_relancer", libelle: "À relancer" },
   { id: "nouveau", libelle: "Nouveaux" },
+  { id: "rge", libelle: "RGE" },
   { id: "contactes", libelle: "Contactés" },
   { id: "a_repondu", libelle: "Ont répondu" },
   { id: "client", libelle: "Clients" },
@@ -237,6 +239,7 @@ function Prospection() {
       if (f === "a_valider")
         return p.brouillon !== null && p.statut !== "ne_plus_contacter";
       if (f === "a_relancer") return estARelancer(p, delai, maintenant);
+      if (f === "rge") return /\bRGE\b/.test(p.infos ?? "");
       if (f === "contactes")
         return p.statut === "contacte" || p.statut === "relance";
       return p.statut === f;
