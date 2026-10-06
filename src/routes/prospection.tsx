@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState, type FormEvent } from "react";
 import {
+  FileText,
   Globe,
   LoaderCircle,
   Mail,
@@ -32,6 +33,7 @@ import {
 } from "@/lib/agent.functions";
 import { jetonSession } from "@/lib/session";
 import {
+  bilanCampagne,
   estARelancer,
   liensContact,
   messageErreurProspect,
@@ -52,11 +54,28 @@ const hote = (url: string) => {
 function AgentEmail({
   reglages: r,
   enregistrer,
+  prospects,
+  userId,
 }: {
   reglages: ReglagesProspection;
   enregistrer: (v: Partial<ReglagesProspection>) => Promise<void>;
+  prospects: Prospect[];
+  userId: string | null;
 }) {
   const adresse = (v: string) => v.trim().toLowerCase() || null;
+  // Métiers présents dans les prospects, les plus nombreux d'abord.
+  const metiers = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const p of prospects)
+      if (p.categorie) n.set(p.categorie, (n.get(p.categorie) ?? 0) + 1);
+    if (r.email_cible && !n.has(r.email_cible)) n.set(r.email_cible, 0);
+    return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([m]) => m);
+  }, [prospects, r.email_cible]);
+  const bilan = useMemo(
+    () => bilanCampagne(prospects, r.email_cible),
+    [prospects, r.email_cible],
+  );
+  const jours = Math.ceil(bilan.aContacter / Math.max(r.email_par_jour, 1));
   return (
     <Carte className="mb-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -142,7 +161,201 @@ function AgentEmail({
         Conseil : commencez à 10 par jour avec la relecture, puis montez
         progressivement (20, puis 30) pour ne pas tomber dans les indésirables.
       </p>
+
+      <div className="mt-4 grid gap-3 border-t border-bord pt-3 text-sm sm:grid-cols-2">
+        <label className="grid gap-1">
+          Métier visé
+          <select
+            className={champ}
+            value={r.email_cible ?? ""}
+            onChange={(e) =>
+              void enregistrer({ email_cible: e.target.value || null })
+            }
+          >
+            <option value="">Tous les métiers</option>
+            {metiers.map((m) => (
+              <option key={m} value={m}>
+                {m} uniquement
+              </option>
+            ))}
+          </select>
+        </label>
+        <DocumentJoint reglages={r} enregistrer={enregistrer} userId={userId} />
+      </div>
+
+      <div className="mt-4 border-t border-bord pt-3">
+        <p className="text-sm font-medium">
+          Suivi de la campagne{r.email_cible ? ` · ${r.email_cible}` : ""}
+        </p>
+        <dl className="mt-2 grid grid-cols-3 gap-2 text-center text-xs sm:grid-cols-6">
+          {(
+            [
+              ["À contacter", bilan.aContacter],
+              ["Contactés", bilan.contactes],
+              ["Relancés", bilan.relances],
+              ["Ont répondu", bilan.ontRepondu],
+              ["Sans e-mail", bilan.sansEmail],
+              ["Adresse en erreur", bilan.enErreur],
+            ] as const
+          ).map(([libelle, n]) => (
+            <div
+              key={libelle}
+              className="flex flex-col-reverse rounded-lg bg-fond px-2 py-2"
+            >
+              <dt className="text-doux">{libelle}</dt>
+              <dd className="text-lg font-semibold tabular-nums">{n}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="mt-2 text-xs text-doux">
+          {bilan.aContacter > 0
+            ? `À ${r.email_par_jour} e-mails par jour (en semaine), il reste environ ${jours} jour${jours > 1 ? "s" : ""} d'envoi. `
+            : "Tous les prospects qui ont un e-mail ont été contactés. "}
+          Quand quelqu'un vous répond, passez-le en « A répondu » : il ne sera
+          pas relancé.
+        </p>
+      </div>
     </Carte>
+  );
+}
+
+// Document joint à chaque e-mail (plaquette PDF, 10 Mo au plus), déposé dans
+// l'espace de l'utilisateur.
+function DocumentJoint({
+  reglages: r,
+  enregistrer,
+  userId,
+}: {
+  reglages: ReglagesProspection;
+  enregistrer: (v: Partial<ReglagesProspection>) => Promise<void>;
+  userId: string | null;
+}) {
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  // Ancien fichier déposé ici (pas un document hébergé ailleurs).
+  const cheminDepose = (url: string | null) =>
+    url?.split("/storage/v1/object/public/documents/")[1] ?? null;
+
+  async function retirerAncien() {
+    const ancien = cheminDepose(r.email_piece_jointe_url);
+    if (ancien)
+      await supabase()
+        .storage.from("documents")
+        .remove([decodeURIComponent(ancien)]);
+  }
+
+  async function deposer(fichier: File) {
+    setErreur(null);
+    if (!userId) return;
+    if (fichier.type !== "application/pdf")
+      return setErreur("Choisissez un fichier PDF.");
+    if (fichier.size > 10 * 1024 * 1024)
+      return setErreur("Fichier trop lourd : 10 Mo au plus.");
+    setEnvoi(true);
+    try {
+      const nom = fichier.name.replace(/\s+/g, "-").replace(/[^\w.-]/g, "_");
+      const chemin = `${userId}/${Date.now()}-${nom}`;
+      const { error } = await supabase()
+        .storage.from("documents")
+        .upload(chemin, fichier, { contentType: "application/pdf" });
+      if (error) throw new Error(error.message);
+      const url = supabase().storage.from("documents").getPublicUrl(chemin)
+        .data.publicUrl;
+      await retirerAncien();
+      await enregistrer({
+        email_piece_jointe_url: url,
+        email_piece_jointe_nom:
+          r.email_piece_jointe_nom ?? `${nom.replace(/\.pdf$/i, "")} (PDF)`,
+      });
+    } catch (e) {
+      setErreur(
+        `Dépôt impossible : ${e instanceof Error ? e.message : String(e)}`,
+      );
+    } finally {
+      setEnvoi(false);
+    }
+  }
+
+  async function retirer() {
+    setErreur(null);
+    await retirerAncien();
+    await enregistrer({
+      email_piece_jointe_url: null,
+      email_piece_jointe_nom: null,
+    });
+  }
+
+  return (
+    <div className="grid gap-1">
+      <span>Document joint à chaque e-mail</span>
+      {r.email_piece_jointe_url ? (
+        <div className="grid gap-2">
+          <a
+            href={r.email_piece_jointe_url}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-2 text-accent underline-offset-2 hover:underline"
+          >
+            <FileText className="size-4 shrink-0" aria-hidden />
+            Voir le PDF joint
+          </a>
+          <label className="grid gap-1 text-xs text-doux">
+            Texte affiché dans l'e-mail
+            <input
+              className={champ}
+              maxLength={120}
+              defaultValue={r.email_piece_jointe_nom ?? ""}
+              key={`pj-${r.email_piece_jointe_nom}`}
+              onBlur={(e) => {
+                const v = e.target.value.trim() || null;
+                if (v !== r.email_piece_jointe_nom)
+                  void enregistrer({ email_piece_jointe_nom: v });
+              }}
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <label className={`${boutonSecondaire} cursor-pointer`}>
+              {envoi ? "Envoi…" : "Remplacer le PDF"}
+              <input
+                type="file"
+                accept="application/pdf"
+                className="sr-only"
+                disabled={envoi}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) void deposer(f);
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className={boutonSecondaire}
+              onClick={() => void retirer()}
+            >
+              Ne plus joindre de PDF
+            </button>
+          </div>
+        </div>
+      ) : (
+        <label className={`${boutonSecondaire} w-fit cursor-pointer`}>
+          {envoi ? "Envoi…" : "Ajouter un PDF (plaquette, présentation)"}
+          <input
+            type="file"
+            accept="application/pdf"
+            className="sr-only"
+            disabled={envoi}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) void deposer(f);
+            }}
+          />
+        </label>
+      )}
+      <Erreur message={erreur} />
+    </div>
   );
 }
 
@@ -194,6 +407,9 @@ type ReglagesProspection = {
   email_par_jour: number;
   email_expediteur: string | null;
   email_reponse: string | null;
+  email_cible: string | null;
+  email_piece_jointe_url: string | null;
+  email_piece_jointe_nom: string | null;
 };
 
 const erreurLisible = (m: string) => messageErreurProspect(m) ?? m;
@@ -215,7 +431,7 @@ function Prospection() {
       supabase()
         .from("reglages_agent")
         .select(
-          "limite_contacts_jour, relance_apres_jours, email_auto, email_validation, email_par_jour, email_expediteur, email_reponse",
+          "limite_contacts_jour, relance_apres_jours, email_auto, email_validation, email_par_jour, email_expediteur, email_reponse, email_cible, email_piece_jointe_url, email_piece_jointe_nom",
         )
         .maybeSingle(),
     [userId],
@@ -334,6 +550,8 @@ function Prospection() {
         <AgentEmail
           reglages={reglages.data}
           enregistrer={enregistrerReglages}
+          prospects={prospects}
+          userId={userId}
         />
       )}
 

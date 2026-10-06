@@ -122,6 +122,61 @@ ${g.reseaux.length ? `<div style="margin-top:6px;font-size:13px">${g.reseaux.map
 </td></tr></table>${g.mentions ? `<p style="margin:10px 0 0 0;font-size:11px;line-height:16px;color:#6b7280">${echapper(g.mentions)}</p>` : ""}`;
 }
 
+// Document joint aux e-mails (choisi dans les réglages) : nom de fichier tiré
+// de l'adresse, libellé affiché au-dessus de la fiche.
+export type DocumentJoint = { filename: string; path: string; libelle: string };
+export function documentJoint(
+  url: string | null | undefined,
+  nom: string | null | undefined,
+): DocumentJoint | null {
+  const adresse = url?.trim() ?? "";
+  if (!/^https:\/\/\S+$/.test(adresse)) return null;
+  let fichier = "";
+  try {
+    fichier = decodeURIComponent(new URL(adresse).pathname.split("/").pop() ?? "");
+  } catch {
+    return null;
+  }
+  // Sans le préfixe d'horodatage ajouté au dépôt (« 1759…-nom.pdf »).
+  fichier = fichier.replace(/^\d{10,}-/, "").replace(/[^\w.\- ]/g, "_");
+  if (!/\.pdf$/i.test(fichier)) fichier = `${fichier || "document"}.pdf`;
+  return {
+    filename: fichier,
+    path: adresse,
+    libelle: nom?.trim() || `${fichier.replace(/\.pdf$/i, "")} (PDF)`,
+  };
+}
+
+// Avec la fiche professionnelle : retire de la fin du corps ce que l'IA a pu
+// ajouter et qui ferait doublon (signature « Marque / site », mention STOP).
+export function corpsSansDoublons(texte: string, noms: (string | null)[]): string {
+  const connus = noms
+    .filter((n): n is string => Boolean(n?.trim()))
+    .map((n) => n.trim().toLowerCase());
+  const ligneDeSignature = (l: string) => {
+    const s = l.trim().replace(/^[—–-]+\s*/, "").toLowerCase();
+    return (
+      !s ||
+      /^https?:\/\/\S+$/.test(s) ||
+      /^(www\.)?[\w-]+(\.[\w-]+)+\/?$/.test(s) ||
+      connus.some((n) => s === n || s === `l'équipe ${n}` || s === `l’équipe ${n}`)
+    );
+  };
+  const paras = texte.trim().split(/\n{2,}/);
+  while (paras.length > 1) {
+    const dernier = paras[paras.length - 1];
+    if (/\bSTOP\b/.test(dernier) || dernier.split("\n").every(ligneDeSignature))
+      paras.pop();
+    else break;
+  }
+  // « Cordialement,\nBTP Ecosystem » : garde la formule, retire la marque.
+  const lignes = paras[paras.length - 1].split("\n");
+  while (lignes.length > 1 && ligneDeSignature(lignes[lignes.length - 1]))
+    lignes.pop();
+  paras[paras.length - 1] = lignes.join("\n");
+  return paras.join("\n\n");
+}
+
 export function composerEmail(p: {
   objet: string;
   texte: string;
@@ -148,8 +203,11 @@ export function composerEmail(p: {
   ]
     .filter(Boolean)
     .join("\n\n");
-  const texte = `${p.texte.trim()}\n\n${pied}`;
-  const corps = echapper(p.texte.trim())
+  const brut = fiche
+    ? corpsSansDoublons(p.texte, [p.marque, p.site, fiche.nom, fiche.entreprise])
+    : p.texte.trim();
+  const texte = `${brut}\n\n${pied}`;
+  const corps = echapper(brut)
     .split(/\n{2,}/)
     .map(
       (para) =>

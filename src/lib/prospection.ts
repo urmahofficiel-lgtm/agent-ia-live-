@@ -81,7 +81,9 @@ export function consigneMessage(p: ProspectARediger, canal: Canal): string {
       : []),
     "- Si la fiche officielle indique « certifiée RGE », mentionne-le en une demi-phrase (fait officiel) et relie l'offre aux chantiers de rénovation énergétique ; sinon, ne parle pas de RGE.",
     "- Une seule question ou proposition claire à la fin (ex. un appel de 10 minutes).",
-    "- Signe avec le nom de notre marque si on le connaît.",
+    canal === "email"
+      ? "- Ne signe pas et ne mets ni site ni coordonnées : la signature est ajoutée automatiquement sous l'e-mail."
+      : "- Signe avec le nom de notre marque si on le connaît.",
     "- N'ajoute PAS de mention de désinscription : elle est ajoutée automatiquement.",
     "",
     'Réponds uniquement en JSON : {"objet": "…", "texte": "…"}' +
@@ -230,4 +232,41 @@ export function messageErreurProspect(brut: string): string | null {
   if (/prospect introuvable/.test(brut))
     return "Prospect introuvable : vérifiez l'identifiant.";
   return null;
+}
+
+// Suivi d'une campagne e-mail (métier visé, ou tous) : où en est chaque
+// prospect. Même règle que le moteur : le métier est cherché dans la catégorie.
+export type BilanCampagne = {
+  aContacter: number;
+  contactes: number;
+  relances: number;
+  ontRepondu: number;
+  sansEmail: number;
+  enErreur: number;
+};
+export function bilanCampagne(
+  prospects: {
+    type: string;
+    statut: string;
+    email: string | null;
+    email_invalide?: boolean | null;
+    categorie: string | null;
+  }[],
+  cible: string | null,
+): BilanCampagne {
+  const vise = cible?.trim().toLowerCase() ?? "";
+  const b: BilanCampagne = { aContacter: 0, contactes: 0, relances: 0, ontRepondu: 0, sansEmail: 0, enErreur: 0 };
+  for (const p of prospects) {
+    if (p.type !== "entreprise") continue;
+    if (vise && !(p.categorie ?? "").toLowerCase().includes(vise)) continue;
+    if (p.statut === "contacte") b.contactes++;
+    else if (p.statut === "relance") b.relances++;
+    else if (p.statut === "a_repondu" || p.statut === "client") b.ontRepondu++;
+    else if (p.statut === "nouveau") {
+      if (!p.email?.trim()) b.sansEmail++;
+      else if (p.email_invalide) b.enErreur++;
+      else b.aContacter++;
+    }
+  }
+  return b;
 }

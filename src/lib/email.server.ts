@@ -2,6 +2,7 @@ import { clientMoteur } from "./supabase-serveur";
 import {
   adresseValide,
   composerEmail,
+  documentJoint,
   domaineAutorise,
   expediteur,
   lienDesinscription,
@@ -9,13 +10,6 @@ import {
 } from "./email";
 import { LOGO_BTP_CID, LOGO_BTP_PNG_BASE64 } from "./logo-email";
 
-// Présentation PDF de BTP Ecosystem (6 pages, faite avec Canva), jointe à
-// chaque message de la marque ; hébergée dans /public.
-const PRESENTATION_BTP = {
-  filename: "BTP-Ecosystem-presentation.pdf",
-  path: "https://agent-ia-live.vercel.app/BTP-Ecosystem-presentation.pdf",
-  libelle: "présentation de BTP Ecosystem (PDF, 6 pages)",
-};
 import { redigerMessageProspect } from "./prospection.server";
 import type { ProspectARediger } from "./prospection";
 
@@ -35,6 +29,8 @@ type AEnvoyer = {
   reponse: string | null;
   marque: string | null;
   site: string | null;
+  piece_jointe_url?: string | null;
+  piece_jointe_nom?: string | null;
 };
 
 async function envoyerResend(
@@ -54,6 +50,8 @@ async function envoyerResend(
   }
   if (!adresseValide(a.email)) throw new Error("adresse e-mail invalide");
   const signature = signatureMarque(a.marque, a.site);
+  // Document choisi dans Prospection → Agent e-mail (ex. plaquette PDF).
+  const joint = documentJoint(a.piece_jointe_url, a.piece_jointe_nom);
   const mail = composerEmail({
     objet: a.objet ?? "",
     texte: a.texte ?? "",
@@ -62,9 +60,22 @@ async function envoyerResend(
     jeton: a.jeton,
     signature,
     logoCid: signature?.logo ? LOGO_BTP_CID : null,
-    pieceJointe: signature ? PRESENTATION_BTP.libelle : null,
+    pieceJointe: joint?.libelle ?? null,
   });
   const desinscription = lienDesinscription(a.jeton);
+  const pieces = [
+    ...(signature?.logo
+      ? [
+          {
+            filename: "logo-btp.png",
+            content: LOGO_BTP_PNG_BASE64,
+            content_type: "image/png",
+            content_id: LOGO_BTP_CID,
+          },
+        ]
+      : []),
+    ...(joint ? [{ filename: joint.filename, path: joint.path }] : []),
+  ];
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -80,21 +91,9 @@ async function envoyerResend(
       subject: mail.objet,
       text: mail.texte,
       html: mail.html,
-      // Logo intégré (cid:logo-btp) : visible même sans chargement d'images.
-      attachments: signature
-        ? [
-            {
-              filename: "logo-btp.png",
-              content: LOGO_BTP_PNG_BASE64,
-              content_type: "image/png",
-              content_id: LOGO_BTP_CID,
-            },
-            {
-              filename: PRESENTATION_BTP.filename,
-              path: PRESENTATION_BTP.path,
-            },
-          ]
-        : undefined,
+      // Logo intégré (cid:logo-btp) : visible même sans chargement d'images ;
+      // document joint téléchargé par Resend depuis son adresse.
+      attachments: pieces.length ? pieces : undefined,
       headers: {
         "List-Unsubscribe": `<${desinscription}>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",

@@ -66,6 +66,8 @@ export type Prospect = {
   // Recherche automatique du téléphone : date et page où il a été trouvé.
   coordonnees_cherchees_at?: string | null;
   coordonnees_source?: string | null;
+  // Adresse e-mail en erreur (rebond) : plus d'envoi.
+  email_invalide?: boolean;
   // Message rédigé par l'IA, à relire et envoyer soi-même.
   brouillon: BrouillonProspect | null;
   dernier_contact_at: string | null;

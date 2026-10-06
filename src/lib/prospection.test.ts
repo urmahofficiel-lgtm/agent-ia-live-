@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { avecDesinscription, consigneMessage, estARelancer, liensContact, lireMessage, numeroInternational, type ProspectARediger } from "./prospection";
+import { avecDesinscription, bilanCampagne, consigneMessage, estARelancer, liensContact, lireMessage, numeroInternational, type ProspectARediger } from "./prospection";
 
 const prospect: ProspectARediger = {
   id: "x",
@@ -19,6 +19,11 @@ const prospect: ProspectARediger = {
 };
 
 describe("prospection", () => {
+  it("par e-mail, l'IA ne signe pas (la fiche est ajoutée automatiquement)", () => {
+    expect(consigneMessage(prospect, "email")).toContain("Ne signe pas");
+    expect(consigneMessage(prospect, "message")).toContain("Signe avec le nom de notre marque");
+  });
+
   it("la consigne cite le métier, l'offre et interdit la mention ajoutée automatiquement", () => {
     const c = consigneMessage(prospect, "email");
     expect(c).toContain("Métier : Boulangeries");
@@ -100,3 +105,33 @@ describe("consigne : architectes", () => {
   });
 });
 
+describe("suivi de campagne", () => {
+  it("compte les prospects du métier visé, par étape", () => {
+    const p = (statut: string, categorie: string, email: string | null, email_invalide = false) => ({
+      type: "entreprise",
+      statut,
+      categorie,
+      email,
+      email_invalide,
+    });
+    const liste = [
+      p("nouveau", "Architectes", "a@b.fr"),
+      p("nouveau", "Architectes", null),
+      p("nouveau", "Architectes", "x@y.fr", true),
+      p("contacte", "Architectes", "c@d.fr"),
+      p("relance", "Architectes", "e@f.fr"),
+      p("a_repondu", "Architectes", "g@h.fr"),
+      p("nouveau", "Plombiers", "p@q.fr"),
+      { ...p("nouveau", "Architectes", "i@j.fr"), type: "particulier" },
+    ];
+    expect(bilanCampagne(liste, "architectes")).toEqual({
+      aContacter: 1,
+      contactes: 1,
+      relances: 1,
+      ontRepondu: 1,
+      sansEmail: 1,
+      enErreur: 1,
+    });
+    expect(bilanCampagne(liste, null).aContacter).toBe(2);
+  });
+});

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   adresseValide,
   composerEmail,
+  corpsSansDoublons,
+  documentJoint,
   domaineAutorise,
   expediteur,
   lienDesinscription,
@@ -87,5 +89,35 @@ describe("agent e-mail", () => {
     expect(m.texte).toContain("Pièce jointe : présentation (PDF)");
     const sans = composerEmail({ objet: "x", texte: "y", marque: "BTP Ecosystem", site: null, jeton, signature: g });
     expect(sans.texte).not.toContain("Pièce jointe");
+  });
+
+  it("prépare le document joint choisi dans les réglages", () => {
+    const d = documentJoint(
+      "https://x.supabase.co/storage/v1/object/public/documents/u/1791317149000-Plaquette%20agence.pdf",
+      null,
+    );
+    expect(d).toEqual({
+      filename: "Plaquette agence.pdf",
+      path: "https://x.supabase.co/storage/v1/object/public/documents/u/1791317149000-Plaquette%20agence.pdf",
+      libelle: "Plaquette agence (PDF)",
+    });
+    expect(documentJoint("https://exemple.fr/a.pdf", "Notre plaquette (PDF, 4 pages)")?.libelle).toBe(
+      "Notre plaquette (PDF, 4 pages)",
+    );
+    expect(documentJoint(null, null)).toBeNull();
+    expect(documentJoint("http://non-securise.fr/a.pdf", null)).toBeNull();
+  });
+
+  it("retire la signature et la mention STOP écrites par l'IA quand la fiche est là", () => {
+    const texte =
+      "Bonjour,\n\nUne idée pour vos chantiers.\n\nCordialement,\nBTP Ecosystem\n\nBTP Ecosystem\nhttps://www.btp-ecosystem.com/\n\n—\nVous ne souhaitez plus recevoir de message de ma part ? Répondez simplement « STOP » et je ne vous recontacterai plus.";
+    expect(corpsSansDoublons(texte, ["BTP Ecosystem", null])).toBe(
+      "Bonjour,\n\nUne idée pour vos chantiers.\n\nCordialement,",
+    );
+    expect(corpsSansDoublons("Bonjour,\n\nTexte.", ["BTP Ecosystem"])).toBe("Bonjour,\n\nTexte.");
+    const g = signatureMarque("BTP Ecosystem", "https://www.btp-ecosystem.com");
+    const m = composerEmail({ objet: "x", texte, marque: "BTP Ecosystem", site: null, jeton, signature: g });
+    expect(m.texte).not.toContain("STOP");
+    expect(m.html).toContain("Se désinscrire en 1 clic");
   });
 });
