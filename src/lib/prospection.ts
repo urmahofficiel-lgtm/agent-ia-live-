@@ -76,7 +76,7 @@ export function consigneMessage(p: ProspectARediger, canal: Canal): string {
     ...(/architect|ma[iî]tre d.[œo]uvre|bureau d.[ée]tudes?/i.test(p.categorie ?? "")
       ? [
           "- Destinataire = architecte / maître d'œuvre : ne vends pas un outil de devis. Parle de COLLABORATION : tous les corps d'état travaillent au même endroit sur le même chantier (planning, réserves sur plans, comptes rendus de réunion par IA, suivi de chantier partagé).",
-          "- Dis honnêtement que BTP Ecosystem est un produit récent et que nous cherchons quelques architectes pour l'essayer sur de vrais chantiers et nous dire ce qui manque. Propose un échange de 15 minutes. N'offre ni remise ni gratuité autre que l'essai de 14 jours de la fiche.",
+          "- Dis honnêtement que BTP Ecosystem est un produit récent et que nous cherchons quelques architectes pour l'essayer sur de vrais chantiers et nous dire ce qui manque. Offre pilote confirmée par le fondateur : la formule Business est offerte pendant 3 mois aux architectes qui l'essaient sur de vrais chantiers et nous donnent leurs retours — mentionne-la clairement, sans autre promesse ni remise. Propose un échange de 15 minutes.",
         ]
       : []),
     "- Si la fiche officielle indique « certifiée RGE », mentionne-le en une demi-phrase (fait officiel) et relie l'offre aux chantiers de rénovation énergétique ; sinon, ne parle pas de RGE.",

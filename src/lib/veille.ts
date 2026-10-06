@@ -11,6 +11,7 @@ export const VEILLE_BTP = `Mise à jour du site btp-ecosystem.com (5 octobre 202
 - Mode hors ligne : en cours de déploiement (ne le présente pas comme disponible).
 - Il n'y a PAS d'avis clients ni de statistiques d'usage affichés : n'invente aucun témoignage, note ou nombre de clients.
 - Édité par Younes Bekka, société créée en juillet 2026 à Bordeaux : produit récent, ton honnête et humble (« on cherche des architectes pour l'essayer sur de vrais chantiers »).
+- Offre pilote architectes (confirmée par le fondateur le 6 octobre 2026) : formule Business offerte pendant 3 mois aux architectes et maîtres d'œuvre qui l'essaient sur de vrais chantiers et donnent leurs retours. À réserver aux messages vers les architectes, pas aux posts grand public.
 - Marché : les concurrents (ne jamais les citer) misent sur le support humain, les bibliothèques de prix et les avis Google ; presque aucun ne montre le devis à la voix. L'IA passe du test à la production dans la construction. Angle fort : « il vous reste un an pour préparer la facture électronique ».
 - Formats qui marchent dans le secteur : POV et humour de chantier, avant/après, tutoriels de 30 s, vidéo verticale sous-titrée, coulisses du fondateur.`;
 

@@ -90,11 +90,11 @@ describe("consigne : certification RGE", () => {
 });
 
 describe("consigne : architectes", () => {
-  it("oriente le message vers la collaboration, sans offre inventée", () => {
+  it("oriente le message vers la collaboration et l'offre pilote de 3 mois", () => {
     const base = { id: "1", nom: "Cabinet X", entreprise: "Cabinet X", adresse: null, site: null, infos: null, contexte: "BTP Ecosystem", genre: "premier", dernier_message: null };
     const archi = consigneMessage({ ...base, categorie: "Architectes" } as never, "email");
     expect(archi).toContain("COLLABORATION");
-    expect(archi).toContain("N'offre ni remise");
+    expect(archi).toContain("Business est offerte pendant 3 mois");
     const plombier = consigneMessage({ ...base, categorie: "Plombiers" } as never, "email");
     expect(plombier).not.toContain("COLLABORATION");
   });
