@@ -203,3 +203,53 @@ export async function traiterEmails(secret: string, echeance: number) {
   }
   return bilan;
 }
+
+// Envoi ciblé : rédige puis envoie l'e-mail des prospects choisis (identifiants
+// donnés), un par un. Les garde-fous (limite du jour, opposition, adresse en
+// erreur) restent ceux de la base : l'envoi s'arrête dès que la limite est atteinte.
+export async function envoyerEmailsCibles(
+  secret: string,
+  userId: string,
+  ids: string[],
+  echeance: number,
+) {
+  const sb = clientMoteur();
+  const bilan = { rediges: 0, envoyes: 0, erreurs: 0, limite: false, details: [] as string[] };
+  if (!emailConfigure()) throw new Error("Resend n'est pas configuré");
+  for (const id of ids) {
+    if (Date.now() > echeance - 20_000) break;
+    try {
+      const { data: infos, error: e1 } = await sb.rpc("agent_prospect_a_rediger", {
+        p_secret: secret,
+        p_user: userId,
+        p_id: id,
+        p_relance: false,
+      });
+      if (e1) throw new Error(e1.message);
+      const brouillon = await redigerMessageProspect(
+        infos as ProspectARediger,
+        "email",
+        Math.min(60_000, echeance - Date.now()),
+      );
+      const { error: e2 } = await sb.rpc("agent_enregistrer_brouillon_prospect", {
+        p_secret: secret,
+        p_user: userId,
+        p_id: id,
+        p_brouillon: brouillon,
+      });
+      if (e2) throw new Error(e2.message);
+      bilan.rediges++;
+      await envoyerEmailProspect(secret, userId, id);
+      bilan.envoyes++;
+    } catch (e) {
+      const m = e instanceof Error ? e.message : String(e);
+      bilan.erreurs++;
+      bilan.details.push(`${id.slice(0, 8)} : ${m}`);
+      if (/limite de contacts/.test(m)) {
+        bilan.limite = true;
+        break;
+      }
+    }
+  }
+  return bilan;
+}

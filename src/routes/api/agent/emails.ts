@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { traiterEmails } from "@/lib/email.server";
+import { envoyerEmailsCibles, traiterEmails } from "@/lib/email.server";
 
 // Agent e-mail : appelé toutes les 15 minutes, du lundi au vendredi en
 // journée, par pg_cron. Rédige les e-mails de prospection du moment et les
@@ -13,6 +13,21 @@ export const Route = createFileRoute("/api/agent/emails")({
         if (!attendu || secret !== attendu)
           return new Response("Non autorisé", { status: 401 });
         try {
+          // Envoi ciblé (ex. architectes choisis) : { user_id, ids: [...] }.
+          const corps = (await request.json().catch(() => null)) as {
+            user_id?: string;
+            ids?: string[];
+          } | null;
+          if (corps?.user_id && Array.isArray(corps.ids) && corps.ids.length)
+            return Response.json({
+              ok: true,
+              ...(await envoyerEmailsCibles(
+                secret,
+                corps.user_id,
+                corps.ids.slice(0, 50),
+                Date.now() + 270_000,
+              )),
+            });
           return Response.json({
             ok: true,
             ...(await traiterEmails(secret, Date.now() + 200_000)),
