@@ -72,4 +72,11 @@ describe("agent e-mail", () => {
     expect(m.texte).toContain(lienDesinscription(jeton));
     expect(m.html).toContain(`href="${lienDesinscription(jeton)}"`);
   });
+
+  it("peut intégrer le logo en cid: au lieu de l'adresse du site", () => {
+    const g = signatureMarque("BTP Ecosystem", "https://www.btp-ecosystem.com");
+    const m = composerEmail({ objet: "x", texte: "y", marque: "BTP Ecosystem", site: null, jeton, signature: g, logoCid: "logo-btp" });
+    expect(m.html).toContain('src="cid:logo-btp"');
+    expect(m.html).not.toContain("icon-512.png");
+  });
 });

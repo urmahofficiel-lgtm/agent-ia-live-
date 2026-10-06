@@ -7,6 +7,7 @@ import {
   lienDesinscription,
   signatureMarque,
 } from "./email";
+import { LOGO_BTP_CID, LOGO_BTP_PNG_BASE64 } from "./logo-email";
 import { redigerMessageProspect } from "./prospection.server";
 import type { ProspectARediger } from "./prospection";
 
@@ -44,13 +45,15 @@ async function envoyerResend(
     );
   }
   if (!adresseValide(a.email)) throw new Error("adresse e-mail invalide");
+  const signature = signatureMarque(a.marque, a.site);
   const mail = composerEmail({
     objet: a.objet ?? "",
     texte: a.texte ?? "",
     marque: a.marque,
     site: a.site,
     jeton: a.jeton,
-    signature: signatureMarque(a.marque, a.site),
+    signature,
+    logoCid: signature?.logo ? LOGO_BTP_CID : null,
   });
   const desinscription = lienDesinscription(a.jeton);
   const r = await fetch("https://api.resend.com/emails", {
@@ -68,6 +71,17 @@ async function envoyerResend(
       subject: mail.objet,
       text: mail.texte,
       html: mail.html,
+      // Logo intégré (cid:logo-btp) : visible même sans chargement d'images.
+      attachments: signature?.logo
+        ? [
+            {
+              filename: "logo-btp.png",
+              content: LOGO_BTP_PNG_BASE64,
+              content_type: "image/png",
+              content_id: LOGO_BTP_CID,
+            },
+          ]
+        : undefined,
       headers: {
         "List-Unsubscribe": `<${desinscription}>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",

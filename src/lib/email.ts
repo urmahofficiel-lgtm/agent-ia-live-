@@ -129,9 +129,13 @@ export function composerEmail(p: {
   site: string | null;
   jeton: string;
   signature?: SignatureEmail | null;
+  // Logo intégré à l'e-mail (cid:…) plutôt que chargé depuis le site.
+  logoCid?: string | null;
 }): EmailPret {
   const lien = lienDesinscription(p.jeton);
-  const fiche = p.signature ?? null;
+  const fiche = p.signature
+    ? { ...p.signature, logo: p.logoCid ? `cid:${p.logoCid}` : p.signature.logo }
+    : null;
   // Sans fiche : simple ligne « marque · site » comme avant.
   const signature = fiche ? "" : [p.marque, p.site].filter(Boolean).join(" · ");
   const pied = [
