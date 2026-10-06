@@ -38,6 +38,12 @@ nwr(area.zone)["${cle}"="${valeur}"]["name"];
 out center tags ${Math.min(Math.max(max, 1), 200)};`;
 }
 
+// Les contributeurs OSM écrivent parfois « mailto:… » ou plusieurs adresses.
+export function nettoyerEmail(brut: string | null | undefined): string | null {
+  const premiere = (brut ?? "").split(/[;,\s]/).map((x) => x.replace(/^mailto:/i, "").trim()).find((x) => /^[^\s@<>]+@[^\s@<>]+\.[a-z]{2,24}$/i.test(x));
+  return premiere ? premiere.toLowerCase() : null;
+}
+
 export type ProspectTrouve = {
   nom: string;
   email: string | null;
@@ -76,7 +82,7 @@ export function lireReponseOverpass(texte: string): ProspectTrouve[] {
       .join(" ");
     resultats.push({
       nom: t.name,
-      email: t.email ?? t["contact:email"] ?? null,
+      email: nettoyerEmail(t.email ?? t["contact:email"]),
       telephone: t.phone ?? t["contact:phone"] ?? null,
       site: t.website ?? t["contact:website"] ?? null,
       adresse: adresse || null,

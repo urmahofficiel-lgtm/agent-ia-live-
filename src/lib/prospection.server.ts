@@ -127,6 +127,9 @@ export async function redigerMessageProspect(
       "Tu rédiges des messages de prospection B2B honnêtes et concis. Tu réponds uniquement en JSON valide.",
     maxTokens: 600,
     delaiTotal,
+    // Message court : Gemini répond en quelques secondes ; les modèles NVIDIA
+    // gratuits sont parfois trop lents et épuisent le délai.
+    gemini: "d'abord",
   });
   return lireMessage(reponse, canal, p.genre);
 }
