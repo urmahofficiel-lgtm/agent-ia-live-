@@ -79,4 +79,13 @@ describe("agent e-mail", () => {
     expect(m.html).toContain('src="cid:logo-btp"');
     expect(m.html).not.toContain("icon-512.png");
   });
+
+  it("annonce la pièce jointe au-dessus de la fiche", () => {
+    const g = signatureMarque("BTP Ecosystem", "https://www.btp-ecosystem.com");
+    const m = composerEmail({ objet: "x", texte: "y", marque: "BTP Ecosystem", site: null, jeton, signature: g, pieceJointe: "présentation (PDF)" });
+    expect(m.html).toContain("Pièce jointe");
+    expect(m.texte).toContain("Pièce jointe : présentation (PDF)");
+    const sans = composerEmail({ objet: "x", texte: "y", marque: "BTP Ecosystem", site: null, jeton, signature: g });
+    expect(sans.texte).not.toContain("Pièce jointe");
+  });
 });

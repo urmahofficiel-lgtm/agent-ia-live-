@@ -8,6 +8,14 @@ import {
   signatureMarque,
 } from "./email";
 import { LOGO_BTP_CID, LOGO_BTP_PNG_BASE64 } from "./logo-email";
+
+// Présentation PDF de BTP Ecosystem (6 pages, faite avec Canva), jointe à
+// chaque message de la marque ; hébergée dans /public.
+const PRESENTATION_BTP = {
+  filename: "BTP-Ecosystem-presentation.pdf",
+  path: "https://agent-ia-live.vercel.app/BTP-Ecosystem-presentation.pdf",
+  libelle: "présentation de BTP Ecosystem (PDF, 6 pages)",
+};
 import { redigerMessageProspect } from "./prospection.server";
 import type { ProspectARediger } from "./prospection";
 
@@ -54,6 +62,7 @@ async function envoyerResend(
     jeton: a.jeton,
     signature,
     logoCid: signature?.logo ? LOGO_BTP_CID : null,
+    pieceJointe: signature ? PRESENTATION_BTP.libelle : null,
   });
   const desinscription = lienDesinscription(a.jeton);
   const r = await fetch("https://api.resend.com/emails", {
@@ -72,13 +81,17 @@ async function envoyerResend(
       text: mail.texte,
       html: mail.html,
       // Logo intégré (cid:logo-btp) : visible même sans chargement d'images.
-      attachments: signature?.logo
+      attachments: signature
         ? [
             {
               filename: "logo-btp.png",
               content: LOGO_BTP_PNG_BASE64,
               content_type: "image/png",
               content_id: LOGO_BTP_CID,
+            },
+            {
+              filename: PRESENTATION_BTP.filename,
+              path: PRESENTATION_BTP.path,
             },
           ]
         : undefined,

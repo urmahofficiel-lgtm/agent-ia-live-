@@ -131,6 +131,8 @@ export function composerEmail(p: {
   signature?: SignatureEmail | null;
   // Logo intégré à l'e-mail (cid:…) plutôt que chargé depuis le site.
   logoCid?: string | null;
+  // Pièce jointe annoncée au-dessus de la fiche (ex. « présentation (PDF) »).
+  pieceJointe?: string | null;
 }): EmailPret {
   const lien = lienDesinscription(p.jeton);
   const fiche = p.signature
@@ -138,7 +140,9 @@ export function composerEmail(p: {
     : null;
   // Sans fiche : simple ligne « marque · site » comme avant.
   const signature = fiche ? "" : [p.marque, p.site].filter(Boolean).join(" · ");
+  const mentionPj = p.pieceJointe ? `Pièce jointe : ${p.pieceJointe}` : "";
   const pied = [
+    mentionPj,
     fiche ? signatureTexte(fiche) : signature,
     `Se désinscrire en 1 clic : ${lien}`,
   ]
@@ -155,6 +159,7 @@ export function composerEmail(p: {
   const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0">
 <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#111111">
 ${corps}
+${p.pieceJointe ? `<p style="margin:22px 0 0 0;font-size:13px;line-height:19px;color:#374151">📎 <b>Pièce jointe</b> : ${echapper(p.pieceJointe)}</p>` : ""}
 ${fiche ? signatureHtml(fiche) : ""}
 <p style="margin:24px 0 0 0;font-size:12px;line-height:18px;color:#6b7280">${signature ? `${liens(echapper(signature))}<br>` : ""}Vous ne souhaitez plus recevoir nos messages ? <a href="${lien}" style="color:#6b7280">Se désinscrire en 1 clic</a>.</p>
 </td></tr></table></body></html>`;
