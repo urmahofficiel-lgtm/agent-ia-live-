@@ -5,6 +5,7 @@ import {
   domaineAutorise,
   expediteur,
   lienDesinscription,
+  signatureMarque,
 } from "./email";
 import { redigerMessageProspect } from "./prospection.server";
 import type { ProspectARediger } from "./prospection";
@@ -49,6 +50,7 @@ async function envoyerResend(
     marque: a.marque,
     site: a.site,
     jeton: a.jeton,
+    signature: signatureMarque(a.marque, a.site),
   });
   const desinscription = lienDesinscription(a.jeton);
   const r = await fetch("https://api.resend.com/emails", {
