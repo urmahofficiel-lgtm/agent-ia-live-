@@ -1,4 +1,4 @@
-import { nettoyerPost } from "./texte";
+import { nettoyerPost, reglesReseau, sansLienSiReseau } from "./texte";
 import { nomPlateforme } from "./plateformes";
 
 // Cerveau de l'agent : NVIDIA NIM (API compatible OpenAI).
@@ -223,7 +223,6 @@ const REGLES_MARQUE = `Règles impératives :
 - Prix : ne cite un prix que s'il figure dans la fiche, avec sa condition (« en paiement annuel »).
 - Ne cite jamais un concurrent, même pour comparer.
 - Première phrase = accroche concrète (une situation de chantier, une question, un POV), jamais le nom du site ni de la marque seul.
-- Termine par l'appel à l'action de la fiche et le lien du site, écrit en entier.
 - Le post est un texte accompagné d'une image : si la consigne parle de vidéo, live, PDF ou infographie, transforme-la en post texte sur le même sujet.
 - Hashtags : 3 à 5 maximum, pris dans la liste conseillée quand elle existe.
 - Texte brut prêt à publier : pas de markdown (ni astérisques, ni titres avec #), et ne recopie pas le titre interne en tête du post.`;
@@ -231,7 +230,7 @@ const REGLES_MARQUE = `Règles impératives :
 export async function rediger(t: Consigne, contexte?: string | null): Promise<string> {
   const texte = await demanderIA(
     [
-      contexte ? `Fiche de la marque (source de vérité) :\n${contexte}\n\n${REGLES_MARQUE}\n` : "",
+      contexte ? `Fiche de la marque (source de vérité) :\n${contexte}\n\n${REGLES_MARQUE}\n${reglesReseau(t.plateforme)}\n` : "",
       CONSIGNES_TYPE[t.type] ?? CONSIGNES_TYPE.autre,
       t.plateforme ? `Plateforme : ${nomPlateforme(t.plateforme)}.` : "",
       `Titre : ${t.titre}`,
@@ -240,7 +239,7 @@ export async function rediger(t: Consigne, contexte?: string | null): Promise<st
       .filter(Boolean)
       .join("\n"),
   );
-  return nettoyerPost(texte, t.titre);
+  return sansLienSiReseau(nettoyerPost(texte, t.titre), t.plateforme);
 }
 
 // --- Images -------------------------------------------------------------------
