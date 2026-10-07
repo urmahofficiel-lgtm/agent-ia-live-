@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState, type FormEvent } from "react";
 import {
+  ChevronDown,
   FileText,
   Globe,
   LoaderCircle,
@@ -17,6 +18,7 @@ import {
   Carte,
   Erreur,
   Pastille,
+  Repli,
   Titre,
   bouton,
   boutonSecondaire,
@@ -71,19 +73,10 @@ function AgentEmail({
     if (r.email_cible && !n.has(r.email_cible)) n.set(r.email_cible, 0);
     return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([m]) => m);
   }, [prospects, r.email_cible]);
-  const bilan = useMemo(
-    () => bilanCampagne(prospects, r.email_cible),
-    [prospects, r.email_cible],
-  );
-  const jours = Math.ceil(bilan.aContacter / Math.max(r.email_par_jour, 1));
   return (
-    <Carte className="mb-4">
+    <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="flex items-center gap-2 font-medium">
-          <Mail className="size-4" aria-hidden />
-          Agent e-mail
-        </p>
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex min-h-10 items-center gap-2 text-sm font-medium">
           <input
             type="checkbox"
             checked={r.email_auto}
@@ -182,39 +175,55 @@ function AgentEmail({
         </label>
         <DocumentJoint reglages={r} enregistrer={enregistrer} userId={userId} />
       </div>
+    </div>
+  );
+}
 
-      <div className="mt-4 border-t border-bord pt-3">
-        <p className="text-sm font-medium">
-          Suivi de la campagne{r.email_cible ? ` · ${r.email_cible}` : ""}
-        </p>
-        <dl className="mt-2 grid grid-cols-3 gap-2 text-center text-xs sm:grid-cols-6">
-          {(
-            [
-              ["À contacter", bilan.aContacter],
-              ["Contactés", bilan.contactes],
-              ["Relancés", bilan.relances],
-              ["Ont répondu", bilan.ontRepondu],
-              ["Sans e-mail", bilan.sansEmail],
-              ["Adresse en erreur", bilan.enErreur],
-            ] as const
-          ).map(([libelle, n]) => (
-            <div
-              key={libelle}
-              className="flex flex-col-reverse rounded-lg bg-fond px-2 py-2"
-            >
-              <dt className="text-doux">{libelle}</dt>
-              <dd className="text-lg font-semibold tabular-nums">{n}</dd>
-            </div>
-          ))}
-        </dl>
-        <p className="mt-2 text-xs text-doux">
-          {bilan.aContacter > 0
-            ? `À ${r.email_par_jour} e-mails par jour (en semaine), il reste environ ${jours} jour${jours > 1 ? "s" : ""} d'envoi. `
-            : "Tous les prospects qui ont un e-mail ont été contactés. "}
-          Quand quelqu'un vous répond, passez-le en « A répondu » : il ne sera
-          pas relancé.
-        </p>
-      </div>
+// Chiffres de la campagne en cours (métier visé, ou tous les prospects).
+function SuiviCampagne({
+  prospects,
+  reglages: r,
+}: {
+  prospects: Prospect[];
+  reglages: ReglagesProspection;
+}) {
+  const bilan = useMemo(
+    () => bilanCampagne(prospects, r.email_cible),
+    [prospects, r.email_cible],
+  );
+  const jours = Math.ceil(bilan.aContacter / Math.max(r.email_par_jour, 1));
+  return (
+    <Carte className="mb-4">
+      <p className="text-sm font-medium">
+        Campagne e-mail{r.email_cible ? ` · ${r.email_cible}` : ""}
+      </p>
+      <dl className="mt-2 grid grid-cols-3 gap-2 text-center text-xs sm:grid-cols-6">
+        {(
+          [
+            ["À contacter", bilan.aContacter],
+            ["Contactés", bilan.contactes],
+            ["Relancés", bilan.relances],
+            ["Ont répondu", bilan.ontRepondu],
+            ["Sans e-mail", bilan.sansEmail],
+            ["Adresse en erreur", bilan.enErreur],
+          ] as const
+        ).map(([libelle, n]) => (
+          <div
+            key={libelle}
+            className="flex flex-col-reverse rounded-lg bg-fond px-2 py-2"
+          >
+            <dt className="text-doux">{libelle}</dt>
+            <dd className="text-lg font-semibold tabular-nums">{n}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-2 text-xs text-doux">
+        {bilan.aContacter > 0
+          ? `À ${r.email_par_jour} e-mails par jour (en semaine), il reste environ ${jours} jour${jours > 1 ? "s" : ""} d'envoi. `
+          : "Tous les prospects qui ont un e-mail ont été contactés. "}
+        Quand quelqu'un vous répond, passez-le en « A répondu » : il ne sera pas
+        relancé.
+      </p>
     </Carte>
   );
 }
@@ -485,78 +494,102 @@ function Prospection() {
 
   return (
     <>
-      <Titre sous="Trouvez des entreprises, laissez l'IA préparer un message sur mesure. Les e-mails peuvent partir seuls (agent e-mail) ; SMS et WhatsApp, c'est vous qui envoyez.">
+      <Titre sous="Trouvez des entreprises, l'IA écrit le message. Les e-mails partent seuls ; SMS et WhatsApp, c'est vous qui envoyez.">
         Prospection
       </Titre>
 
-      <Recherche onFini={actualiser} />
-
-      <Carte className="mb-4">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
-          <p className="flex items-center gap-2">
-            <ShieldCheck className="size-4 text-ok" aria-hidden />
-            <span>
-              Contacts possibles aujourd'hui :{" "}
-              <strong className="tabular-nums">{restants.data ?? "…"}</strong> /{" "}
-              {limite}
-            </span>
-          </p>
-          <label className="flex items-center gap-2">
-            Limite par jour
-            <input
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={1000}
-              className={`${champ} w-20`}
-              defaultValue={limite}
-              key={`limite-${limite}`}
-              onBlur={(e) => {
-                const v = borner(e.target.value, 0, 1000, limite);
-                if (v !== limite)
-                  void enregistrerReglages({ limite_contacts_jour: v });
-              }}
-            />
-          </label>
-          <label className="flex items-center gap-2">
-            Relancer après
-            <input
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={90}
-              className={`${champ} w-20`}
-              defaultValue={delai}
-              key={`delai-${delai}`}
-              onBlur={(e) => {
-                const v = borner(e.target.value, 1, 90, delai);
-                if (v !== delai)
-                  void enregistrerReglages({ relance_apres_jours: v });
-              }}
-            />
-            jours sans réponse
-          </label>
-        </div>
-        <p className="mt-2 text-xs text-doux">
-          Prospection B2B : le message doit concerner l'activité du destinataire
-          et lui permettre de s'opposer (mention « STOP » ajoutée
-          automatiquement). Un prospect « Ne plus contacter » n'est plus jamais
-          proposé au contact.
-        </p>
-        <Erreur message={erreur ?? reglages.erreur} />
-      </Carte>
-
       {reglages.data && (
-        <AgentEmail
-          reglages={reglages.data}
-          enregistrer={enregistrerReglages}
-          prospects={prospects}
-          userId={userId}
-        />
+        <SuiviCampagne prospects={prospects} reglages={reglages.data} />
       )}
 
+      <div className="mb-4 space-y-2">
+        <Repli
+          titre="Trouver des entreprises"
+          icone={<Search className="size-4" aria-hidden />}
+          resume="Par activité et par ville"
+        >
+          <Recherche onFini={actualiser} />
+        </Repli>
+        {reglages.data && (
+          <Repli
+            titre="Agent e-mail"
+            icone={<Mail className="size-4" aria-hidden />}
+            resume={
+              reglages.data.email_auto
+                ? `Activé · ${reglages.data.email_par_jour} par jour${reglages.data.email_cible ? ` · ${reglages.data.email_cible}` : ""}`
+                : "Désactivé"
+            }
+          >
+            <AgentEmail
+              reglages={reglages.data}
+              enregistrer={enregistrerReglages}
+              prospects={prospects}
+              userId={userId}
+            />
+          </Repli>
+        )}
+        <Repli
+          titre="Limites du jour et relances"
+          icone={<ShieldCheck className="size-4" aria-hidden />}
+          resume={`${restants.data ?? "…"} contacts possibles aujourd'hui sur ${limite} · relance après ${delai} jours`}
+        >
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
+            <p className="flex items-center gap-2">
+              <ShieldCheck className="size-4 text-ok" aria-hidden />
+              <span>
+                Contacts possibles aujourd'hui :{" "}
+                <strong className="tabular-nums">{restants.data ?? "…"}</strong>{" "}
+                / {limite}
+              </span>
+            </p>
+            <label className="flex items-center gap-2">
+              Limite par jour
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={1000}
+                className={`${champ} w-20`}
+                defaultValue={limite}
+                key={`limite-${limite}`}
+                onBlur={(e) => {
+                  const v = borner(e.target.value, 0, 1000, limite);
+                  if (v !== limite)
+                    void enregistrerReglages({ limite_contacts_jour: v });
+                }}
+              />
+            </label>
+            <label className="flex items-center gap-2">
+              Relancer après
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={90}
+                className={`${champ} w-20`}
+                defaultValue={delai}
+                key={`delai-${delai}`}
+                onBlur={(e) => {
+                  const v = borner(e.target.value, 1, 90, delai);
+                  if (v !== delai)
+                    void enregistrerReglages({ relance_apres_jours: v });
+                }}
+              />
+              jours sans réponse
+            </label>
+          </div>
+          <p className="mt-2 text-xs text-doux">
+            Prospection B2B : le message doit concerner l'activité du
+            destinataire et lui permettre de s'opposer (mention « STOP » ajoutée
+            automatiquement). Un prospect « Ne plus contacter » n'est plus
+            jamais proposé au contact.
+          </p>
+          <Erreur message={erreur ?? reglages.erreur} />
+        </Repli>
+      </div>
+
       <nav
-        className="mb-3 flex flex-wrap gap-2"
+        className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0"
         aria-label="Filtrer les prospects"
       >
         {FILTRES.map((f) => {
@@ -566,7 +599,7 @@ function Prospection() {
               key={f.id}
               aria-pressed={actif}
               onClick={() => setFiltre(f.id)}
-              className={`rounded-full border px-3 py-1 text-sm ${actif ? "border-accent bg-accent/15 text-accent" : "border-bord text-doux hover:bg-bord"}`}
+              className={`min-h-9 shrink-0 rounded-full border px-3 py-1 text-sm ${actif ? "border-accent bg-accent/15 text-accent" : "border-bord text-doux hover:bg-bord"}`}
             >
               {f.libelle}{" "}
               <span className="tabular-nums">{parFiltre[f.id].length}</span>
@@ -590,6 +623,7 @@ function Prospection() {
             key={`${p.id}-${p.brouillon?.redige_le ?? ""}`}
             p={p}
             aRelancer={aRelancer.has(p.id)}
+            ouvrirMessage={filtre === "a_valider"}
             onChange={actualiser}
           />
         ))}
@@ -631,8 +665,7 @@ function Recherche({ onFini }: { onFini: () => Promise<void> }) {
   }
 
   return (
-    <Carte className="mb-4">
-      <h2 className="mb-3 font-medium">Trouver des entreprises</h2>
+    <div>
       <form
         onSubmit={chercher}
         className="grid gap-3 md:grid-cols-[1fr_1fr_auto]"
@@ -692,7 +725,7 @@ function Recherche({ onFini }: { onFini: () => Promise<void> }) {
         sont écartées, et celles déjà dans votre liste ne sont pas ajoutées deux
         fois.
       </p>
-    </Carte>
+    </div>
   );
 }
 
@@ -706,10 +739,12 @@ const ICONES: Record<LienContact["type"], typeof Mail> = {
 function ProspectCarte({
   p,
   aRelancer,
+  ouvrirMessage,
   onChange,
 }: {
   p: Prospect;
   aRelancer: boolean;
+  ouvrirMessage: boolean;
   onChange: () => Promise<void>;
 }) {
   const [texte, setTexte] = useState(p.brouillon?.texte ?? "");
@@ -913,91 +948,109 @@ function ProspectCarte({
       </p>
 
       {brouillon && (
-        <div className="mt-3 space-y-2 rounded-xl border border-bord bg-fond p-3">
-          <p className="text-xs text-doux">
-            {brouillon.genre === "relance" ? "Relance" : "Premier message"} ·{" "}
-            {brouillon.canal === "email" ? "e-mail" : "SMS / WhatsApp"} ·
-            relisez et modifiez avant d'envoyer
-          </p>
-          {brouillon.canal === "email" && (
-            <input
-              className={champ}
-              aria-label="Objet de l'e-mail"
-              value={objet}
-              onChange={(e) => setObjet(e.target.value)}
+        <details
+          open={ouvrirMessage}
+          className="group mt-3 rounded-xl border border-bord bg-fond"
+        >
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm [&::-webkit-details-marker]:hidden">
+            <PenLine className="size-4 shrink-0 text-accent" aria-hidden />
+            <span className="min-w-0 flex-1 truncate">
+              {brouillon.genre === "relance" ? "Relance prête" : "Message prêt"}{" "}
+              <span className="text-doux">
+                · à relire{objet ? ` · ${objet}` : ""}
+              </span>
+            </span>
+            <ChevronDown
+              className="size-4 shrink-0 text-doux transition-transform group-open:rotate-180"
+              aria-hidden
+            />
+          </summary>
+          <div className="space-y-2 border-t border-bord p-3">
+            <p className="text-xs text-doux">
+              {brouillon.genre === "relance" ? "Relance" : "Premier message"} ·{" "}
+              {brouillon.canal === "email" ? "e-mail" : "SMS / WhatsApp"} ·
+              relisez et modifiez avant d'envoyer
+            </p>
+            {brouillon.canal === "email" && (
+              <input
+                className={champ}
+                aria-label="Objet de l'e-mail"
+                value={objet}
+                onChange={(e) => setObjet(e.target.value)}
+                onBlur={sauverBrouillon}
+              />
+            )}
+            <textarea
+              className={`${champ} min-h-40`}
+              aria-label={`Message pour ${p.nom}`}
+              value={texte}
+              onChange={(e) => setTexte(e.target.value)}
               onBlur={sauverBrouillon}
             />
-          )}
-          <textarea
-            className={`${champ} min-h-40`}
-            aria-label={`Message pour ${p.nom}`}
-            value={texte}
-            onChange={(e) => setTexte(e.target.value)}
-            onBlur={sauverBrouillon}
-          />
-          <div className="flex flex-wrap gap-2">
-            {brouillon.canal === "email" && p.email && (
+            <div className="flex flex-wrap gap-2">
+              {brouillon.canal === "email" && p.email && (
+                <button
+                  className={`${bouton} inline-flex items-center justify-center gap-1.5 max-sm:w-full`}
+                  disabled={occupe || sansAccord}
+                  onClick={envoyer}
+                >
+                  {etat === "envoi" ? (
+                    <LoaderCircle className="size-4 animate-spin" aria-hidden />
+                  ) : (
+                    <Send className="size-4" aria-hidden />
+                  )}
+                  Envoyer l'e-mail
+                </button>
+              )}
+              {liens
+                .filter((l) => l.type !== "telephone")
+                .map((l) => {
+                  const Icone = ICONES[l.type];
+                  return (
+                    <a
+                      key={l.type}
+                      href={l.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={`${boutonSecondaire} inline-flex items-center justify-center gap-1.5 max-sm:w-full`}
+                    >
+                      <Icone className="size-4" aria-hidden />
+                      Ouvrir dans {l.libelle}
+                    </a>
+                  );
+                })}
               <button
-                className={`${bouton} inline-flex items-center gap-1.5`}
+                className={`${bouton} inline-flex items-center justify-center gap-1.5 max-sm:w-full`}
                 disabled={occupe || sansAccord}
-                onClick={envoyer}
+                onClick={() => marquer("contacte")}
               >
-                {etat === "envoi" ? (
-                  <LoaderCircle className="size-4 animate-spin" aria-hidden />
-                ) : (
-                  <Send className="size-4" aria-hidden />
-                )}
-                Envoyer l'e-mail
+                <Send className="size-4" aria-hidden />
+                J'ai envoyé : marquer contacté
               </button>
-            )}
-            {liens
-              .filter((l) => l.type !== "telephone")
-              .map((l) => {
-                const Icone = ICONES[l.type];
-                return (
-                  <a
-                    key={l.type}
-                    href={l.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={`${boutonSecondaire} inline-flex items-center gap-1.5`}
-                  >
-                    <Icone className="size-4" aria-hidden />
-                    Ouvrir dans {l.libelle}
-                  </a>
-                );
-              })}
-            <button
-              className={`${bouton} inline-flex items-center gap-1.5`}
-              disabled={occupe || sansAccord}
-              onClick={() => marquer("contacte")}
-            >
-              <Send className="size-4" aria-hidden />
-              J'ai envoyé : marquer contacté
-            </button>
-            <button
-              className={`${boutonSecondaire} inline-flex items-center gap-1.5`}
-              disabled={occupe}
-              onClick={() => rediger(brouillon.canal)}
-            >
-              {icone(brouillon.canal, PenLine)}
-              Réécrire
-            </button>
-            <button
-              className={`${boutonSecondaire} inline-flex items-center`}
-              disabled={occupe}
-              onClick={jeterBrouillon}
-              aria-label="Supprimer ce brouillon"
-              title="Supprimer ce brouillon"
-            >
-              <Trash2 className="size-4" aria-hidden />
-            </button>
+              <button
+                className={`${boutonSecondaire} inline-flex items-center justify-center gap-1.5 max-sm:w-full`}
+                disabled={occupe}
+                onClick={() => rediger(brouillon.canal)}
+              >
+                {icone(brouillon.canal, PenLine)}
+                Réécrire
+              </button>
+              <button
+                className={`${boutonSecondaire} inline-flex items-center`}
+                disabled={occupe}
+                onClick={jeterBrouillon}
+                aria-label="Supprimer ce brouillon"
+                title="Supprimer ce brouillon"
+              >
+                <Trash2 className="size-4" aria-hidden />
+              </button>
+            </div>
+            <p className="text-xs text-doux">
+              Les boutons ouvrent votre messagerie avec le texte prérempli :
+              rien ne part sans votre clic sur « Envoyer ».
+            </p>
           </div>
-          <p className="text-xs text-doux">
-            Les boutons ouvrent votre messagerie avec le texte prérempli : rien
-            ne part sans votre clic sur « Envoyer ».
-          </p>
-        </div>
+        </details>
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -1005,7 +1058,7 @@ function ProspectCarte({
           <>
             {p.email && (
               <button
-                className={`${boutonSecondaire} inline-flex items-center gap-1.5`}
+                className={`${boutonSecondaire} inline-flex items-center justify-center gap-1.5 max-sm:w-full`}
                 disabled={occupe}
                 onClick={() => rediger("email")}
               >
@@ -1016,7 +1069,7 @@ function ProspectCarte({
               </button>
             )}
             <button
-              className={`${boutonSecondaire} inline-flex items-center gap-1.5`}
+              className={`${boutonSecondaire} inline-flex items-center justify-center gap-1.5 max-sm:w-full`}
               disabled={occupe}
               onClick={() => rediger("message")}
             >
@@ -1035,7 +1088,7 @@ function ProspectCarte({
         {!oppose && appel && (
           <a
             href={appel.href}
-            className={`${boutonSecondaire} inline-flex items-center gap-1.5`}
+            className={`${boutonSecondaire} inline-flex items-center justify-center gap-1.5 max-sm:w-full`}
           >
             <Phone className="size-4" aria-hidden />
             Appeler

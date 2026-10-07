@@ -127,31 +127,31 @@ function Statistiques() {
           <Carte className="mb-6 p-5">
             <h2 className="mb-3 text-lg font-semibold">Par réseau</h2>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-xs sm:text-sm">
                 <thead>
                   <tr className="text-left font-mono text-[11px] tracking-wider text-doux uppercase">
-                    <th className="py-2 pr-3 font-normal">Réseau</th>
-                    <th className="px-3 py-2 text-right font-normal">Posts</th>
-                    <th className="px-3 py-2 text-right font-normal">Vues</th>
-                    <th className="px-3 py-2 text-right font-normal">Likes</th>
-                    <th className="px-3 py-2 text-right font-normal">Comm.</th>
-                    <th className="py-2 pl-3 text-right font-normal">Partages</th>
+                    <th className="py-2 pr-1 sm:pr-3 font-normal">Réseau</th>
+                    <th className="px-1.5 sm:px-3 py-2 text-right font-normal">Posts</th>
+                    <th className="px-1.5 sm:px-3 py-2 text-right font-normal">Vues</th>
+                    <th className="px-1.5 sm:px-3 py-2 text-right font-normal">Likes</th>
+                    <th className="px-1.5 sm:px-3 py-2 text-right font-normal">Comm.</th>
+                    <th className="py-2 pl-1.5 text-right font-normal sm:pl-3"><span className="sm:hidden">Part.</span><span className="max-sm:hidden">Partages</span></th>
                   </tr>
                 </thead>
                 <tbody>
                   {totaux.map((t) => (
                     <tr key={t.reseau} className="border-t border-bord">
-                      <td className="py-2 pr-3">
+                      <td className="py-2 pr-1 sm:pr-3">
                         <span className="flex items-center gap-2">
                           <LogoPlateforme id={t.reseau} taille={22} />
                           {nomPlateforme(t.reseau)}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums">{t.publications}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{fmt(t.vues)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{fmt(t.likes)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{fmt(t.commentaires)}</td>
-                      <td className="py-2 pl-3 text-right tabular-nums">{fmt(t.partages)}</td>
+                      <td className="px-1.5 sm:px-3 py-2 text-right tabular-nums">{t.publications}</td>
+                      <td className="px-1.5 sm:px-3 py-2 text-right tabular-nums">{fmt(t.vues)}</td>
+                      <td className="px-1.5 sm:px-3 py-2 text-right tabular-nums">{fmt(t.likes)}</td>
+                      <td className="px-1.5 sm:px-3 py-2 text-right tabular-nums">{fmt(t.commentaires)}</td>
+                      <td className="py-2 pl-1.5 sm:pl-3 text-right tabular-nums">{fmt(t.partages)}</td>
                     </tr>
                   ))}
                 </tbody>

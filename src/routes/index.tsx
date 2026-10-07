@@ -32,7 +32,7 @@ function TableauDeBord() {
     <>
       <Titre sous="Dites à l'agent ce que vous voulez : il rédige, crée les visuels et publie après votre validation.">Tableau de bord</Titre>
 
-      <Carte className={`mb-6 flex flex-wrap items-center justify-between gap-4 p-5 ${actif ? "border-ok/40" : "border-alerte/40"}`}>
+      <Carte className={`mb-4 flex flex-wrap items-center justify-between gap-3 p-4 md:mb-6 md:gap-4 md:p-5 ${actif ? "border-ok/40" : "border-alerte/40"}`}>
         <div className="flex items-center gap-4">
           <span className={`size-3 shrink-0 rounded-full ${actif ? "bg-ok" : "bg-alerte"}`} aria-hidden />
           <div>
@@ -43,12 +43,20 @@ function TableauDeBord() {
             </p>
           </div>
         </div>
-        <button type="button" onClick={() => enregistrer({ agent_actif: !actif })} className={`${actif ? boutonSecondaire : bouton} flex items-center gap-2`}>
+        <button type="button" onClick={() => enregistrer({ agent_actif: !actif })} className={`${actif ? boutonSecondaire : bouton} flex items-center gap-2 max-sm:w-full max-sm:justify-center`}>
           <Power size={16} aria-hidden />
           {actif ? "Arrêter l'agent" : "Démarrer l'agent"}
         </button>
       </Carte>
       <Erreur message={erreur ?? taches.erreur} />
+
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Chiffre libelle="À valider" valeur={compte("a_valider")} lien="/taches" accent />
+        {compte("a_partager") > 0 && <Chiffre libelle="À partager" valeur={compte("a_partager")} lien="/taches" accent />}
+        <Chiffre libelle="Planifiées" valeur={compte("en_attente", "en_cours")} lien="/taches" />
+        <Chiffre libelle="Publiées" valeur={compte("terminee")} lien="/taches" />
+        <Chiffre libelle="Prospects" valeur={prospects.data?.length ?? 0} lien="/prospection" />
+      </div>
 
       {charge && restantes > 0 && (
         <Carte className="mb-6 p-5">
@@ -86,14 +94,6 @@ function TableauDeBord() {
       )}
 
       <Commande />
-
-      <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Chiffre libelle="À valider" valeur={compte("a_valider")} lien="/taches" accent />
-        {compte("a_partager") > 0 && <Chiffre libelle="À partager" valeur={compte("a_partager")} lien="/taches" accent />}
-        <Chiffre libelle="Planifiées" valeur={compte("en_attente", "en_cours")} lien="/taches" />
-        <Chiffre libelle="Publiées" valeur={compte("terminee")} lien="/taches" />
-        <Chiffre libelle="Prospects" valeur={prospects.data?.length ?? 0} lien="/prospection" />
-      </div>
     </>
   );
 }
