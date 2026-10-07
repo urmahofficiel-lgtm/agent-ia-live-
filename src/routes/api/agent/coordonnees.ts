@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { clientMoteur } from "@/lib/supabase-serveur";
 import {
+  dernierRefusRecherche,
   trouverCoordonnees,
   type ProspectACompleter,
 } from "@/lib/coordonnees.server";
@@ -51,6 +52,7 @@ async function completer(secret: string) {
     reportes,
     // Recherche web : clé reçue par le serveur (jamais sa valeur).
     recherche_web: Boolean(process.env.TAVILY_API_KEY),
+    refus_recherche: dernierRefusRecherche,
   };
 }
 

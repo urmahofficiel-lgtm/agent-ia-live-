@@ -81,6 +81,9 @@ type ResultatTavily = {
   raw_content?: string | null;
 };
 
+// Dernier refus de la recherche web (code + court message), pour le diagnostic.
+export let dernierRefusRecherche: string | null = null;
+
 async function rechercheTavily(
   requete: string,
   cle: string,
@@ -102,16 +105,15 @@ async function rechercheTavily(
       }),
     });
     if (!r.ok) {
-      console.warn(
-        "Recherche web (Tavily)",
-        r.status,
-        (await r.text()).slice(0, 300),
-      );
+      const detail = (await r.text()).slice(0, 300);
+      console.warn("Recherche web (Tavily)", r.status, detail);
+      dernierRefusRecherche = `${r.status} ${detail}`.slice(0, 200);
       return null;
     }
     return ((await r.json()) as { results?: ResultatTavily[] }).results ?? [];
   } catch (e) {
     console.warn("Recherche web (Tavily)", e instanceof Error ? e.message : e);
+    dernierRefusRecherche = (e instanceof Error ? e.message : String(e)).slice(0, 200);
     return null;
   }
 }
