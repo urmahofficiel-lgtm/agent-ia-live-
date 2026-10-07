@@ -45,7 +45,13 @@ async function completer(secret: string) {
       }),
     );
   }
-  return { a_completer: liste.length, trouves, reportes };
+  return {
+    a_completer: liste.length,
+    trouves,
+    reportes,
+    // Recherche web : clé reçue par le serveur (jamais sa valeur).
+    recherche_web: Boolean(process.env.TAVILY_API_KEY),
+  };
 }
 
 export const Route = createFileRoute("/api/agent/coordonnees")({
