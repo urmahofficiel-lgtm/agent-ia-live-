@@ -14,12 +14,12 @@ import {
 const BUDGET = 180_000;
 const LOT = 1;
 
-async function completer(secret: string) {
+async function completer(secret: string, limite = 2) {
   const debut = Date.now();
   const sb = clientMoteur();
   const { data, error } = await sb.rpc("agent_prospects_a_completer", {
     p_secret: secret,
-    p_limite: 2,
+    p_limite: limite,
   });
   if (error) throw new Error(error.message);
   const liste = (data ?? []) as (ProspectACompleter & { user_id: string })[];
@@ -56,6 +56,12 @@ async function completer(secret: string) {
   };
 }
 
+// Gros lot à la demande : { limite: 1 à 20 } (par défaut 2, comme le planning).
+const lireLimite = (corps: unknown) => {
+  const n = Number((corps as { limite?: unknown } | null)?.limite);
+  return Number.isInteger(n) && n >= 1 && n <= 20 ? n : 2;
+};
+
 export const Route = createFileRoute("/api/agent/coordonnees")({
   server: {
     handlers: {
@@ -65,7 +71,13 @@ export const Route = createFileRoute("/api/agent/coordonnees")({
         if (!attendu || secret !== attendu)
           return new Response("Non autorisé", { status: 401 });
         try {
-          return Response.json({ ok: true, ...(await completer(secret)) });
+          return Response.json({
+            ok: true,
+            ...(await completer(
+              secret,
+              lireLimite(await request.json().catch(() => null)),
+            )),
+          });
         } catch (e) {
           console.error("coordonnees", e);
           return Response.json({ ok: false }, { status: 500 });
