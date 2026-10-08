@@ -177,6 +177,46 @@ describe("plan du jour par marché", () => {
     expect(t.map((x) => x.marche)).toEqual(["fr-FR", "it-IT", "pt-PT"]);
   });
 
+  it("compte qui publie aussi en d'autres langues : un post de plus, même sujet", () => {
+    const p = planDuJour(
+      [
+        {
+          plateforme: "facebook",
+          marche: "fr-FR",
+          en_plus: ["it-IT", "es-ES", "pt-PT"],
+        },
+        // Page italienne dédiée : l'italien n'est pas doublé sur la page française.
+        { plateforme: "facebook", marche: "it-IT" },
+      ],
+      { facebook: 1 },
+      CRENEAUX,
+      "2026-10-01",
+      matin,
+    );
+    // Un seul sujet pour la journée : celui de 12:30, repris en espagnol ou
+    // en portugais à 18:30 (créneau libre).
+    expect(p.heures).toEqual(["12:30"]);
+    const enPlus = p.creneaux.filter((c) => c.heure === "18:30");
+    expect(enPlus).toHaveLength(1);
+    expect(["es-ES", "pt-PT"]).toContain(enPlus[0].marche);
+    expect(enPlus[0].sujet).toBe(0);
+    // Langue différente le lendemain.
+    const demain = planDuJour(
+      [
+        {
+          plateforme: "facebook",
+          marche: "fr-FR",
+          en_plus: ["es-ES", "pt-PT"],
+        },
+      ],
+      { facebook: 1 },
+      CRENEAUX,
+      "2026-10-02",
+      new Date("2026-10-02T03:10:00Z"),
+    ).creneaux.find((c) => c.heure === "18:30");
+    expect(demain?.marche).not.toBe(enPlus[0].marche);
+  });
+
   it("un réseau seul reste en France", () => {
     const p = planDuJour(
       ["facebook"],

@@ -63,7 +63,7 @@ import {
   instagramConfigure,
   urlConnexionInstagram,
 } from "./instagram.server";
-import { MARCHE_DEFAUT } from "./marches";
+import { choisirCompte } from "./marches";
 import { publierSur, type CompteCible } from "./publication.server";
 import { sessionBluesky } from "./bluesky.server";
 import { verifierTelegram } from "./telegram.server";
@@ -372,17 +372,18 @@ export const publierTache = createServerFn({ method: "POST" })
             "Ce réseau se publie depuis votre téléphone : bouton « Partager ».",
         };
       // Connexion directe Meta en priorité (« meta » < « zernio »).
-      const { data: compte } = await sb
+      const { data: comptesReseau } = await sb
         .from("comptes_connectes")
-        .select("compte_externe_id, cible_urn, fournisseur")
+        .select(
+          "compte_externe_id, cible_urn, fournisseur, marche, langues_en_plus",
+        )
         .eq("plateforme", t.plateforme)
-        // Compte du même marché que la publication (France par défaut).
-        .eq("marche", t.marche ?? MARCHE_DEFAUT)
         .eq("statut", "connecte")
         .not("compte_externe_id", "is", null)
-        .order("fournisseur") // « instagram » et « meta » passent avant « zernio »
-        .limit(1)
-        .maybeSingle();
+        .order("fournisseur"); // « instagram » et « meta » passent avant « zernio »
+      // Compte du pays de la publication, sinon un compte qui publie aussi
+      // dans sa langue (France par défaut).
+      const compte = choisirCompte(comptesReseau ?? [], t.marche);
       if (!compte?.compte_externe_id) {
         return {
           ok: false,

@@ -207,23 +207,62 @@ export function tonVoix(id: string | null | undefined, parle: boolean): string {
 }
 
 // Canaux du pilote automatique : un par réseau et par marché des comptes
-// connectés (« facebook » en France, « facebook » en Italie…).
-export type Canal = { plateforme: string; marche: string };
+// connectés (« facebook » en France, « facebook » en Italie…). `en_plus` :
+// autres langues que ce compte publie aussi (un post de plus par jour, une
+// langue à tour de rôle).
+export type Canal = { plateforme: string; marche: string; en_plus?: string[] };
+
+const idsValides = (brut: unknown): string[] =>
+  Array.isArray(brut)
+    ? brut.filter(
+        (m): m is string =>
+          typeof m === "string" && MARCHES.some((x) => x.id === m),
+      )
+    : [];
 
 export function lireCanaux(brut: unknown): Canal[] {
   if (!Array.isArray(brut)) return [];
-  const vus = new Set<string>();
-  const canaux: Canal[] = [];
+  const canaux = new Map<string, Canal>();
   for (const x of brut) {
     const plateforme = typeof x?.plateforme === "string" ? x.plateforme : "";
     if (!plateforme) continue;
     const marche = marcheDe(typeof x?.marche === "string" ? x.marche : null).id;
     const cle = `${plateforme}|${marche}`;
-    if (vus.has(cle)) continue;
-    vus.add(cle);
-    canaux.push({ plateforme, marche });
+    const avant = canaux.get(cle);
+    const en_plus = [
+      ...new Set([...(avant?.en_plus ?? []), ...idsValides(x?.en_plus)]),
+    ].filter((m) => m !== marche);
+    canaux.set(cle, { plateforme, marche, en_plus });
   }
-  return canaux;
+  return [...canaux.values()];
+}
+
+// Langue du post en plus du jour : une à tour de rôle (même ordre chaque
+// jour, décalé d'un cran), sauf celles qui ont déjà leur propre compte.
+export function langueDuJour(
+  enPlus: string[] | undefined,
+  jour: string,
+  exclues: string[] = [],
+): string | null {
+  const liste = MARCHES.map((m) => m.id).filter(
+    (id) => (enPlus ?? []).includes(id) && !exclues.includes(id),
+  );
+  if (!liste.length) return null;
+  const numero = Math.floor(Date.parse(`${jour}T00:00:00Z`) / 86_400_000);
+  return liste[((numero % liste.length) + liste.length) % liste.length];
+}
+
+// Compte qui publie une publication de ce marché : un compte dédié au pays
+// d'abord, sinon un compte qui publie aussi dans cette langue.
+export function choisirCompte<
+  T extends { marche?: string | null; langues_en_plus?: string[] | null },
+>(comptes: T[], marche: string | null | undefined): T | null {
+  const m = marcheDe(marche).id;
+  return (
+    comptes.find((c) => marcheDe(c.marche).id === m) ??
+    comptes.find((c) => (c.langues_en_plus ?? []).includes(m)) ??
+    null
+  );
 }
 
 // « Scopri BTP Ecosystem su btp-ecosystem.com. » : dernière phrase d'une vidéo

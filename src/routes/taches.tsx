@@ -582,11 +582,13 @@ function NouvelleTache({ onCree }: { onCree: () => Promise<void> }) {
   const [quand, setQuand] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
   // Langue et pays : proposés seulement si un compte étranger est connecté.
-  const comptes = useRequete<{ marche: string }[]>(
-    () => supabase().from("comptes_connectes").select("marche").eq("statut", "connecte"),
+  const comptes = useRequete<{ marche: string; langues_en_plus: string[] }[]>(
+    () => supabase().from("comptes_connectes").select("marche, langues_en_plus").eq("statut", "connecte"),
     [userId],
   );
-  const marches = MARCHES.filter((m) => m.id === MARCHE_DEFAUT || comptes.data?.some((c) => c.marche === m.id));
+  const marches = MARCHES.filter(
+    (m) => m.id === MARCHE_DEFAUT || comptes.data?.some((c) => c.marche === m.id || c.langues_en_plus?.includes(m.id)),
+  );
   const [marche, setMarche] = useState(MARCHE_DEFAUT);
 
   async function creer(e: FormEvent) {

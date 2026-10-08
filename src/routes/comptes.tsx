@@ -43,6 +43,8 @@ type Compte = {
   cible_nom: string | null;
   // Langue et pays dans lesquels l'agent publie avec ce compte.
   marche: string;
+  // Autres langues publiées aussi avec ce compte (un post de plus par jour).
+  langues_en_plus: string[];
 };
 
 // Erreurs renvoyées par Zernio au retour de la page d'autorisation.
@@ -79,7 +81,7 @@ function Comptes() {
       supabase()
         .from("comptes_connectes")
         .select(
-          "id, plateforme, statut, nom_utilisateur, compte_externe_id, fournisseur, cible_nom, marche",
+          "id, plateforme, statut, nom_utilisateur, compte_externe_id, fournisseur, cible_nom, marche, langues_en_plus",
         ),
     [userId],
   );
@@ -511,10 +513,16 @@ function ComptesEtPays({
 
   async function enregistrer(
     c: Compte,
-    changement: { statut?: string; marche?: string },
+    changement: { statut?: string; marche?: string; enPlus?: string[] },
   ) {
     const statut = changement.statut ?? c.statut;
     const marche = changement.marche ?? c.marche;
+    // La langue principale du compte n'est pas aussi une langue « en plus ».
+    const langues_en_plus = (
+      changement.enPlus ??
+      c.langues_en_plus ??
+      []
+    ).filter((m) => m !== marche);
     setEnCours(c.id);
     const sb = supabase();
     // Le compte actif du même réseau et du même pays passe en réserve.
@@ -538,7 +546,7 @@ function ComptesEtPays({
       : { error: null };
     const r2 = await sb
       .from("comptes_connectes")
-      .update({ statut, marche })
+      .update({ statut, marche, langues_en_plus })
       .eq("id", c.id);
     setErreur(r1.error?.message ?? r2.error?.message ?? null);
     await onChange();
@@ -553,6 +561,11 @@ function ComptesEtPays({
         de chacun. Une page réglée sur « Italiano — Italia » reçoit des posts,
         des visuels et des vidéos en italien, avec des hashtags italiens. Un
         seul compte actif par réseau et par pays.
+      </p>
+      <p className="mt-1 text-xs text-doux">
+        « Publie aussi en » : le même compte reçoit un post de plus par jour,
+        dans une de ces langues à tour de rôle (même sujet que le post du jour,
+        adapté au pays, hashtags du pays).
       </p>
       {plateformes.map((p) => (
         <fieldset key={p} className="mt-3">
@@ -598,6 +611,40 @@ function ComptesEtPays({
                         </option>
                       ))}
                     </select>
+                  )}
+                  {estPilotable(c.plateforme) && c.statut === "connecte" && (
+                    <div
+                      role="group"
+                      aria-label={`Autres langues de ${libelleCompte(c)}`}
+                      className="flex w-full flex-wrap items-center gap-1.5 text-xs"
+                    >
+                      <span className="text-doux">Publie aussi en :</span>
+                      {MARCHES.filter((m) => m.id !== c.marche).map((m) => {
+                        const actif = c.langues_en_plus?.includes(m.id);
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            aria-pressed={actif}
+                            disabled={enCours !== null}
+                            onClick={() =>
+                              enregistrer(c, {
+                                enPlus: actif
+                                  ? c.langues_en_plus.filter((x) => x !== m.id)
+                                  : [...(c.langues_en_plus ?? []), m.id],
+                              })
+                            }
+                            className={`min-h-8 rounded-full border px-2.5 py-1 ${
+                              actif
+                                ? "border-accent bg-accent/15 text-texte"
+                                : "border-bord text-doux hover:bg-bord"
+                            }`}
+                          >
+                            {m.drapeau} {m.libelle.split(" — ")[0]}
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
                 </li>
               ))}
