@@ -722,6 +722,7 @@ export const trouverProspects = createServerFn({ method: "POST" })
         categorie: z.enum(CATEGORIES.map((c) => c.id) as [string, ...string[]]),
         ville: z.string().min(2).max(80),
         max: z.number().int().min(1).max(200).default(50),
+        pays: z.enum(["FR", "BE"]).default("FR"),
         jeton,
       })
       .parse(input),
@@ -736,6 +737,7 @@ export const trouverProspects = createServerFn({ method: "POST" })
           data.categorie,
           data.ville,
           data.max,
+          data.pays,
         );
         const categorie = CATEGORIES.find((c) => c.id === data.categorie)!;
         // Dédoublonnage (même nom ou même fiche OSM) fait par la base.

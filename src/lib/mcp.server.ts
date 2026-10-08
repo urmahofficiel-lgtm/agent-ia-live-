@@ -371,6 +371,13 @@ const OUTILS: Outil[] = [
           default: 30,
           description: "Nombre maximum d'entreprises.",
         },
+        pays: {
+          type: "string",
+          enum: ["FR", "BE"],
+          default: "FR",
+          description:
+            "Pays de la commune : FR (France) ou BE (Belgique). En Belgique, seules les adresses e-mail impersonnelles (contact@, info@…) seront prospectées par e-mail.",
+        },
       },
       required: ["categorie", "ville"],
     },
@@ -384,15 +391,17 @@ const OUTILS: Outil[] = [
       categorie: z.enum(CATEGORIES_ID),
       ville: z.string().trim().min(2).max(80),
       max: z.number().int().min(1).max(100).optional(),
+      pays: z.enum(["FR", "BE"]).optional(),
     }),
     executer: async (
-      a: { categorie: string; ville: string; max?: number },
+      a: { categorie: string; ville: string; max?: number; pays?: "FR" | "BE" },
       appel,
     ) => {
       const trouves = await chercherEntreprises(
         a.categorie,
         a.ville,
         a.max ?? 30,
+        a.pays ?? "FR",
       );
       return appel("mcp_ajouter_prospects", {
         p_categorie: CATEGORIES.find((c) => c.id === a.categorie)!.nom,

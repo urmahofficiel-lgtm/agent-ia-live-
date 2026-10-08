@@ -68,6 +68,8 @@ export type Prospect = {
   coordonnees_source?: string | null;
   // Adresse e-mail en erreur (rebond) : plus d'envoi.
   email_invalide?: boolean;
+  // Code pays (FR, BE…).
+  pays?: string;
   // Message rédigé par l'IA, à relire et envoyer soi-même.
   brouillon: BrouillonProspect | null;
   dernier_contact_at: string | null;

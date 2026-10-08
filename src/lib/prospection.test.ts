@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { avecDesinscription, bilanCampagne, consigneMessage, estAAppeler, scriptAppel, estARelancer, liensContact, lireMessage, numeroInternational, type ProspectARediger } from "./prospection";
+import { avecDesinscription, bilanCampagne, consigneMessage, emailImpersonnel, estAAppeler, scriptAppel, estARelancer, liensContact, lireMessage, numeroInternational, type ProspectARediger } from "./prospection";
 
 const prospect: ProspectARediger = {
   id: "x",
@@ -149,5 +149,19 @@ describe("à appeler", () => {
     expect(scriptAppel("BTP Ecosystem", "Architectes").join(" ")).toContain("3 mois");
     expect(scriptAppel(null, "Plombiers").join(" ")).not.toContain("3 mois");
     expect(scriptAppel("Autre marque", "Architectes").join(" ")).not.toContain("3 mois");
+  });
+});
+
+describe("adresse impersonnelle (Belgique)", () => {
+  it("accepte les boîtes d'entreprise, refuse les adresses nominatives", () => {
+    for (const e of ["contact@atelier.be", "info@archi.be", "bureau-liege@x.be", "secretariat@x.be", "studio.ab@x.be"])
+      expect(emailImpersonnel(e)).toBe(true);
+    for (const e of ["jean.dupont@archi.be", "marc@x.be", "", null])
+      expect(emailImpersonnel(e)).toBe(false);
+  });
+  it("demande de ne pas parler de Factur-X hors de France", () => {
+    const base = { categorie: "Architectes", genre: "premier", nom: "A", entreprise: "A" } as never;
+    expect(consigneMessage({ ...(base as object), pays: "BE" } as never, "email")).toContain("Factur-X");
+    expect(consigneMessage({ ...(base as object), pays: "FR" } as never, "email")).not.toContain("hors de France");
   });
 });

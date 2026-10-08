@@ -27,7 +27,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useRequete, useUserId } from "@/lib/donnees";
 import type { Prospect } from "@/lib/types";
-import { CATEGORIES } from "@/lib/osm";
+import { CATEGORIES, PAYS_PROSPECTION, type CodePays } from "@/lib/osm";
 import {
   envoyerEmail,
   redigerProspect,
@@ -651,9 +651,14 @@ function Prospection() {
 }
 
 function Recherche({ onFini }: { onFini: () => Promise<void> }) {
-  const [recherche, setRecherche] = useState({
+  const [recherche, setRecherche] = useState<{
+    categorie: string;
+    ville: string;
+    pays: CodePays;
+  }>({
     categorie: "restaurant",
     ville: "",
+    pays: "FR",
   });
   const [cherche, setCherche] = useState(false);
   const [resultat, setResultat] = useState<string | null>(null);
@@ -684,7 +689,7 @@ function Recherche({ onFini }: { onFini: () => Promise<void> }) {
     <div>
       <form
         onSubmit={chercher}
-        className="grid gap-3 md:grid-cols-[1fr_1fr_auto]"
+        className="grid gap-3 md:grid-cols-[1fr_1fr_0.8fr_auto]"
       >
         <label className="text-sm">
           Activité
@@ -714,6 +719,22 @@ function Recherche({ onFini }: { onFini: () => Promise<void> }) {
             }
           />
         </label>
+        <label className="text-sm">
+          Pays
+          <select
+            className={champ}
+            value={recherche.pays}
+            onChange={(e) =>
+              setRecherche({ ...recherche, pays: e.target.value as CodePays })
+            }
+          >
+            {PAYS_PROSPECTION.map((p) => (
+              <option key={p.code} value={p.code}>
+                {p.nom}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="flex items-end">
           <button
             className={`${bouton} inline-flex items-center gap-2`}
@@ -739,7 +760,9 @@ function Recherche({ onFini }: { onFini: () => Promise<void> }) {
         renseignés) et l'annuaire officiel des entreprises (SIRET, ancienneté,
         taille, certification RGE). Les entreprises qui refusent la prospection
         sont écartées, et celles déjà dans votre liste ne sont pas ajoutées deux
-        fois.
+        fois. Belgique : l'agent n'écrit qu'aux adresses d'entreprise
+        impersonnelles (contact@, info@…), comme l'exige la loi belge ; les
+        autres fiches restent à appeler.
       </p>
     </div>
   );
@@ -958,6 +981,11 @@ function ProspectCarte({
                 ? `Particulier${p.consentement ? " · accord ✓" : " · sans accord"}`
                 : (p.categorie ?? p.entreprise),
               p.adresse ?? p.notes,
+              p.pays && p.pays !== "FR"
+                ? p.pays === "BE"
+                  ? "Belgique"
+                  : p.pays
+                : null,
             ]
               .filter(Boolean)
               .join(" · ") || "Entreprise"}

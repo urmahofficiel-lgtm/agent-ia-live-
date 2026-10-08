@@ -28,14 +28,37 @@ export const CATEGORIES: { id: string; nom: string; tag: [string, string] }[] = 
 
 const echapper = (s: string) => s.replace(/[\\"]/g, "\\$&");
 
-export function requeteOverpass(categorie: string, ville: string, max: number) {
+// Pays où la prospection par e-mail est possible sans accord préalable, et à
+// quelles adresses. Belgique : adresses impersonnelles d'entreprise seulement
+// (contact@, info@…). Ailleurs (Allemagne, Espagne, Italie…) l'accord
+// préalable est exigé même entre entreprises : pas de prospection par e-mail.
+export const PAYS_PROSPECTION = [
+  { code: "FR", nom: "France", adresses: "toutes" },
+  { code: "BE", nom: "Belgique (francophone)", adresses: "impersonnelles" },
+] as const;
+export type CodePays = (typeof PAYS_PROSPECTION)[number]["code"];
+
+const echapperRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+export function requeteOverpass(categorie: string, ville: string, max: number, pays: CodePays = "FR") {
   const c = CATEGORIES.find((x) => x.id === categorie);
   if (!c) throw new Error("Catégorie inconnue.");
   const [cle, valeur] = c.tag;
-  return `[out:json][timeout:50];
+  const limite = Math.min(Math.max(max, 1), 200);
+  if (pays === "FR")
+    return `[out:json][timeout:50];
 area["name"="${echapper(ville.trim())}"]["boundary"="administrative"]["admin_level"="8"]->.zone;
 nwr(area.zone)["${cle}"="${valeur}"]["name"];
-out center tags ${Math.min(Math.max(max, 1), 200)};`;
+out center tags ${limite};`;
+  // Hors de France : commune cherchée dans le pays (évite les homonymes
+  // français), par son nom ou son nom en français (Bruxelles - Brussel).
+  const nom = echapper(echapperRegex(ville.trim()));
+  return `[out:json][timeout:50];
+area["ISO3166-1"="${pays}"]["admin_level"="2"]->.pays;
+rel(area.pays)["boundary"="administrative"]["admin_level"="8"][~"^name(:fr)?$"~"^${nom}$",i];
+map_to_area->.zone;
+nwr(area.zone)["${cle}"="${valeur}"]["name"];
+out center tags ${limite};`;
 }
 
 // Les contributeurs OSM écrivent parfois « mailto:… » ou plusieurs adresses.

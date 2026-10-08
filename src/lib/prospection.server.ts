@@ -9,6 +9,7 @@ import { demanderIA } from "./ia.server";
 import {
   lireReponseOverpass,
   requeteOverpass,
+  type CodePays,
   type ProspectTrouve,
 } from "./osm";
 import {
@@ -33,6 +34,7 @@ async function chercherOsm(
   categorie: string,
   ville: string,
   max: number,
+  pays: CodePays,
 ): Promise<ProspectTrouve[]> {
   let derniere = "Service de recherche indisponible. Réessayez.";
   for (const url of OVERPASS) {
@@ -45,7 +47,7 @@ async function chercherOsm(
           Accept: "application/json",
         },
         body: new URLSearchParams({
-          data: requeteOverpass(categorie, ville, max),
+          data: requeteOverpass(categorie, ville, max, pays),
         }),
         signal: AbortSignal.timeout(55_000),
       });
@@ -95,10 +97,12 @@ export async function chercherEntreprises(
   categorie: string,
   ville: string,
   max: number,
-): Promise<ProspectComplet[]> {
+  pays: CodePays = "FR",
+): Promise<(ProspectComplet & { pays: CodePays })[]> {
   const [osm, annuaire] = await Promise.allSettled([
-    chercherOsm(categorie, ville, max),
-    chercherAnnuaire(categorie, ville, max),
+    chercherOsm(categorie, ville, max, pays),
+    // L'annuaire officiel (SIRET, RGE) ne couvre que la France.
+    pays === "FR" ? chercherAnnuaire(categorie, ville, max) : Promise.resolve([]),
   ]);
   if (
     osm.status === "rejected" &&
@@ -109,7 +113,7 @@ export async function chercherEntreprises(
     osm.status === "fulfilled" ? osm.value : [],
     annuaire.status === "fulfilled" ? annuaire.value : [],
     max,
-  );
+  ).map((p) => ({ ...p, pays }));
 }
 
 // Rédige le message (premier contact ou relance). Aucun envoi : le brouillon

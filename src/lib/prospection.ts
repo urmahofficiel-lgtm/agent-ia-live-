@@ -30,6 +30,8 @@ export type ProspectARediger = {
   dernier_contact_at: string | null;
   dernier_message: string | null;
   contexte: string | null;
+  // Code pays (FR par défaut).
+  pays?: string | null;
 };
 
 // Prospection B2B en France : possible si le message concerne l'activité du
@@ -73,6 +75,11 @@ export function consigneMessage(p: ProspectARediger, canal: Canal): string {
     "- Vouvoiement, en français, ton simple et humain, pas de formules creuses ni d'emoji.",
     "- Fais le lien concret entre notre offre et LE MÉTIER du destinataire (c'est ce qui rend le message légitime).",
     "- N'invente aucun chiffre, client, témoignage ni fait sur le destinataire.",
+    ...(p.pays && p.pays !== "FR"
+      ? [
+          "- Destinataire hors de France (" + p.pays + ") : ne parle ni de Factur-X ni d'obligations ou de lois françaises ; reste sur la collaboration et le gain de temps.",
+        ]
+      : []),
     ...(/architect|ma[iî]tre d.[œo]uvre|bureau d.[ée]tudes?/i.test(p.categorie ?? "")
       ? [
           "- Destinataire = architecte / maître d'œuvre : ne vends pas un outil de devis. Parle de COLLABORATION : tous les corps d'état travaillent au même endroit sur le même chantier (planning, réserves sur plans, comptes rendus de réunion par IA, suivi de chantier partagé).",
@@ -304,4 +311,19 @@ export function scriptAppel(marque: string | null, metier: string | null): strin
     "Est-ce que je peux vous envoyer la présentation par e-mail ? À quelle adresse ?",
     "S'il refuse : « Très bien, merci, je ne vous rappellerai pas. » (puis statut « Refus » ou « Ne plus contacter »).",
   ];
+}
+
+// Adresse e-mail impersonnelle (boîte d'entreprise, pas une personne) :
+// seule autorisée sans accord préalable en Belgique. Même liste que la base
+// (prive.email_impersonnel).
+export const PREFIXES_IMPERSONNELS = [
+  "contact", "info", "infos", "bureau", "secretariat", "secretaria", "agence", "office",
+  "accueil", "admin", "administration", "hello", "bonjour", "mail", "studio", "atelier",
+  "projets", "projet", "direction", "reception", "team", "equipe", "general", "courrier",
+];
+export function emailImpersonnel(email: string | null | undefined): boolean {
+  const local = (email ?? "").trim().toLowerCase().split("@")[0] ?? "";
+  if (!local) return false;
+  const racine = local.split(/[.\-_+]/)[0];
+  return PREFIXES_IMPERSONNELS.includes(racine);
 }
