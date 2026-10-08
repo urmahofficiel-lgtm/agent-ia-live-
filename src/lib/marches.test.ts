@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MARCHES,
   estEtranger,
+  decorMarche,
   lireCanaux,
   marcheDe,
   reglesMarche,
@@ -48,5 +49,11 @@ describe("marchés (langue + pays)", () => {
       { plateforme: "facebook", marche: "fr-FR" },
     ]);
     expect(lireCanaux(null)).toEqual([]);
+  });
+
+  it("décor d'image du pays visé, rien pour la France", () => {
+    expect(decorMarche("fr-FR")).toBe("");
+    expect(decorMarche("it-IT")).toContain("look like Italy");
+    expect(decorMarche("it-IT")).toContain("nothing specifically French");
   });
 });

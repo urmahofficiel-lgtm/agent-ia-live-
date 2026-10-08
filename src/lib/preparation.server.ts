@@ -55,7 +55,7 @@ export async function preparer(t: TacheAPreparer, contexte: string | null, e: Ec
       let image: { mime: string; base64: string } | null = null;
       // Citation : fond sobre aux couleurs de la marque, pas de photo.
       if (style !== "citation") {
-        prompt = await promptImage(brouillon, t.plateforme, contexte);
+        prompt = await promptImage(brouillon, t.plateforme, contexte, t.marche);
         // Place laissée au texte incrusté.
         if (style !== "photo") prompt += " Keep the lower third simple and uncluttered.";
         await e.journal("info", `Idée de visuel : ${prompt.slice(0, 160)}`);

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ACCENT_DEFAUT, couleurAss, texteSurCouleur } from "./couleurs";
 import type { StyleVideo } from "./styles";
-import { estEtranger, marcheDe, phraseDecouvrir, reglesMarche } from "./marches";
+import { decorMarche, estEtranger, marcheDe, phraseDecouvrir, reglesMarche } from "./marches";
 
 // Vidéo courte verticale (TikTok, Reels, Shorts) : script, minutage et
 // sous-titres. Fonctions pures, testables.
@@ -80,7 +80,7 @@ export function consigneScript(
   marche?: string | null,
 ) {
   // Marché étranger : script, textes à l'écran et légende dans sa langue.
-  const langue = reglesMarche(marche) ? `\n${reglesMarche(marche)}` : "";
+  const langue = reglesMarche(marche) ? `\n${reglesMarche(marche)}\n- Champs « visuel » et « recherche_stock » (en anglais) : ${decorMarche(marche)}` : "";
   if (style !== "classique") return consigneScriptStyle(t, contexte, plateforme, avecCaptures, style, marche) + langue;
   return `Écris le script d'une vidéo verticale de 30 à 45 secondes pour ${plateforme}, en ${marcheDe(marche).langue}.
 Sujet : ${t.titre}

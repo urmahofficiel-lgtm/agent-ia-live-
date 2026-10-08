@@ -11,6 +11,8 @@ export type Marche = {
   // Pour les consignes données à l'IA (en français).
   langue: string;
   pays: string;
+  // Pour les consignes d'images (en anglais).
+  paysAnglais: string;
   // Décalage horaire avec Paris, en minutes : un créneau « 08:30 » tombe à
   // 08:30 heure locale.
   decalage: number;
@@ -38,6 +40,7 @@ export const MARCHES: Marche[] = [
     drapeau: "🇫🇷",
     langue: "français",
     pays: "France",
+    paysAnglais: "France",
     decalage: 0,
     mots: {
       decouvrir: "À découvrir",
@@ -56,6 +59,7 @@ export const MARCHES: Marche[] = [
     drapeau: "🇬🇧",
     langue: "anglais britannique",
     pays: "Royaume-Uni",
+    paysAnglais: "the United Kingdom",
     decalage: 60,
     mots: {
       decouvrir: "Discover",
@@ -74,6 +78,7 @@ export const MARCHES: Marche[] = [
     drapeau: "🇪🇸",
     langue: "espagnol d'Espagne",
     pays: "Espagne",
+    paysAnglais: "Spain",
     decalage: 0,
     mots: {
       decouvrir: "Descubre",
@@ -92,6 +97,7 @@ export const MARCHES: Marche[] = [
     drapeau: "🇮🇹",
     langue: "italien",
     pays: "Italie",
+    paysAnglais: "Italy",
     decalage: 0,
     mots: {
       decouvrir: "Da scoprire",
@@ -110,6 +116,7 @@ export const MARCHES: Marche[] = [
     drapeau: "🇩🇪",
     langue: "allemand",
     pays: "Allemagne",
+    paysAnglais: "Germany",
     decalage: 0,
     mots: {
       decouvrir: "Entdecken",
@@ -128,6 +135,7 @@ export const MARCHES: Marche[] = [
     drapeau: "🇵🇹",
     langue: "portugais du Portugal",
     pays: "Portugal",
+    paysAnglais: "Portugal",
     decalage: 60,
     mots: {
       decouvrir: "Descubra",
@@ -146,6 +154,7 @@ export const MARCHES: Marche[] = [
     drapeau: "🇳🇱",
     langue: "néerlandais",
     pays: "Pays-Bas",
+    paysAnglais: "the Netherlands",
     decalage: 0,
     mots: {
       decouvrir: "Ontdek",
@@ -227,4 +236,11 @@ export function phraseDecouvrir(
   const m = marcheDe(id).mots;
   if (!marque) return `${m.essayer}.`;
   return `${(lien ? m.decouvrezSur : m.decouvrez).replace("{m}", marque).replace("{l}", lien)}.`;
+}
+
+// Consigne d'image (en anglais) : le décor du pays visé, rien de français.
+export function decorMarche(id: string | null | undefined): string {
+  const m = marcheDe(id);
+  if (m.id === MARCHE_DEFAUT) return "";
+  return `Audience: the brand's customers in ${m.paysAnglais}. The setting must look like ${m.paysAnglais}; nothing specifically French (no French flags, signs, plates or text).`;
 }

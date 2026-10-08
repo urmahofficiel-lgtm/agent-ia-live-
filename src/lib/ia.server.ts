@@ -1,6 +1,6 @@
 import { nettoyerPost, reglesReseau, sansLienSiReseau } from "./texte";
 import { nomPlateforme } from "./plateformes";
-import { marcheDe, reglesMarche, systemeMarche } from "./marches";
+import { decorMarche, marcheDe, reglesMarche, systemeMarche } from "./marches";
 
 // Cerveau de l'agent : NVIDIA NIM (API compatible OpenAI).
 const NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
@@ -272,7 +272,7 @@ export function formatImage(plateforme: string | null) {
 
 // Décrit en anglais (les modèles d'image le comprennent mieux) le visuel qui
 // illustre la publication.
-export async function promptImage(texte: string, plateforme: string | null, contexte?: string | null) {
+export async function promptImage(texte: string, plateforme: string | null, contexte?: string | null, marche?: string | null) {
   const prompt = await demanderIA(
     [
       "Write ONE English prompt for an AI image generator to illustrate this social media post.",
@@ -281,6 +281,7 @@ export async function promptImage(texte: string, plateforme: string | null, cont
       "Avoid generic clichés: no holograms, no floating screens, no abstract AI brains, no corporate glass offices unless the niche is really about that.",
       "Style: authentic, realistic photography, natural light, suited to the platform. No text, no letters, no logos, no watermark. Max 90 words. Answer with the prompt only.",
       plateforme ? `Platform: ${nomPlateforme(plateforme)}` : "",
+      decorMarche(marche),
       contexte ? `Brand context:\n${contexte}` : "",
       `Post:\n${texte}`,
     ]
