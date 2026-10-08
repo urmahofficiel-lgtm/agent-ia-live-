@@ -158,6 +158,56 @@ const ANNUAIRES =
   /pagesjaunes|societe\.com|pappers|infogreffe|annuaire|kompass|verif\.com|manageo|facebook|linkedin|instagram|google\.|yelp|mappy|118|starofservice|habitatpresto|travaux\.com/i;
 export const estAnnuaire = (url: string) => ANNUAIRES.test(url);
 
+// Articles de presse : le numéro cité est souvent celui d'un homonyme.
+const PRESSE =
+  /lavenir\.net|dhnet|sudinfo|lesoir|lalibre|rtbf|ouest-france|leparisien|lefigaro|lemonde|20minutes|francebleu|actu\.fr|ladepeche|sudouest|leprogres|lavoixdunord|letelegramme|midilibre|ledauphine|laprovence|nicematin|estrepublicain/i;
+export const estPresse = (url: string) => PRESSE.test(url);
+
+// Mots de métier ou de forme juridique : ils ne distinguent pas une
+// entreprise (« LW Architectes » ne doit pas valider la page d'un autre
+// cabinet d'architectes de la même ville).
+const MOTS_COMMUNS = new Set(
+  (
+    "architecte architectes architecture architectures architect architects " +
+    "architecten architectuur archi atelier ateliers bureau cabinet agence " +
+    "studio associes associe partners group groupe sprl srl scrl bv bvba nv " +
+    "office design interieur interieurs urbanisme ingenierie conseil freres " +
+    "plomberie plombier chauffage electricite electricien maconnerie macon " +
+    "menuiserie menuisier peinture peintre carrelage couverture couvreur " +
+    "charpente renovation construction constructions batiment btp travaux services"
+  ).split(" "),
+);
+
+// Une page trouvée par la recherche n'est le site de l'entreprise que si son
+// domaine reprend le nom (« cittanova.fr » pour « Cittanova ») : une fiche
+// d'annuaire ou de registre cite le nom mais donne son propre e-mail.
+export function siteDeLEntreprise(url: string, nom: string): boolean {
+  let hote: string;
+  try {
+    hote = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return false;
+  }
+  const compact = (x: string) => x.replace(/[^a-z0-9]/g, "");
+  const domaine = compact(hote.split(".").slice(0, -1).join(""));
+  return motsDistinctifs(nom).some((m) => {
+    const c = compact(m);
+    return c.length >= 2 && domaine.includes(c);
+  });
+}
+
+// Mots du nom qui doivent figurer sur la page : les mots propres d'au moins
+// 4 lettres, sinon les sigles (« LW », « 4D »), sinon (nom fait de mots
+// communs) les mots d'au moins 4 lettres.
+export function motsDistinctifs(nom: string): string[] {
+  const tous = cleNom(nom).split(" ").filter(Boolean);
+  const propres = tous.filter((m) => !MOTS_COMMUNS.has(m));
+  const longs = propres.filter((m) => m.length >= 4);
+  if (longs.length) return longs;
+  const sigles = propres.filter((m) => m.length >= 2);
+  return sigles.length ? sigles : tous.filter((m) => m.length >= 4);
+}
+
 // Code postal de l'adresse : 5 chiffres en France, 4 en Belgique (devant la
 // commune : « 4020 Liège »).
 const codePostal = (adresse: string | null, pays: string) =>
@@ -173,11 +223,12 @@ export function confirmeEntreprise(
   adresse: string | null,
   pays = "FR",
 ): boolean {
-  const t = cleNom(texte.slice(0, 200_000));
-  const mots = cleNom(nom)
-    .split(" ")
-    .filter((m) => m.length >= 4);
-  if (mots.length && !mots.some((m) => t.includes(m))) return false;
+  const t = ` ${cleNom(texte.slice(0, 200_000))} `;
+  const mots = motsDistinctifs(nom);
+  // Un sigle court doit apparaître comme un mot entier.
+  const present = (m: string) =>
+    m.length >= 4 ? t.includes(m) : t.includes(` ${m} `);
+  if (mots.length && !mots.some(present)) return false;
   const cp = codePostal(adresse, pays);
   return !cp || texte.includes(cp);
 }
@@ -189,9 +240,7 @@ export function telephoneProche(
   nom: string,
   pays = "FR",
 ): string | null {
-  const mot = cleNom(nom)
-    .split(" ")
-    .find((m) => m.length >= 4);
+  const mot = motsDistinctifs(nom)[0];
   const bas = texte.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
   const ancre = mot ? bas.indexOf(mot) : -1;
   let meilleur: { n: string; d: number } | null = null;

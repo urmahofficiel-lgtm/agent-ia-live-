@@ -1,11 +1,13 @@
 import {
   confirmeEntreprise,
   estAnnuaire,
+  estPresse,
   extraireEmails,
   extraireTelephones,
   lienContact,
   meilleurEmail,
   requeteRecherche,
+  siteDeLEntreprise,
   telephoneProche,
   texteDePage,
   urlSite,
@@ -158,12 +160,13 @@ export async function trouverCoordonnees(
       Number(estAnnuaire(a.url ?? "")) - Number(estAnnuaire(b.url ?? "")),
   );
   for (const r of tries) {
-    if (!r.url) continue;
+    if (!r.url || estPresse(r.url)) continue;
     const texte = `${r.content ?? ""} ${r.raw_content ?? ""}`;
     if (!confirmeEntreprise(texte, p.nom, p.adresse, pays)) continue;
     const telephone = telephoneProche(texte, p.nom, pays);
     if (!telephone) continue;
-    const officiel = !estAnnuaire(r.url) && !p.site;
+    const officiel =
+      !estAnnuaire(r.url) && !p.site && siteDeLEntreprise(r.url, p.nom);
     return {
       telephone,
       email:

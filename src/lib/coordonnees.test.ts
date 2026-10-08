@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   confirmeEntreprise,
   estAnnuaire,
+  estPresse,
   extraireEmails,
   extraireTelephones,
   lienContact,
@@ -9,6 +10,7 @@ import {
   normaliserTelephone,
   numeroPresent,
   requeteRecherche,
+  siteDeLEntreprise,
   telephoneProche,
   texteDePage,
 } from "./coordonnees";
@@ -166,5 +168,64 @@ describe("coordonnées des prospects", () => {
       "j.dupont@rya.be",
     );
     expect(meilleurEmail([], null)).toBeNull();
+  });
+
+  it("ne confirme pas un autre cabinet sur un mot de métier", () => {
+    const page =
+      "Parallel Architectes srl, Avenue de Maire 160, 7500 Tournai, info@parallel-architectes.be";
+    expect(
+      confirmeEntreprise(
+        page,
+        "LW Architectes",
+        "1 Rue des Soeurs Noires, 7500 Tournai",
+        "BE",
+      ),
+    ).toBe(false);
+    expect(
+      confirmeEntreprise(
+        "LW Architectes, Rue des Soeurs Noires 1, 7500 Tournai",
+        "LW Architectes",
+        "1 Rue des Soeurs Noires, 7500 Tournai",
+        "BE",
+      ),
+    ).toBe(true);
+    expect(
+      confirmeEntreprise(
+        "Atelier d'architecture, 34 avenue d'Audenarde, 7540 Kain",
+        "Bureau d'Architecture",
+        "34 Avenue d'Audenarde, 7540 Kain",
+        "BE",
+      ),
+    ).toBe(true);
+    expect(estPresse("https://www.lavenir.net/regions/2014/05/14/x")).toBe(
+      true,
+    );
+  });
+
+  it("reconnaît le site de l'entreprise à son domaine", () => {
+    expect(
+      siteDeLEntreprise("https://www.cittanova.fr/contact", "Cittanova"),
+    ).toBe(true);
+    expect(
+      siteDeLEntreprise(
+        "https://redcat-architecture.com/",
+        "Red Cat Architecture",
+      ),
+    ).toBe(true);
+    expect(
+      siteDeLEntreprise(
+        "https://www.contract-factory.com/infosocietes/dirigeant-patrice-leveille-nizerolle",
+        "Patrice Leveille-Nizerolle",
+      ),
+    ).toBe(false);
+    expect(
+      siteDeLEntreprise(
+        "https://www.atelier-44.com/contact.html",
+        "Atelier Lame",
+      ),
+    ).toBe(false);
+    expect(
+      siteDeLEntreprise("https://www.zis.gov.rs/x.pdf", "Robert Zeile"),
+    ).toBe(false);
   });
 });
