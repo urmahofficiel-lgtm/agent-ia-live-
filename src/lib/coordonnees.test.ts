@@ -228,4 +228,25 @@ describe("coordonnées des prospects", () => {
       siteDeLEntreprise("https://www.zis.gov.rs/x.pdf", "Robert Zeile"),
     ).toBe(false);
   });
+
+  it("exige deux mots du nom quand il y en a deux", () => {
+    const page =
+      "La Maison d'Hélène, rue Cottrel 14, 7500 Tournai, chambres à louer";
+    expect(
+      confirmeEntreprise(
+        page,
+        "Beck Hélène",
+        "29 Quai Saint-Brice, 7500 Tournai",
+        "BE",
+      ),
+    ).toBe(false);
+    expect(
+      confirmeEntreprise(
+        "Hélène Beck architecte, 7500 Tournai",
+        "Beck Hélène",
+        "29 Quai Saint-Brice, 7500 Tournai",
+        "BE",
+      ),
+    ).toBe(true);
+  });
 });

@@ -154,9 +154,9 @@ describe("à appeler", () => {
 
 describe("adresse impersonnelle (Belgique)", () => {
   it("accepte les boîtes d'entreprise, refuse les adresses nominatives", () => {
-    for (const e of ["contact@atelier.be", "info@archi.be", "bureau-liege@x.be", "secretariat@x.be", "studio.ab@x.be"])
+    for (const e of ["contact@atelier.be", "info@archi.be", "bureau-liege@x.be", "secretariat@x.be", "studio.ab@x.be", "a2rc@a2rc.be", "archi@arbredor.be"])
       expect(emailImpersonnel(e)).toBe(true);
-    for (const e of ["jean.dupont@archi.be", "marc@x.be", "", null])
+    for (const e of ["jean.dupont@archi.be", "marc@x.be", "marc@marc-dupont.be", "", null])
       expect(emailImpersonnel(e)).toBe(false);
   });
   it("demande de ne pas parler de Factur-X hors de France", () => {

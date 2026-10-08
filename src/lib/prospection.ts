@@ -320,10 +320,12 @@ export const PREFIXES_IMPERSONNELS = [
   "contact", "info", "infos", "bureau", "secretariat", "secretaria", "agence", "office",
   "accueil", "admin", "administration", "hello", "bonjour", "mail", "studio", "atelier",
   "projets", "projet", "direction", "reception", "team", "equipe", "general", "courrier",
+  "archi", "arch", "architecte", "architectes", "architecture", "cabinet",
 ];
 export function emailImpersonnel(email: string | null | undefined): boolean {
-  const local = (email ?? "").trim().toLowerCase().split("@")[0] ?? "";
+  const [local = "", domaine = ""] = (email ?? "").trim().toLowerCase().split("@");
   if (!local) return false;
   const racine = local.split(/[.\-_+]/)[0];
-  return PREFIXES_IMPERSONNELS.includes(racine);
+  // Adresse au nom du cabinet (« a2rc@a2rc.be ») : boîte de l'entreprise.
+  return PREFIXES_IMPERSONNELS.includes(racine) || local === domaine.split(".")[0];
 }

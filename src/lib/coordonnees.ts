@@ -174,7 +174,8 @@ const MOTS_COMMUNS = new Set(
     "office design interieur interieurs urbanisme ingenierie conseil freres " +
     "plomberie plombier chauffage electricite electricien maconnerie macon " +
     "menuiserie menuisier peinture peintre carrelage couverture couvreur " +
-    "charpente renovation construction constructions batiment btp travaux services"
+    "charpente renovation construction constructions batiment btp travaux services " +
+    "urbaniste urbanistes paysage paysagiste"
   ).split(" "),
 );
 
@@ -198,15 +199,19 @@ export function siteDeLEntreprise(url: string, nom: string): boolean {
 
 // Mots du nom qui doivent figurer sur la page : les mots propres d'au moins
 // 4 lettres, sinon les sigles (« LW », « 4D »), sinon (nom fait de mots
-// communs) les mots d'au moins 4 lettres.
-export function motsDistinctifs(nom: string): string[] {
+// communs) les mots d'au moins 4 lettres. Deux mots propres exigés quand il
+// y en a deux (« Beck Hélène » : le prénom seul ne suffit pas).
+function motsDuNom(nom: string): { mots: string[]; requis: number } {
   const tous = cleNom(nom).split(" ").filter(Boolean);
   const propres = tous.filter((m) => !MOTS_COMMUNS.has(m));
   const longs = propres.filter((m) => m.length >= 4);
-  if (longs.length) return longs;
+  if (longs.length) return { mots: longs, requis: Math.min(longs.length, 2) };
   const sigles = propres.filter((m) => m.length >= 2);
-  return sigles.length ? sigles : tous.filter((m) => m.length >= 4);
+  if (sigles.length) return { mots: sigles, requis: 1 };
+  return { mots: tous.filter((m) => m.length >= 4), requis: 1 };
 }
+
+export const motsDistinctifs = (nom: string) => motsDuNom(nom).mots;
 
 // Code postal de l'adresse : 5 chiffres en France, 4 en Belgique (devant la
 // commune : « 4020 Liège »).
@@ -224,11 +229,11 @@ export function confirmeEntreprise(
   pays = "FR",
 ): boolean {
   const t = ` ${cleNom(texte.slice(0, 200_000))} `;
-  const mots = motsDistinctifs(nom);
+  const { mots, requis } = motsDuNom(nom);
   // Un sigle court doit apparaître comme un mot entier.
   const present = (m: string) =>
     m.length >= 4 ? t.includes(m) : t.includes(` ${m} `);
-  if (mots.length && !mots.some(present)) return false;
+  if (mots.filter(present).length < requis) return false;
   const cp = codePostal(adresse, pays);
   return !cp || texte.includes(cp);
 }
