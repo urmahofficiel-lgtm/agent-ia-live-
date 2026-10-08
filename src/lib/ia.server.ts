@@ -126,7 +126,12 @@ async function demanderGemini(cle: string, systeme: string, demande: string, ech
         derniere = `Gemini a refusé la demande (${r.status}).`;
         continue;
       }
-      const json = (await r.json()) as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[] };
+      const json = (await r.json()) as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[] };
+      // Réponse coupée : modèle suivant.
+      if (json.candidates?.[0]?.finishReason === "MAX_TOKENS") {
+        derniere = "Réponse de Gemini incomplète.";
+        continue;
+      }
       const texte = (json.candidates?.[0]?.content?.parts ?? [])
         .filter((p) => !p.thought)
         .map((p) => p.text ?? "")
@@ -170,7 +175,14 @@ async function demanderNvidia(cle: string, systeme: string, demande: string, max
       if (r.status === 401 || r.status === 403) break; // clé invalide : inutile d'insister
       continue;
     }
-    const json = (await r.json()) as { choices?: { message?: { content?: string | null } }[] };
+    const json = (await r.json()) as { choices?: { message?: { content?: string | null }; finish_reason?: string | null }[] };
+    // Réponse coupée faute de place (« Con la geolocal… ») : jamais
+    // enregistrée comme un post, on essaie le modèle suivant.
+    if (json.choices?.[0]?.finish_reason === "length") {
+      console.warn("NVIDIA : réponse coupée, modèle suivant", modele);
+      derniereErreur = "Réponse de l'IA incomplète.";
+      continue;
+    }
     // Les modèles « à raisonnement » renvoient parfois leur réflexion entre
     // balises <think> : on ne garde que la réponse.
     const texte = json.choices?.[0]?.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
