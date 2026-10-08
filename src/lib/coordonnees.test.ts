@@ -249,4 +249,13 @@ describe("coordonnées des prospects", () => {
       ),
     ).toBe(true);
   });
+
+  it("nom fait de mots de métier : aucun site reconnu", () => {
+    expect(
+      siteDeLEntreprise(
+        "https://www.cbarchitectes.fr/contact",
+        "3 + 1 Architectes",
+      ),
+    ).toBe(false);
+  });
 });

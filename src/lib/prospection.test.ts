@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { avecDesinscription, bilanCampagne, consigneMessage, emailImpersonnel, estAAppeler, scriptAppel, estARelancer, liensContact, lireMessage, numeroInternational, type ProspectARediger } from "./prospection";
+import { avecDesinscription, bilanCampagne, consigneMessage, emailImpersonnel, estAAppeler, estOrganisme, scriptAppel, estARelancer, liensContact, lireMessage, numeroInternational, type ProspectARediger } from "./prospection";
 
 const prospect: ProspectARediger = {
   id: "x",
@@ -163,5 +163,13 @@ describe("adresse impersonnelle (Belgique)", () => {
     const base = { categorie: "Architectes", genre: "premier", nom: "A", entreprise: "A" } as never;
     expect(consigneMessage({ ...(base as object), pays: "BE" } as never, "email")).toContain("Factur-X");
     expect(consigneMessage({ ...(base as object), pays: "FR" } as never, "email")).not.toContain("hors de France");
+  });
+});
+
+describe("organismes écartés de la prospection", () => {
+  it("CAUE, Maison de l'Architecture, Ordre : pas des cabinets", () => {
+    for (const n of ["Maison de l'Architecture", "CAUE d'Alsace", "Conseil d'Architecture, d'Urbanisme et de l'Environnement", "Ordre des architectes", "École nationale supérieure d'architecture de Lyon"])
+      expect(estOrganisme(n)).toBe(true);
+    for (const n of ["Atelier Lame", "Dumont Legrand Architectes", "Architectes Associés"]) expect(estOrganisme(n)).toBe(false);
   });
 });

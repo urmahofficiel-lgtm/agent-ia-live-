@@ -329,3 +329,11 @@ export function emailImpersonnel(email: string | null | undefined): boolean {
   // Adresse au nom du cabinet (« a2rc@a2rc.be ») : boîte de l'entreprise.
   return PREFIXES_IMPERSONNELS.includes(racine) || local === domaine.split(".")[0];
 }
+
+// Organismes publics ou professionnels classés comme « architectes » dans les
+// données ouvertes (CAUE, Maison de l'Architecture, Ordre, écoles…) : ce ne
+// sont pas des cabinets à démarcher.
+const ORGANISMES =
+  /maison de l.architecture|ordre (r[ée]gional )?des architectes|\bcaue\b|conseil d.architecture|[ée]cole (nationale )?(sup[ée]rieure )?d.architecture|\bensa\b|syndicat|union professionnelle|chambre syndicale|f[ée]d[ée]ration|bouwmeester|maison du g[ée]om[èe]tre|architect.s house/i;
+export const estOrganisme = (nom: string | null | undefined) =>
+  ORGANISMES.test(nom ?? "");

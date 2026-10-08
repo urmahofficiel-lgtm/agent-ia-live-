@@ -191,7 +191,11 @@ export function siteDeLEntreprise(url: string, nom: string): boolean {
   }
   const compact = (x: string) => x.replace(/[^a-z0-9]/g, "");
   const domaine = compact(hote.split(".").slice(0, -1).join(""));
-  return motsDistinctifs(nom).some((m) => {
+  // Nom fait de mots de métier (« 3 + 1 Architectes ») : aucun domaine ne
+  // peut être reconnu comme le sien (« cbarchitectes.fr » ne l'est pas).
+  const { mots, generique } = motsDuNom(nom);
+  if (generique) return false;
+  return mots.some((m) => {
     const c = compact(m);
     return c.length >= 2 && domaine.includes(c);
   });
@@ -201,14 +205,23 @@ export function siteDeLEntreprise(url: string, nom: string): boolean {
 // 4 lettres, sinon les sigles (« LW », « 4D »), sinon (nom fait de mots
 // communs) les mots d'au moins 4 lettres. Deux mots propres exigés quand il
 // y en a deux (« Beck Hélène » : le prénom seul ne suffit pas).
-function motsDuNom(nom: string): { mots: string[]; requis: number } {
+function motsDuNom(nom: string): {
+  mots: string[];
+  requis: number;
+  generique: boolean;
+} {
   const tous = cleNom(nom).split(" ").filter(Boolean);
   const propres = tous.filter((m) => !MOTS_COMMUNS.has(m));
   const longs = propres.filter((m) => m.length >= 4);
-  if (longs.length) return { mots: longs, requis: Math.min(longs.length, 2) };
+  if (longs.length)
+    return { mots: longs, requis: Math.min(longs.length, 2), generique: false };
   const sigles = propres.filter((m) => m.length >= 2);
-  if (sigles.length) return { mots: sigles, requis: 1 };
-  return { mots: tous.filter((m) => m.length >= 4), requis: 1 };
+  if (sigles.length) return { mots: sigles, requis: 1, generique: false };
+  return {
+    mots: tous.filter((m) => m.length >= 4),
+    requis: 1,
+    generique: true,
+  };
 }
 
 export const motsDistinctifs = (nom: string) => motsDuNom(nom).mots;

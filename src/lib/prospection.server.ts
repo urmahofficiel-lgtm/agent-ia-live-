@@ -15,6 +15,7 @@ import {
 import {
   choisirCanal,
   consigneMessage,
+  estOrganisme,
   lireMessage,
   type BrouillonProspect,
   type Canal,
@@ -113,7 +114,10 @@ export async function chercherEntreprises(
     osm.status === "fulfilled" ? osm.value : [],
     annuaire.status === "fulfilled" ? annuaire.value : [],
     max,
-  ).map((p) => ({ ...p, pays }));
+  )
+    // CAUE, Maison de l'Architecture, Ordre… : pas des entreprises à démarcher.
+    .filter((p) => !estOrganisme(p.nom))
+    .map((p) => ({ ...p, pays }));
 }
 
 // Rédige le message (premier contact ou relance). Aucun envoi : le brouillon
