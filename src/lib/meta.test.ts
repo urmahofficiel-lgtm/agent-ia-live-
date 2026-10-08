@@ -40,6 +40,15 @@ describe("urlDialogue", () => {
     expect(c.searchParams.has("scope")).toBe(false);
     expect(c.searchParams.get("override_default_response_type")).toBe("true");
   });
+  it("ne demande la lecture des vues qu'à part, en redemandant l'accord", () => {
+    const n = new URL(urlDialogue({ appId: "1", retour: "https://x/r", etat: "e" }));
+    expect(n.searchParams.get("scope")).not.toContain("read_insights");
+    expect(n.searchParams.has("auth_type")).toBe(false);
+    const v = new URL(urlDialogue({ appId: "1", retour: "https://x/r", etat: "e", droitsEnPlus: ["read_insights"] }));
+    expect(v.searchParams.get("scope")).toContain("read_insights");
+    expect(v.searchParams.get("scope")).toContain("pages_manage_posts");
+    expect(v.searchParams.get("auth_type")).toBe("rerequest");
+  });
 });
 
 describe("connexion Instagram directe", () => {

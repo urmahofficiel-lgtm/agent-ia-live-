@@ -146,7 +146,11 @@ function Comptes() {
     } else void synchroniser(!params.has("connected"));
   }, [userId, synchroniser]);
 
-  async function connecter(plateforme: string, via?: "direct" | "zernio") {
+  async function connecter(
+    plateforme: string,
+    via?: "direct" | "zernio",
+    vues?: boolean,
+  ) {
     // Bluesky et Telegram : formulaire sur place, pas de page d'autorisation.
     if ((RESEAUX_DIRECTS as readonly string[]).includes(plateforme)) {
       setFormulaire(plateforme as ReseauDirect);
@@ -157,7 +161,7 @@ function Comptes() {
     setErreur(null);
     try {
       const r = await urlConnexion({
-        data: { plateforme, via, jeton: await jetonSession() },
+        data: { plateforme, via, vues, jeton: await jetonSession() },
       });
       if (r.ok) {
         window.location.href = r.url;
@@ -332,6 +336,19 @@ function Comptes() {
         et sans limite ; elle n'occupe pas de place chez Zernio. Instagram doit
         être un compte professionnel ou créateur (réglage gratuit dans l'app
         Instagram : Paramètres → Type de compte).
+      </p>
+      <p className="mb-2 text-xs text-doux">
+        Vues des vidéos Facebook à 0 ?{" "}
+        <button
+          type="button"
+          className="text-accent underline disabled:opacity-50"
+          disabled={enCours !== null}
+          onClick={() => connecter("facebook", "direct", true)}
+        >
+          Autoriser la lecture des vues
+        </button>{" "}
+        — Facebook redemande l'accord une fois. Si la page Facebook affiche une
+        erreur, rien ne change : votre connexion actuelle reste en place.
       </p>
       <p className="mb-2 text-xs text-doux">
         Facebook ne se connecte pas ?{" "}

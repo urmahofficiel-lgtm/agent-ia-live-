@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { URL_SITE } from "./preparation.server";
-import { VERSION_GRAPH, commentairesDeMediasInstagram, commentairesDePostsFacebook, comptesDepuisPages, urlDialogue, type PageMeta } from "./meta";
+import { VERSION_GRAPH, commentairesDeMediasInstagram, commentairesDePostsFacebook, comptesDepuisPages, urlDialogue, type PageMeta, DROIT_VUES_META } from "./meta";
 import type { Media } from "./zernio.server";
 
 const GRAPH = `https://graph.facebook.com/${VERSION_GRAPH}`;
@@ -41,11 +41,11 @@ export function lireEtat(etat: string, secret = cles().secret, maintenant = Date
   }
 }
 
-export function urlConnexionMeta(userId: string) {
+export function urlConnexionMeta(userId: string, vues = false) {
   const { appId } = cles();
   // Connexion classique par liste de droits : la configuration « Business »
   // (META_CONFIG_ID) fait échouer la page de Facebook pour cette app.
-  return urlDialogue({ appId, retour: RETOUR_META, etat: creerEtat(userId) });
+  return urlDialogue({ appId, retour: RETOUR_META, etat: creerEtat(userId), droitsEnPlus: vues ? [DROIT_VUES_META] : [] });
 }
 
 // --- Appels à l'API Graph --------------------------------------------------

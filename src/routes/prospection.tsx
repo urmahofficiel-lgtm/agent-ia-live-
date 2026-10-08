@@ -36,7 +36,9 @@ import {
 import { jetonSession } from "@/lib/session";
 import {
   bilanCampagne,
+  estAAppeler,
   estARelancer,
+  scriptAppel,
   liensContact,
   messageErreurProspect,
   type Canal,
@@ -392,6 +394,7 @@ type Filtre =
   | "tous"
   | "a_valider"
   | "a_relancer"
+  | "a_appeler"
   | "nouveau"
   | "rge"
   | "contactes"
@@ -401,6 +404,7 @@ const FILTRES: { id: Filtre; libelle: string }[] = [
   { id: "tous", libelle: "Tous" },
   { id: "a_valider", libelle: "À valider" },
   { id: "a_relancer", libelle: "À relancer" },
+  { id: "a_appeler", libelle: "À appeler" },
   { id: "nouveau", libelle: "Nouveaux" },
   { id: "rge", libelle: "RGE" },
   { id: "contactes", libelle: "Contactés" },
@@ -435,6 +439,10 @@ function Prospection() {
         .order("created_at", { ascending: false }),
     [userId],
   );
+  const marque = useRequete<{ nom: string | null }>(
+    () => supabase().from("profil_marque").select("nom").maybeSingle(),
+    [userId],
+  );
   const reglages = useRequete<ReglagesProspection>(
     () =>
       supabase()
@@ -464,6 +472,7 @@ function Prospection() {
       if (f === "a_valider")
         return p.brouillon !== null && p.statut !== "ne_plus_contacter";
       if (f === "a_relancer") return estARelancer(p, delai, maintenant);
+      if (f === "a_appeler") return estAAppeler(p);
       if (f === "rge") return /\bRGE\b/.test(p.infos ?? "");
       if (f === "contactes")
         return p.statut === "contacte" || p.statut === "relance";
@@ -608,6 +617,13 @@ function Prospection() {
         })}
       </nav>
 
+      {filtre === "a_appeler" && (
+        <TrameAppel
+          marque={marque.data?.nom ?? null}
+          metier={reglages.data?.email_cible ?? null}
+        />
+      )}
+
       <Erreur message={liste.erreur} />
       {!liste.chargement && affiches.length === 0 && (
         <Carte className="mb-6 text-sm text-doux">
@@ -735,6 +751,87 @@ const ICONES: Record<LienContact["type"], typeof Mail> = {
   sms: MessageCircle,
   telephone: Phone,
 };
+
+// Trame d'appel pour les prospects sans e-mail : obtenir l'adresse, puis
+// l'agent e-mail envoie le message et le document joint.
+function TrameAppel({
+  marque,
+  metier,
+}: {
+  marque: string | null;
+  metier: string | null;
+}) {
+  return (
+    <Carte className="mb-3">
+      <p className="flex items-center gap-2 font-medium">
+        <Phone className="size-4" aria-hidden />
+        Trame d'appel (1 minute)
+      </p>
+      <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm">
+        {scriptAppel(marque, metier).map((l) => (
+          <li key={l}>{l}</li>
+        ))}
+      </ol>
+      <p className="mt-2 text-xs text-doux">
+        Notez l'adresse obtenue dans la fiche (« E-mail obtenu par téléphone »)
+        : l'agent e-mail lui enverra le message et la présentation au prochain
+        passage.
+      </p>
+    </Carte>
+  );
+}
+
+// Saisie de l'e-mail obtenu au téléphone : le prospect entre dans la file de
+// l'agent e-mail.
+function EmailObtenu({
+  id,
+  onChange,
+}: {
+  id: string;
+  onChange: () => Promise<void>;
+}) {
+  const [email, setEmail] = useState("");
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [envoi, setEnvoi] = useState(false);
+  async function enregistrer(e: FormEvent) {
+    e.preventDefault();
+    const v = email.trim().toLowerCase();
+    if (!/^[^\s@<>,;"]+@[^\s@<>,;"]+\.[a-z]{2,24}$/i.test(v))
+      return setErreur("Adresse e-mail invalide.");
+    setEnvoi(true);
+    const { error } = await supabase()
+      .from("prospects")
+      .update({ email: v, email_invalide: false })
+      .eq("id", id);
+    setEnvoi(false);
+    if (error) return setErreur(error.message);
+    setErreur(null);
+    await onChange();
+  }
+  return (
+    <form
+      onSubmit={enregistrer}
+      className="mt-3 flex flex-wrap items-end gap-2"
+    >
+      <label className="grid min-w-0 flex-1 gap-1 text-xs text-doux">
+        E-mail obtenu par téléphone
+        <input
+          type="email"
+          inputMode="email"
+          autoComplete="off"
+          className={champ}
+          placeholder="contact@agence.fr"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      </label>
+      <button className={boutonSecondaire} disabled={envoi || !email.trim()}>
+        {envoi ? "Enregistrement…" : "Enregistrer"}
+      </button>
+      <Erreur message={erreur} />
+    </form>
+  );
+}
 
 function ProspectCarte({
   p,
@@ -946,6 +1043,8 @@ function ProspectCarte({
           </span>
         )}
       </p>
+
+      {estAAppeler(p) && <EmailObtenu id={p.id} onChange={onChange} />}
 
       {brouillon && (
         <details

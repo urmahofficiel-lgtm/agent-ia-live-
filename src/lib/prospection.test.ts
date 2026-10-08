@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { avecDesinscription, bilanCampagne, consigneMessage, estARelancer, liensContact, lireMessage, numeroInternational, type ProspectARediger } from "./prospection";
+import { avecDesinscription, bilanCampagne, consigneMessage, estAAppeler, scriptAppel, estARelancer, liensContact, lireMessage, numeroInternational, type ProspectARediger } from "./prospection";
 
 const prospect: ProspectARediger = {
   id: "x",
@@ -133,5 +133,21 @@ describe("suivi de campagne", () => {
       enErreur: 1,
     });
     expect(bilanCampagne(liste, null).aContacter).toBe(2);
+  });
+});
+
+describe("à appeler", () => {
+  it("garde les entreprises jamais contactées avec téléphone et sans e-mail", () => {
+    const base = { type: "entreprise", statut: "nouveau", telephone: "05 56 00 00 00", email: null };
+    expect(estAAppeler(base)).toBe(true);
+    expect(estAAppeler({ ...base, email: "a@b.fr" })).toBe(false);
+    expect(estAAppeler({ ...base, telephone: null })).toBe(false);
+    expect(estAAppeler({ ...base, statut: "contacte" })).toBe(false);
+    expect(estAAppeler({ ...base, type: "particulier" })).toBe(false);
+  });
+  it("adapte la trame d'appel aux architectes", () => {
+    expect(scriptAppel("BTP Ecosystem", "Architectes").join(" ")).toContain("3 mois");
+    expect(scriptAppel(null, "Plombiers").join(" ")).not.toContain("3 mois");
+    expect(scriptAppel("Autre marque", "Architectes").join(" ")).not.toContain("3 mois");
   });
 });

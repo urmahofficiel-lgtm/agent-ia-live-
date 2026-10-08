@@ -451,6 +451,8 @@ export const urlConnexion = createServerFn({ method: "POST" })
       .object({
         plateforme: z.string(),
         via: z.enum(["direct", "zernio"]).optional(),
+        // Facebook : demande en plus le droit de lire les vues des vidéos.
+        vues: z.boolean().optional(),
         jeton,
       })
       .parse(input),
@@ -483,7 +485,7 @@ export const urlConnexion = createServerFn({ method: "POST" })
         metaConfigure()
       ) {
         const { user } = await utilisateurDepuisJeton(data.jeton);
-        return { ok: true, url: urlConnexionMeta(user.id) };
+        return { ok: true, url: urlConnexionMeta(user.id, data.vues === true) };
       }
       if (!zernioConfigure()) return { ok: false, erreur: "ZERNIO_ABSENT" };
       const p = PLATEFORMES.find((x) => x.id === data.plateforme);

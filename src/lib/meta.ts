@@ -35,7 +35,12 @@ export function comptesDepuisPages(pages: PageMeta[]): CompteMeta[] {
   });
 }
 
-export function urlDialogue(p: { appId: string; retour: string; etat: string; configId?: string }) {
+// Droit facultatif demandé à part (bouton « Autoriser la lecture des vues ») :
+// s'il n'est pas activé dans l'app Meta, seule cette demande échoue, la
+// connexion déjà en place reste intacte.
+export const DROIT_VUES_META = "read_insights";
+
+export function urlDialogue(p: { appId: string; retour: string; etat: string; configId?: string; droitsEnPlus?: string[] }) {
   const q = new URLSearchParams({ client_id: p.appId, redirect_uri: p.retour, state: p.etat, response_type: "code" });
   // « Facebook Login for Business » : les droits viennent d'une configuration.
   // Avec une configuration, Meta renvoie un jeton par défaut : il faut
@@ -44,7 +49,9 @@ export function urlDialogue(p: { appId: string; retour: string; etat: string; co
     q.set("config_id", p.configId);
     q.set("override_default_response_type", "true");
   }
-  else q.set("scope", PERMISSIONS_META.join(","));
+  else q.set("scope", [...PERMISSIONS_META, ...(p.droitsEnPlus ?? [])].join(","));
+  // Redemande un droit déjà refusé une fois.
+  if (p.droitsEnPlus?.length) q.set("auth_type", "rerequest");
   return `https://www.facebook.com/${VERSION_GRAPH}/dialog/oauth?${q}`;
 }
 

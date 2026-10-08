@@ -270,3 +270,38 @@ export function bilanCampagne(
   }
   return b;
 }
+
+// À appeler : entreprise jamais contactée, qui a un téléphone mais pas
+// d'e-mail (l'agent e-mail ne peut pas la joindre).
+export function estAAppeler(p: {
+  type: string;
+  statut: string;
+  telephone: string | null;
+  email: string | null;
+}): boolean {
+  return (
+    p.type === "entreprise" &&
+    p.statut === "nouveau" &&
+    Boolean(p.telephone?.trim()) &&
+    !p.email?.trim()
+  );
+}
+
+// Trame d'appel courte : se présenter, le bénéfice pour SON métier, une seule
+// demande (l'adresse e-mail pour envoyer la présentation).
+export function scriptAppel(marque: string | null, metier: string | null): string[] {
+  const nom = marque?.trim() || "notre entreprise";
+  const pourArchitecte = /architect|ma[iî]tre d.[œo]uvre/i.test(metier ?? "");
+  return [
+    `Bonjour, [votre prénom], de ${nom}. Je ne vous prends qu'une minute.`,
+    pourArchitecte
+      ? `${nom} réunit tous les corps de métier d'un chantier au même endroit : planning, réserves sur plans, comptes rendus de réunion.`
+      : `Je vous appelle parce que ${nom} aide les entreprises comme la vôtre à gagner du temps sur leurs chantiers.`,
+    // Offre pilote propre à BTP Ecosystem (confirmée par son fondateur).
+    pourArchitecte && /btp[\s-]?ecosystem/i.test(nom)
+      ? "Nous cherchons quelques architectes pour l'essayer sur de vrais chantiers, et nous offrons la formule Business pendant 3 mois en échange de leurs retours."
+      : "Nous proposons de l'essayer, pour voir si c'est utile pour vous.",
+    "Est-ce que je peux vous envoyer la présentation par e-mail ? À quelle adresse ?",
+    "S'il refuse : « Très bien, merci, je ne vous rappellerai pas. » (puis statut « Refus » ou « Ne plus contacter »).",
+  ];
+}
