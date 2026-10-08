@@ -5,6 +5,7 @@ import {
   extraireEmails,
   extraireTelephones,
   lienContact,
+  meilleurEmail,
   normaliserTelephone,
   numeroPresent,
   requeteRecherche,
@@ -93,5 +94,77 @@ describe("coordonnées des prospects", () => {
         adresse: "42 Rue Antonin Perrin 69100 Villeurbanne",
       }),
     ).toBe('"Rakor Plomberie" Villeurbanne téléphone');
+  });
+
+  it("normalise les numéros belges au format international", () => {
+    expect(normaliserTelephone("02 502 01 08", "BE")).toBe("+32 2 502 01 08");
+    expect(normaliserTelephone("+32 (0)4 229 70 00", "BE")).toBe(
+      "+32 4 229 70 00",
+    );
+    expect(normaliserTelephone("069/25.15.70", "BE")).toBe("+32 69 25 15 70");
+    expect(normaliserTelephone("0496 79 94 95", "BE")).toBe("+32 496 79 94 95");
+    expect(normaliserTelephone("0032 496 79 94 95", "BE")).toBe(
+      "+32 496 79 94 95",
+    );
+    expect(normaliserTelephone("0412 34 56 78", "BE")).toBeNull();
+  });
+
+  it("extrait les numéros belges, sans numéro d'entreprise ni surtaxé", () => {
+    const html =
+      '<p>Tél. 02 502 01 08 – GSM 0496 79 94 95</p><p>TVA BE 0456.789.123</p><p>0456.789.124</p><p>0903 12 345</p><a href="tel:+3269251570">x</a>';
+    expect(extraireTelephones(texteDePage(html), "BE")).toEqual([
+      "+32 2 502 01 08",
+      "+32 496 79 94 95",
+      "+32 69 25 15 70",
+    ]);
+    // Un portable belge n'est pas pris pour un numéro français.
+    expect(extraireTelephones("GSM 0496 79 94 95", "BE")).not.toContain(
+      "04 96 79 94 95",
+    );
+  });
+
+  it("confirme une entreprise belge par son code postal à 4 chiffres", () => {
+    expect(
+      confirmeEntreprise(
+        "Atelier DSH, Mont Saint-Martin 61, 4000 Liège",
+        "Atelier DSH",
+        "61 Mont Saint-Martin, 4000 Liège",
+        "BE",
+      ),
+    ).toBe(true);
+    expect(
+      confirmeEntreprise(
+        "Atelier DSH, 1000 Bruxelles",
+        "Atelier DSH",
+        "61 Mont Saint-Martin, 4000 Liège",
+        "BE",
+      ),
+    ).toBe(false);
+  });
+
+  it("construit la requête de recherche en Belgique", () => {
+    expect(
+      requeteRecherche(
+        { nom: "Atelier DSH", adresse: "61 Mont Saint-Martin, 4000 Liège" },
+        "BE",
+      ),
+    ).toBe('"Atelier DSH" Liège téléphone');
+    expect(requeteRecherche({ nom: "Quattro", adresse: "Namur" }, "BE")).toBe(
+      '"Quattro" Namur téléphone',
+    );
+    expect(requeteRecherche({ nom: "Quattro", adresse: null }, "BE")).toBe(
+      '"Quattro" Belgique téléphone',
+    );
+  });
+
+  it("garde l'e-mail du domaine, impersonnel d'abord en Belgique", () => {
+    const emails = ["jean@agence-web.be", "j.dupont@rya.be", "atelier@rya.be"];
+    expect(meilleurEmail(emails, "https://rya.be/", "BE")).toBe(
+      "atelier@rya.be",
+    );
+    expect(meilleurEmail(emails, "https://www.rya.be", "FR")).toBe(
+      "j.dupont@rya.be",
+    );
+    expect(meilleurEmail([], null)).toBeNull();
   });
 });

@@ -4,6 +4,7 @@ import {
   extraireEmails,
   extraireTelephones,
   lienContact,
+  meilleurEmail,
   requeteRecherche,
   telephoneProche,
   texteDePage,
@@ -15,6 +16,7 @@ import {
 // 2. sinon une recherche web (Tavily, offre gratuite : 1 000 recherches par
 //    mois, clé TAVILY_API_KEY). Un numéro n'est retenu que s'il figure sur une
 //    page qui cite bien l'entreprise (nom et code postal).
+// Numéros et codes postaux lus selon le pays du prospect (France, Belgique).
 
 export type ProspectACompleter = {
   id: string;
@@ -23,6 +25,7 @@ export type ProspectACompleter = {
   site: string | null;
   siret: string | null;
   categorie: string | null;
+  pays?: string | null;
 };
 
 export type Coordonnees = {
@@ -55,19 +58,19 @@ async function lirePage(url: string): Promise<Page | null> {
 }
 
 // Accueil puis page contact du site de l'entreprise.
-async function depuisSite(site: string, p: ProspectACompleter) {
+async function depuisSite(site: string, p: ProspectACompleter, pays: string) {
   const url = urlSite(site);
   if (!url || estAnnuaire(url)) return null;
   const accueil = await lirePage(url);
   if (!accueil || !confirmeEntreprise(accueil.texte, p.nom, null)) return null;
-  let telephones = extraireTelephones(accueil.texte);
+  let telephones = extraireTelephones(accueil.texte, pays);
   let emails = extraireEmails(accueil.texte);
   if (!telephones.length || !emails.length) {
     const contact = lienContact(accueil.html, accueil.url);
     const page = contact ? await lirePage(contact) : null;
     if (page) {
       telephones = [
-        ...new Set([...telephones, ...extraireTelephones(page.texte)]),
+        ...new Set([...telephones, ...extraireTelephones(page.texte, pays)]),
       ];
       emails = [...new Set([...emails, ...extraireEmails(page.texte)])];
     }
@@ -84,9 +87,16 @@ type ResultatTavily = {
 // Dernier refus de la recherche web (code + court message), pour le diagnostic.
 export let dernierRefusRecherche: string | null = null;
 
+// Pays où la recherche web favorise les résultats (paramètre « country »).
+const PAYS_RECHERCHE: Record<string, string> = {
+  FR: "france",
+  BE: "belgium",
+};
+
 async function rechercheTavily(
   requete: string,
   cle: string,
+  pays: string,
 ): Promise<ResultatTavily[] | null> {
   try {
     const r = await fetch("https://api.tavily.com/search", {
@@ -101,7 +111,7 @@ async function rechercheTavily(
         max_results: 5,
         search_depth: "basic",
         include_raw_content: "text",
-        country: "france",
+        country: PAYS_RECHERCHE[pays] ?? "france",
       }),
     });
     if (!r.ok) {
@@ -122,23 +132,24 @@ async function rechercheTavily(
 export async function trouverCoordonnees(
   p: ProspectACompleter,
 ): Promise<Coordonnees | "plus_tard"> {
-  // 1. Site déjà connu.
+  const pays = p.pays ?? "FR";
+  // 1. Site déjà connu. Un e-mail trouvé sans téléphone est gardé : on
+  //    cherche quand même le téléphone sur le web.
+  let duSite: Coordonnees | null = null;
   if (p.site) {
-    const s = await depuisSite(p.site, p);
+    const s = await depuisSite(p.site, p, pays);
+    const email = s ? meilleurEmail(s.emails, s.url, pays) : null;
     if (s?.telephones.length)
-      return {
-        telephone: s.telephones[0],
-        email: s.emails[0] ?? null,
-        site: null,
-        source: s.url,
-      };
+      return { telephone: s.telephones[0], email, site: null, source: s.url };
+    if (s && email)
+      duSite = { telephone: null, email, site: null, source: s.url };
   }
 
   // 2. Recherche web.
   const cle = process.env.TAVILY_API_KEY;
-  if (!cle) return "plus_tard";
-  const resultats = await rechercheTavily(requeteRecherche(p), cle);
-  if (!resultats) return "plus_tard";
+  if (!cle) return duSite ?? "plus_tard";
+  const resultats = await rechercheTavily(requeteRecherche(p, pays), cle, pays);
+  if (!resultats) return duSite ?? "plus_tard";
 
   // Le site de l'entreprise d'abord (téléphone + e-mail), puis les autres
   // pages (annuaires compris) : le texte doit citer l'entreprise.
@@ -149,16 +160,18 @@ export async function trouverCoordonnees(
   for (const r of tries) {
     if (!r.url) continue;
     const texte = `${r.content ?? ""} ${r.raw_content ?? ""}`;
-    if (!confirmeEntreprise(texte, p.nom, p.adresse)) continue;
-    const telephone = telephoneProche(texte, p.nom);
+    if (!confirmeEntreprise(texte, p.nom, p.adresse, pays)) continue;
+    const telephone = telephoneProche(texte, p.nom, pays);
     if (!telephone) continue;
     const officiel = !estAnnuaire(r.url) && !p.site;
     return {
       telephone,
-      email: officiel ? (extraireEmails(texte)[0] ?? null) : null,
+      email:
+        duSite?.email ??
+        (officiel ? meilleurEmail(extraireEmails(texte), r.url, pays) : null),
       site: officiel ? new URL(r.url).origin : null,
       source: r.url,
     };
   }
-  return { telephone: null, email: null, site: null, source: null };
+  return duSite ?? { telephone: null, email: null, site: null, source: null };
 }

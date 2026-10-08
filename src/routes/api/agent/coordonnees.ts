@@ -17,7 +17,7 @@ const LOT = 1;
 async function completer(secret: string, limite = 2) {
   const debut = Date.now();
   const sb = clientMoteur();
-  const { data, error } = await sb.rpc("agent_prospects_a_completer", {
+  const { data, error } = await sb.rpc("agent_coordonnees_a_chercher", {
     p_secret: secret,
     p_limite: limite,
   });
