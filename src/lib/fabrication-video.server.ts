@@ -2,7 +2,8 @@ import { PLATEFORMES } from "./plateformes";
 import { demanderIA, genererImage } from "./ia.server";
 import { consigneScript, durees, imposerScenesProduit, lireScript, normaliserScript, scriptDeSecours } from "./video";
 import { monterVideo } from "./video.server";
-import { TON_PARLE, TON_PUBLICITAIRE, voixConfiguree, voixOff } from "./voix.server";
+import { voixConfiguree, voixOff } from "./voix.server";
+import { tonVoix } from "./marches";
 import { pexelsConfigure, photo, sequenceVerticale } from "./pexels.server";
 import { couleurDuSite, visuelsDuSite } from "./site.server";
 import { nomStyleVideo, type StyleVideo } from "./styles";
@@ -17,7 +18,8 @@ export type AtelierVideo = {
   deposer: (mp4: Buffer) => Promise<string>;
 };
 
-export type SujetVideo = { id: string; plateforme: string | null; titre: string; consigne: string; brouillon?: string | null };
+// `marche` : langue et pays du compte visé (script, voix et repères dans sa langue).
+export type SujetVideo = { id: string; plateforme: string | null; titre: string; consigne: string; brouillon?: string | null; marche?: string | null };
 
 // `style` : classique (par défaut), ugc, avant_apres, etapes ou top3.
 export async function fabriquerVideo(
@@ -48,7 +50,7 @@ export async function fabriquerVideo(
   for (let essai = 0; essai < 2 && !script && Date.now() < finScript - 10_000; essai++) {
     try {
       script = lireScript(
-        await demanderIA(consigneScript(t, contexte, reseau, captures.length > 0, style), {
+        await demanderIA(consigneScript(t, contexte, reseau, captures.length > 0, style, t.marche), {
           systeme: "Tu es scénariste de vidéos courtes pour les réseaux sociaux. Tu réponds uniquement en JSON valide.",
           maxTokens: 2000,
           delaiTotal: finScript - Date.now(),
@@ -61,7 +63,7 @@ export async function fabriquerVideo(
   }
   if (!script) {
     // IA saturée : script tiré du texte de la publication, la vidéo se fait quand même.
-    script = scriptDeSecours({ ...t, brouillon: t.brouillon }, contexte);
+    script = scriptDeSecours({ ...t, brouillon: t.brouillon }, contexte, t.marche);
     await journal("info", "IA occupée : script construit à partir du texte de la publication.");
   }
   script = normaliserScript(script, style);
@@ -71,7 +73,7 @@ export async function fabriquerVideo(
   let voix = null;
   if (voixConfiguree()) {
     await journal("action", "🎙️ Enregistrement de la voix off (Gemini)…");
-    voix = await voixOff(script.scenes.map((s) => s.voix).join(" "), style === "ugc" ? TON_PARLE : TON_PUBLICITAIRE);
+    voix = await voixOff(script.scenes.map((s) => s.voix).join(" "), tonVoix(t.marche, style === "ugc"));
     await journal(voix ? "info" : "erreur", voix ? `Voix off prête (${Math.round(voix.duree)} s).` : "Voix off impossible : vidéo sans voix.");
   }
   const d = durees(script.scenes, voix ? voix.duree + 0.6 : undefined);
@@ -133,7 +135,7 @@ export async function fabriquerVideo(
     script.scenes.map((s, i) => ({ ...medias[i], texte_ecran: s.texte_ecran, voix: s.voix, repere: s.repere })),
     d,
     voix ?? undefined,
-    { style, accent: accent ?? undefined },
+    { style, accent: accent ?? undefined, marche: t.marche },
   );
 
   const video_url = await deposer(mp4);

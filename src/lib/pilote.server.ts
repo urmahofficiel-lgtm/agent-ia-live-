@@ -1,6 +1,7 @@
 import { avecVeille } from "./veille";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { demanderIA } from "./ia.server";
+import { lireCanaux } from "./marches";
 import {
   consigneSujets,
   ferieProche,
@@ -20,7 +21,8 @@ type APlanifier = {
   jour: string;
   rythme: unknown;
   creneaux: string[] | null;
-  plateformes: string[] | null;
+  // Réseau + marché de chaque compte connecté : [{ plateforme, marche }].
+  canaux: unknown;
   contexte: string | null;
   titres_recents: string[] | null;
   apprentissage: string | null;
@@ -45,7 +47,7 @@ export async function planifierJournees(
   secret: string,
   echeance: number,
 ) {
-  const { data, error } = await sb.rpc("agent_pilotes_a_planifier", {
+  const { data, error } = await sb.rpc("agent_pilotes_du_jour", {
     p_secret: secret,
   });
   // Fonction absente tant que la migration n'est pas appliquée : on passe.
@@ -55,7 +57,7 @@ export async function planifierJournees(
     if (Date.now() > echeance - 30_000) break;
     try {
       const plan = planDuJour(
-        u.plateformes ?? [],
+        lireCanaux(u.canaux),
         u.rythme,
         normaliserCreneaux(u.creneaux),
         u.jour,

@@ -22,10 +22,10 @@ export function nettoyerPost(texte: string, titre?: string | null) {
 export const RESEAUX_SANS_LIEN = ["facebook", "linkedin", "tiktok", "instagram", "threads"];
 
 // Consigne propre à chaque réseau (longueur, accroche, lien, hashtags).
-export function reglesReseau(plateforme?: string | null): string {
+export function reglesReseau(plateforme?: string | null, langue = "français"): string {
   switch (plateforme) {
     case "facebook":
-      return "- Facebook (Reel) : première ligne = accroche de moins de 80 caractères ; 350 caractères maximum en tout ; termine par une question simple qui donne envie de commenter. AUCUN lien ni adresse de site (Facebook montre beaucoup moins les publications avec lien) : appel à l'action sans lien, par exemple « Essai gratuit : lien sur notre page ». 3 hashtags précis en français.";
+      return `- Facebook (Reel) : première ligne = accroche de moins de 80 caractères ; 350 caractères maximum en tout ; termine par une question simple qui donne envie de commenter. AUCUN lien ni adresse de site (Facebook montre beaucoup moins les publications avec lien) : appel à l'action sans lien, par exemple « Essai gratuit : lien sur notre page ». 3 hashtags précis en ${langue}.`;
     case "linkedin":
       return "- LinkedIn : accroche sur 2 lignes courtes, paragraphes d'une phrase. AUCUN lien dans le texte (LinkedIn réduit la portée des posts avec lien) : invite à réagir en commentaire ou à écrire en message privé. 3 hashtags.";
     case "tiktok":

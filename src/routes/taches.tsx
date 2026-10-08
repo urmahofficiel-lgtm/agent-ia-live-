@@ -6,6 +6,7 @@ import { LogoPlateforme } from "@/components/LogoPlateforme";
 import { supabase } from "@/lib/supabase";
 import { useReglages, useRequete, useStylesParDefaut, useUserId } from "@/lib/donnees";
 import { PLATEFORMES, estManuel, nomPlateforme } from "@/lib/plateformes";
+import { MARCHES, MARCHE_DEFAUT, estEtranger, marcheDe } from "@/lib/marches";
 import { creerVideo, genererBrouillon, publierTache, regenererVisuel } from "@/lib/agent.functions";
 import { jetonSession } from "@/lib/session";
 import { STATUTS } from "@/lib/statuts";
@@ -267,6 +268,8 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
         </div>
         <p className="mt-1 text-xs text-doux">
           {estPublication ? (t.plateforme ? nomPlateforme(t.plateforme) : "Réseau non choisi") : LIBELLE_TYPE[t.type]}
+          {/* Publication pour un compte étranger : son pays. */}
+          {estEtranger(t.marche) && ` · ${marcheDe(t.marche).drapeau} ${marcheDe(t.marche).pays}`}
           {t.planifiee_pour
             ? ` · prévue le ${new Date(t.planifiee_pour).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })}`
             : ` · créée le ${new Date(t.created_at).toLocaleDateString("fr-FR")}`}
@@ -441,7 +444,7 @@ function EditeurPublication({ tache: t, onFini }: { tache: Tache; onFini: (enreg
       .eq("id", t.id);
     const autres = reseaux.filter((r) => r !== principal);
     const erreurCopies =
-      !error && autres.length && userId ? await creerCopies(userId, { ...commun, statut: t.statut, resultat }, autres) : null;
+      !error && autres.length && userId ? await creerCopies(userId, { ...commun, statut: t.statut, resultat, marche: t.marche }, autres) : null;
     setEnvoi(false);
     if (error || erreurCopies) return setErreur(error?.message ?? erreurCopies);
     onFini(true);
@@ -578,6 +581,13 @@ function NouvelleTache({ onCree }: { onCree: () => Promise<void> }) {
   const [consigne, setConsigne] = useState("");
   const [quand, setQuand] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
+  // Langue et pays : proposés seulement si un compte étranger est connecté.
+  const comptes = useRequete<{ marche: string }[]>(
+    () => supabase().from("comptes_connectes").select("marche").eq("statut", "connecte"),
+    [userId],
+  );
+  const marches = MARCHES.filter((m) => m.id === MARCHE_DEFAUT || comptes.data?.some((c) => c.marche === m.id));
+  const [marche, setMarche] = useState(MARCHE_DEFAUT);
 
   async function creer(e: FormEvent) {
     e.preventDefault();
@@ -586,7 +596,14 @@ function NouvelleTache({ onCree }: { onCree: () => Promise<void> }) {
     const statut: StatutTache = reglages.validation_requise ? "a_valider" : "en_attente";
     const erreur = await creerCopies(
       userId,
-      { titre, consigne, statut, planifiee_pour: quand ? new Date(quand).toISOString() : null, resultat: null },
+      {
+        titre,
+        consigne,
+        statut,
+        planifiee_pour: quand ? new Date(quand).toISOString() : null,
+        resultat: null,
+        marche: marche === MARCHE_DEFAUT ? null : marche,
+      },
       reseaux,
     );
     setErreur(erreur);
@@ -599,6 +616,18 @@ function NouvelleTache({ onCree }: { onCree: () => Promise<void> }) {
         <div className="md:col-span-2">
           <ChoixReseaux valeur={reseaux} onChange={setReseaux} />
         </div>
+        {marches.length > 1 && (
+          <label className="text-sm md:col-span-2">
+            Langue et pays
+            <select className={champ} value={marche} onChange={(e) => setMarche(e.target.value)}>
+              {marches.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.drapeau} {m.libelle}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="text-sm md:col-span-2">
           Sujet
           <input className={champ} required value={titre} onChange={(e) => setTitre(e.target.value)} placeholder="Ex. : Devis en 2 minutes depuis le chantier" />

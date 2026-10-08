@@ -40,6 +40,8 @@ export type NouvellePublication = {
   statut: StatutTache;
   planifiee_pour: string | null;
   resultat: Resultat | null;
+  // Langue et pays (« it-IT »…) ; absent ou null = France.
+  marche?: string | null;
 };
 
 // Crée une copie de la publication pour chaque réseau demandé. Chaque copie a

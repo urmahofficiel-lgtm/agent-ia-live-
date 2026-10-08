@@ -1,4 +1,5 @@
 import { nomPlateforme } from "./plateformes";
+import { estEtranger, marcheDe } from "./marches";
 import { formatImage, genererImage, promptImage, rediger, type Consigne } from "./ia.server";
 import { photo, pexelsConfigure } from "./pexels.server";
 import { composerVisuel, textesVisuel } from "./visuel.server";
@@ -25,7 +26,8 @@ export type TacheAPreparer = Consigne & { brouillon?: string | null; visuel_url?
 // journal « en direct » : rédaction, puis (pour une publication) visuel.
 export async function preparer(t: TacheAPreparer, contexte: string | null, e: Ecrivain) {
   let brouillon = t.brouillon ?? null;
-  const ou = t.plateforme ? ` pour ${nomPlateforme(t.plateforme)}` : "";
+  // Marché étranger : son drapeau dans le journal (« pour Facebook 🇮🇹 »).
+  const ou = t.plateforme ? ` pour ${nomPlateforme(t.plateforme)}${estEtranger(t.marche) ? ` ${marcheDe(t.marche).drapeau}` : ""}` : "";
 
   if (!brouillon) {
     await e.journal("action", `✍️ Rédaction${ou} : « ${t.titre} »${contexte ? " — selon votre stratégie" : ""}`);
@@ -46,7 +48,7 @@ export async function preparer(t: TacheAPreparer, contexte: string | null, e: Ec
         style === "photo"
           ? null
           : Promise.all([
-              textesVisuel(style, { titre: t.titre, brouillon }, contexte),
+              textesVisuel(style, { titre: t.titre, brouillon }, contexte, t.marche),
               site ? couleurDuSite(site).catch(() => null) : Promise.resolve(null),
             ]);
       let prompt = "";

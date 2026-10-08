@@ -16,6 +16,8 @@ export type Tache = {
   id: string;
   type: TypeTache;
   plateforme: string | null;
+  // Langue et pays du compte visé (« it-IT »…) ; null = France.
+  marche?: string | null;
   titre: string;
   consigne: string;
   statut: StatutTache;

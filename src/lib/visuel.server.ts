@@ -9,10 +9,10 @@ import { assVisuel, consigneTextesVisuel, lireTextesVisuel, textesDeSecours, typ
 
 // Textes à incruster, écrits par l'IA ; sans réponse exploitable, tirés du
 // post lui-même. Ne lève jamais d'erreur.
-export async function textesVisuel(style: StyleTexte, t: { titre: string; brouillon: string }, contexte: string | null): Promise<TextesVisuel> {
+export async function textesVisuel(style: StyleTexte, t: { titre: string; brouillon: string }, contexte: string | null, marche?: string | null): Promise<TextesVisuel> {
   try {
     const r = lireTextesVisuel(
-      await demanderIA(consigneTextesVisuel(style, t, contexte), {
+      await demanderIA(consigneTextesVisuel(style, t, contexte, marche), {
         systeme: "Tu es directeur artistique pour les réseaux sociaux. Tu réponds uniquement en JSON valide.",
         maxTokens: 400,
         delaiTotal: 45_000,
@@ -22,7 +22,7 @@ export async function textesVisuel(style: StyleTexte, t: { titre: string; brouil
   } catch (e) {
     console.warn("Textes du visuel : IA indisponible", e instanceof Error ? e.message : e);
   }
-  return textesDeSecours(style, t, contexte);
+  return textesDeSecours(style, t, contexte, marche);
 }
 
 function executer(args: string[], dossier: string) {

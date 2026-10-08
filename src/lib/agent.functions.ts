@@ -63,6 +63,7 @@ import {
   instagramConfigure,
   urlConnexionInstagram,
 } from "./instagram.server";
+import { MARCHE_DEFAUT } from "./marches";
 import { publierSur, type CompteCible } from "./publication.server";
 import { sessionBluesky } from "./bluesky.server";
 import { verifierTelegram } from "./telegram.server";
@@ -160,6 +161,7 @@ type TacheLue = {
   plateforme: string | null;
   titre: string;
   consigne: string;
+  marche?: string | null;
   resultat: Record<string, unknown> | null;
 };
 
@@ -189,6 +191,7 @@ async function preparerPourUtilisateur(
       plateforme: t.plateforme,
       titre: t.titre,
       consigne: t.consigne,
+      marche: t.marche,
       brouillon: options.refaireTexte
         ? null
         : (r.brouillon as string | undefined),
@@ -210,7 +213,7 @@ export const genererBrouillon = createServerFn({ method: "POST" })
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
       const { data: t } = await sb
         .from("taches")
-        .select("id, type, plateforme, titre, consigne, resultat")
+        .select("id, type, plateforme, titre, consigne, marche, resultat")
         .eq("id", data.tacheId)
         .single();
       if (!t) return { ok: false, erreur: "Tâche introuvable." };
@@ -243,7 +246,7 @@ export const regenererVisuel = createServerFn({ method: "POST" })
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
       const { data: t } = await sb
         .from("taches")
-        .select("id, type, plateforme, titre, consigne, resultat")
+        .select("id, type, plateforme, titre, consigne, marche, resultat")
         .eq("id", data.tacheId)
         .single();
       if (!t) return { ok: false, erreur: "Tâche introuvable." };
@@ -280,7 +283,7 @@ export const travaillerMaintenant = createServerFn({ method: "POST" })
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
       const { data: taches } = await sb
         .from("taches")
-        .select("id, type, plateforme, titre, consigne, resultat")
+        .select("id, type, plateforme, titre, consigne, marche, resultat")
         .in("statut", ["a_valider", "en_attente"])
         .in("type", ["publication", "reponse", "prospection", "relance"])
         .order("planifiee_pour", { ascending: true, nullsFirst: true })
@@ -342,7 +345,7 @@ export const publierTache = createServerFn({ method: "POST" })
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
       const { data: t } = await sb
         .from("taches")
-        .select("id, type, plateforme, titre, resultat")
+        .select("id, type, plateforme, titre, marche, resultat")
         .eq("id", data.tacheId)
         .single();
       if (!t) return { ok: false, erreur: "Tâche introuvable." };
@@ -373,6 +376,8 @@ export const publierTache = createServerFn({ method: "POST" })
         .from("comptes_connectes")
         .select("compte_externe_id, cible_urn, fournisseur")
         .eq("plateforme", t.plateforme)
+        // Compte du même marché que la publication (France par défaut).
+        .eq("marche", t.marche ?? MARCHE_DEFAUT)
         .eq("statut", "connecte")
         .not("compte_externe_id", "is", null)
         .order("fournisseur") // « instagram » et « meta » passent avant « zernio »
@@ -1345,7 +1350,7 @@ export const creerVideo = createServerFn({ method: "POST" })
       const { sb, user } = await utilisateurDepuisJeton(data.jeton);
       const { data: t } = await sb
         .from("taches")
-        .select("id, plateforme, titre, consigne, resultat")
+        .select("id, plateforme, titre, consigne, marche, resultat")
         .eq("id", data.tacheId)
         .single();
       if (!t) return { ok: false, erreur: "Tâche introuvable." };

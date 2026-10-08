@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ACCENT_DEFAUT, couleurAss, texteSurCouleur } from "./couleurs";
 import { raccourcir } from "./video";
 import type { StyleImage } from "./styles";
+import { estEtranger, marcheDe } from "./marches";
 
 // Images avec texte incrusté (accroche, citation, affiche promo) : textes,
 // mise en page et sous-titres ASS rendus par ffmpeg. Fonctions pures, testables.
@@ -32,9 +33,10 @@ const CONSIGNES: Record<StyleTexte, string> = {
 - appel : 2 à 4 mots, l'appel à l'action (ex. « Réservez maintenant »).`,
 };
 
-export function consigneTextesVisuel(style: StyleTexte, t: { titre: string; brouillon: string }, contexte: string | null) {
-  return `Écris les textes à incruster sur l'image qui accompagne ce post, en français.
-${CONSIGNES[style]}
+export function consigneTextesVisuel(style: StyleTexte, t: { titre: string; brouillon: string }, contexte: string | null, marche?: string | null) {
+  const m = marcheDe(marche);
+  return `Écris les textes à incruster sur l'image qui accompagne ce post, en ${m.langue}.
+${estEtranger(marche) ? `Public : professionnels en ${m.pays}. Tout en ${m.langue}, comme un natif, aucun mot de français ; aucune loi ni norme.\n` : ""}${CONSIGNES[style]}
 Pas d'emoji, pas de hashtag, pas de guillemets.
 ${contexte ? `Fiche de la marque (source de vérité, n'invente aucun fait ni chiffre) :\n${contexte}\n` : ""}Sujet : ${t.titre}
 Post :
@@ -71,9 +73,19 @@ function phrases(brouillon: string) {
 }
 
 // Textes construits sans IA (IA saturée) : la mise en page se fait quand même.
-export function textesDeSecours(style: StyleTexte, t: { titre: string; brouillon: string }, contexte: string | null): TextesVisuel {
+// Marché étranger : ni le titre interne ni l'appel de la fiche (en français),
+// seulement le post (déjà dans la langue du marché) et des mots traduits.
+export function textesDeSecours(style: StyleTexte, t: { titre: string; brouillon: string }, contexte: string | null, marche?: string | null): TextesVisuel {
   const liste = phrases(t.brouillon);
   const marque = ligneContexte(contexte, "Marque");
+  const mots = marcheDe(marche).mots;
+  if (estEtranger(marche)) {
+    const titre = liste[0] ?? marque;
+    if (style === "citation") return { etiquette: "", titre, sous_titre: "", appel: "" };
+    if (style === "promo")
+      return { etiquette: mots.decouvrir, titre: raccourcir(titre, 6), sous_titre: raccourcir(liste[1] ?? marque, 12), appel: mots.enSavoirPlus };
+    return { etiquette: "", titre: raccourcir(titre, 8), sous_titre: marque, appel: "" };
+  }
   if (style === "citation") {
     const forte = liste.find((p) => p.split(" ").length >= 6 && p.split(" ").length <= 20) ?? t.titre;
     return { etiquette: "", titre: forte, sous_titre: "", appel: "" };

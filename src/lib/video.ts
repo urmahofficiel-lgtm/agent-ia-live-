@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ACCENT_DEFAUT, couleurAss, texteSurCouleur } from "./couleurs";
 import type { StyleVideo } from "./styles";
+import { estEtranger, marcheDe, phraseDecouvrir, reglesMarche } from "./marches";
 
 // Vidéo courte verticale (TikTok, Reels, Shorts) : script, minutage et
 // sous-titres. Fonctions pures, testables.
@@ -76,9 +77,12 @@ export function consigneScript(
   plateforme: string,
   avecCaptures = false,
   style: StyleVideo = "classique",
+  marche?: string | null,
 ) {
-  if (style !== "classique") return consigneScriptStyle(t, contexte, plateforme, avecCaptures, style);
-  return `Écris le script d'une vidéo verticale de 30 à 45 secondes pour ${plateforme}, en français.
+  // Marché étranger : script, textes à l'écran et légende dans sa langue.
+  const langue = reglesMarche(marche) ? `\n${reglesMarche(marche)}` : "";
+  if (style !== "classique") return consigneScriptStyle(t, contexte, plateforme, avecCaptures, style, marche) + langue;
+  return `Écris le script d'une vidéo verticale de 30 à 45 secondes pour ${plateforme}, en ${marcheDe(marche).langue}.
 Sujet : ${t.titre}
 ${t.consigne ? `Consigne : ${t.consigne}\n` : ""}${contexte ? `\nFiche de la marque (source de vérité, n'invente aucun fait, chiffre ni témoignage) :\n${contexte}\n` : ""}
 Structure : scène 1 = accroche forte qui arrête le défilement ; scènes du milieu = un problème concret du client puis la fonctionnalité réelle de la marque qui le résout ; dernière scène = appel à l'action avec le nom de la marque.
@@ -90,7 +94,7 @@ ${
 }
 Réponds UNIQUEMENT par un objet JSON valide :
 {"titre": "titre court", "scenes": [{"texte_ecran": "4 à 6 mots formant une idée complète, jamais coupée", "voix": "1 à 2 phrases parlées, naturelles", "type_visuel": "terrain ou produit", "visuel": "English prompt: realistic vertical photo of the scene, the niche's real setting and people, no text", "recherche_stock": "2 to 4 English keywords for a real stock video of this exact moment (e.g. construction worker smartphone site)"}], "legende": "texte du post qui accompagne la vidéo, avec l'appel à l'action, le lien du site et 3 à 5 hashtags"}
-Entre 5 et 7 scènes.`;
+Entre 5 et 7 scènes.${langue}`;
 }
 
 export function lireScript(reponse: string): ScriptVideo | null {
@@ -191,9 +195,9 @@ Les images AVANT et APRÈS montrent le même lieu ou le même objet dans deux é
   },
 };
 
-function consigneScriptStyle(t: { titre: string; consigne: string }, contexte: string | null, plateforme: string, avecCaptures: boolean, style: StyleAvecConsigne) {
+function consigneScriptStyle(t: { titre: string; consigne: string }, contexte: string | null, plateforme: string, avecCaptures: boolean, style: StyleAvecConsigne, marche?: string | null) {
   const f = FORMATS_SCRIPT[style];
-  return `Écris le script d'une vidéo verticale de ${f.duree} pour ${plateforme}, en français.
+  return `Écris le script d'une vidéo verticale de ${f.duree} pour ${plateforme}, en ${marcheDe(marche).langue}.
 Sujet : ${t.titre}
 ${t.consigne ? `Consigne : ${t.consigne}\n` : ""}${contexte ? `\nFiche de la marque (source de vérité, n'invente aucun fait, chiffre ni témoignage) :\n${contexte}\n` : ""}
 ${f.structure}
@@ -339,8 +343,10 @@ export function sousTitresStyle(
   largeur: number,
   hauteur: number,
   accent = ACCENT_DEFAUT,
+  marche?: string | null,
 ) {
   if (style === "classique") return sousTitresAss(scenes, d, largeur, hauteur);
+  const mots = marcheDe(marche).mots;
   if (style === "ugc") return sousTitresMotAMot(scenes, d, largeur, hauteur, accent);
   const encre = couleurAss(texteSurCouleur(accent));
   const fond = couleurAss(accent);
@@ -361,13 +367,15 @@ export function sousTitresStyle(
     const quand = `${horodatage(debut)},${horodatage(debut + d[i])}`;
     if (style === "avant_apres") {
       const nom = r === "AVANT" ? "Avant" : "Repere";
-      lignes.push(`Dialogue: 1,${quand},${nom},,0,0,0,,{\\pos(${x},${y})\\fad(120,0)\\fscx120\\fscy120\\t(0,140,\\fscx100\\fscy100)}${echapperAss(r)}`);
+      // Repère affiché dans la langue du marché (« PRIMA », « DOPO »…).
+      const affiche = r === "AVANT" ? mots.avant : r === "APRÈS" ? mots.apres : r;
+      lignes.push(`Dialogue: 1,${quand},${nom},,0,0,0,,{\\pos(${x},${y})\\fad(120,0)\\fscx120\\fscy120\\t(0,140,\\fscx100\\fscy100)}${echapperAss(affiche)}`);
       return;
     }
     if (style === "etapes") {
       // Le numéro glisse depuis la gauche ; « ÉTAPE 1/3 » en dessous.
       lignes.push(`Dialogue: 1,${quand},Repere,,0,0,0,,{\\move(${-largeur * 0.3},${y},${x},${y},0,220)\\fad(0,120)}${echapperAss(r)}`);
-      lignes.push(`Dialogue: 1,${quand},Etiquette,,0,0,0,,{\\pos(${x},${Math.round(y + largeur * 0.3)})\\fad(200,120)}ÉTAPE ${echapperAss(r)}/${total}`);
+      lignes.push(`Dialogue: 1,${quand},Etiquette,,0,0,0,,{\\pos(${x},${Math.round(y + largeur * 0.3)})\\fad(200,120)}${mots.etape} ${echapperAss(r)}/${total}`);
       return;
     }
     // Top 3 : « #3 » centré en haut, qui apparaît en grossissant.
@@ -380,7 +388,13 @@ export function sousTitresStyle(
 
 // Script construit sans IA à partir du texte de la publication : utilisé
 // quand les IA gratuites sont saturées, pour que la vidéo se fasse quand même.
-export function scriptDeSecours(t: { titre: string; consigne: string; brouillon?: string | null }, contexte: string | null): ScriptVideo {
+// Marché étranger : le titre interne (en français) n'apparaît pas ; tout vient
+// du texte de la publication, déjà écrit dans la langue du marché.
+export function scriptDeSecours(t: { titre: string; consigne: string; brouillon?: string | null }, contexte: string | null, marche?: string | null): ScriptVideo {
+  if (estEtranger(marche) && t.brouillon) {
+    const local = t.brouillon.split(/(?<=[.!?])\s+|\n+/).find((p) => p.replace(/[#@]\S+/g, "").trim().length >= 12) ?? t.brouillon;
+    t = { titre: local.replace(/#\S+/g, "").trim().slice(0, 120), consigne: "", brouillon: t.brouillon };
+  }
   const ligne = (etiquette: string) => contexte?.match(new RegExp(`${etiquette}[^:\\n]*: (.+)`))?.[1]?.trim() ?? "";
   const marque = ligne("Marque");
   const lien = ligne("Site / lien").replace(/^https?:\/\//, "").replace(/\/$/, "");
@@ -421,8 +435,10 @@ export function scriptDeSecours(t: { titre: string; consigne: string; brouillon?
     scenes.push({ texte_ecran: raccourcir(t.consigne || t.titre), voix: t.consigne || t.titre, visuel: t.titre, recherche_stock: recherche(i), type_visuel: "terrain", repere: "" });
   }
   scenes.push({
-    texte_ecran: marque || "Essayez maintenant",
-    voix: `${marque ? `Découvrez ${marque}` : "Découvrez-le"}${lien ? ` sur ${lien}` : ""}.`,
+    texte_ecran: marque || marcheDe(marche).mots.essayer,
+    voix: estEtranger(marche)
+      ? phraseDecouvrir(marche, marque, lien)
+      : `${marque ? `Découvrez ${marque}` : "Découvrez-le"}${lien ? ` sur ${lien}` : ""}.`,
     visuel: t.titre,
     recherche_stock: recherche(scenes.length),
     type_visuel: "produit",

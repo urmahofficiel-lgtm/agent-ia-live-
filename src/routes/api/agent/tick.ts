@@ -7,6 +7,7 @@ import { fabriquerVideo } from "@/lib/fabrication-video.server";
 import { clientMoteur } from "@/lib/supabase-serveur";
 import { lireStyleImage, lireStyleVideo, styleVideoPour } from "@/lib/styles";
 import { planifierJournees } from "@/lib/pilote.server";
+import { estEtranger, marcheDe } from "@/lib/marches";
 
 // Moteur de l'agent : appelé toutes les 5 minutes par pg_cron (Supabase).
 // 1. Publie les tâches validées dont l'heure est venue (texte + visuel).
@@ -27,11 +28,13 @@ type Due = {
   cible_urn: string | null;
   fournisseur: string | null;
   contexte: string | null;
+  // Langue et pays du compte visé (« it-IT »…) : texte, visuel et vidéo dans sa langue.
+  marche: string;
 };
 
-type AFilmer = { tache_id: string; user_id: string; plateforme: string; titre: string; consigne: string; brouillon: string; contexte: string | null; site: string | null; essais: number };
+type AFilmer = { tache_id: string; user_id: string; plateforme: string; titre: string; consigne: string; brouillon: string; contexte: string | null; site: string | null; essais: number; marche: string };
 
-type ARediger = { tache_id: string; type: string; plateforme: string | null; titre: string; consigne: string; contexte: string | null; brouillon: string | null };
+type ARediger = { tache_id: string; type: string; plateforme: string | null; titre: string; consigne: string; contexte: string | null; brouillon: string | null; marche: string };
 
 async function tick(secret: string) {
   const debut = Date.now();
@@ -66,7 +69,7 @@ async function tick(secret: string) {
   const styleImage = async (tacheId: string, visuel: string | null) => (visuel ? undefined : (await styles(tacheId)).image);
 
   // 1. Publications à l'heure.
-  const { data, error } = await sb.rpc("agent_taches_dues", { p_secret: secret });
+  const { data, error } = await sb.rpc("agent_publications_dues", { p_secret: secret });
   if (error) throw new Error(error.message);
   let traitees = 0;
   for (const t of (data ?? []) as Due[]) {
@@ -79,6 +82,7 @@ async function tick(secret: string) {
             plateforme: t.plateforme,
             titre: t.titre,
             consigne: t.consigne,
+            marche: t.marche,
             brouillon: t.brouillon,
             visuel_url: t.visuel_url,
             style_visuel: await styleImage(t.tache_id, t.visuel_url),
@@ -94,7 +98,8 @@ async function tick(secret: string) {
       continue;
     }
     if (!t.plateforme || !t.compte_externe_id) {
-      await maj(t.tache_id, "echouee", null, "erreur", `« ${t.titre} » : réseau non connecté, publication impossible.`);
+      const manque = estEtranger(t.marche) ? `aucun compte ${PLATEFORMES.find((p) => p.id === t.plateforme)?.nom ?? ""} ${marcheDe(t.marche).drapeau} connecté` : "réseau non connecté";
+      await maj(t.tache_id, "echouee", null, "erreur", `« ${t.titre} » : ${manque}, publication impossible.`);
       continue;
     }
     try {
@@ -105,6 +110,7 @@ async function tick(secret: string) {
           plateforme: t.plateforme,
           titre: t.titre,
           consigne: t.consigne,
+          marche: t.marche,
           brouillon: t.brouillon,
           visuel_url: t.visuel_url,
           // Vidéo déjà prête : elle est publiée à la place de l'image.
@@ -144,11 +150,11 @@ async function tick(secret: string) {
   }
 
   // 3. Brouillons à préparer (tâches créées par une commande ou la stratégie).
-  const { data: aRediger } = await sb.rpc("agent_brouillons_a_faire", { p_secret: secret });
+  const { data: aRediger } = await sb.rpc("agent_redactions_a_faire", { p_secret: secret });
   for (const t of (aRediger ?? []) as ARediger[]) {
     try {
       const style_visuel = t.type === "publication" ? await styleImage(t.tache_id, null) : undefined;
-      await preparer({ type: t.type, plateforme: t.plateforme, titre: t.titre, consigne: t.consigne, brouillon: t.brouillon, style_visuel }, avecVeille(t.contexte), ecrivainMoteur(t.tache_id));
+      await preparer({ type: t.type, plateforme: t.plateforme, titre: t.titre, consigne: t.consigne, marche: t.marche, brouillon: t.brouillon, style_visuel }, avecVeille(t.contexte), ecrivainMoteur(t.tache_id));
       await maj(t.tache_id, null, null, "info", `Prêt à valider : « ${t.titre} »`);
     } catch (e) {
       await maj(t.tache_id, null, { essais_brouillon: 3 }, "erreur", `Rédaction impossible pour « ${t.titre} » : ${e instanceof Error ? e.message : "erreur"}`);
@@ -159,7 +165,7 @@ async function tick(secret: string) {
   // reçoivent leur vidéo verticale (2 à 3 min de fabrication), une par passage, s'il
   // reste assez de temps avant la limite de 5 minutes.
   if (Date.now() - debut < 60_000) {
-    const { data: aFilmer } = await sb.rpc("agent_videos_a_faire", { p_secret: secret });
+    const { data: aFilmer } = await sb.rpc("agent_videos_a_tourner", { p_secret: secret });
     for (const v of (aFilmer ?? []) as AFilmer[]) {
       const etat = (champs: Record<string, unknown>) => maj(v.tache_id, null, champs, "info", null);
       try {
@@ -167,7 +173,7 @@ async function tick(secret: string) {
         await maj(v.tache_id, null, { essais_video: v.essais + 1 }, "action", `🎬 Création automatique ${tiktok ? "de la vidéo TikTok" : "du Reel"} pour « ${v.titre} »`);
         // TikTok : style « face caméra » plutôt que classique.
         const style = styleVideoPour(v.plateforme, (await styles(v.tache_id)).video);
-        await fabriquerVideo({ id: v.tache_id, plateforme: v.plateforme, titre: v.titre, consigne: v.consigne, brouillon: v.brouillon }, avecVeille(v.contexte), v.site, {
+        await fabriquerVideo({ id: v.tache_id, plateforme: v.plateforme, titre: v.titre, consigne: v.consigne, brouillon: v.brouillon, marche: v.marche }, avecVeille(v.contexte), v.site, {
           journal: (niveau, msg) => maj(v.tache_id, null, null, niveau, msg),
           etat,
           deposer: async (mp4) => {

@@ -146,6 +146,49 @@ describe("plan du jour", () => {
   });
 });
 
+describe("plan du jour par marché", () => {
+  const matin = new Date("2026-10-01T03:10:00Z"); // 05:10 à Paris
+
+  it("décline le même sujet dans chaque marché, à l'heure locale", () => {
+    const p = planDuJour(
+      [
+        { plateforme: "facebook", marche: "fr-FR" },
+        { plateforme: "facebook", marche: "it-IT" },
+        { plateforme: "facebook", marche: "pt-PT" },
+        { plateforme: "facebook", marche: "it-IT" },
+      ],
+      { facebook: 1 },
+      CRENEAUX,
+      "2026-10-01",
+      matin,
+    );
+    expect(p.heures).toEqual(["12:30"]);
+    expect(p.creneaux.map((c) => [c.marche, c.quand, c.sujet])).toEqual([
+      ["fr-FR", "2026-10-01T10:30:00.000Z", 0],
+      ["it-IT", "2026-10-01T10:30:00.000Z", 0],
+      // 12:30 à Lisbonne = 13:30 à Paris.
+      ["pt-PT", "2026-10-01T11:30:00.000Z", 0],
+    ]);
+    const t = tachesDuJour(
+      p.creneaux,
+      [{ titre: "Sujet", consigne: "Angle" }],
+      melangeDuJour("2026-10-01", 1),
+    );
+    expect(t.map((x) => x.marche)).toEqual(["fr-FR", "it-IT", "pt-PT"]);
+  });
+
+  it("un réseau seul reste en France", () => {
+    const p = planDuJour(
+      ["facebook"],
+      { facebook: 1 },
+      CRENEAUX,
+      "2026-10-01",
+      matin,
+    );
+    expect(p.creneaux[0].marche).toBe("fr-FR");
+  });
+});
+
 describe("mélange des sujets", () => {
   it("le cycle respecte 40/30/20/10", () => {
     const compte = (id: string) => CYCLE_SUJETS.filter((c) => c === id).length;

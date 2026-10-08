@@ -7,6 +7,7 @@ import {
   Titre,
   bouton,
   boutonSecondaire,
+  champ,
 } from "@/components/ui";
 import { LogoPlateforme } from "@/components/LogoPlateforme";
 import { ChoixPageLinkedin } from "@/components/ChoixPageLinkedin";
@@ -26,6 +27,8 @@ import {
   type CompteDistant,
 } from "@/lib/agent.functions";
 import { nomPlateforme } from "@/lib/plateformes";
+import { MARCHES } from "@/lib/marches";
+import { estPilotable } from "@/lib/pilote";
 
 export const Route = createFileRoute("/comptes")({ component: Comptes });
 
@@ -38,6 +41,8 @@ type Compte = {
   fournisseur:
     "zernio" | "meta" | "instagram" | "bluesky" | "telegram" | "linkedin";
   cible_nom: string | null;
+  // Langue et pays dans lesquels l'agent publie avec ce compte.
+  marche: string;
 };
 
 // Erreurs renvoyées par Zernio au retour de la page d'autorisation.
@@ -74,7 +79,7 @@ function Comptes() {
       supabase()
         .from("comptes_connectes")
         .select(
-          "id, plateforme, statut, nom_utilisateur, compte_externe_id, fournisseur, cible_nom",
+          "id, plateforme, statut, nom_utilisateur, compte_externe_id, fournisseur, cible_nom, marche",
         ),
     [userId],
   );
@@ -318,7 +323,7 @@ function Comptes() {
         />
       )}
 
-      <ComptesActifs comptes={comptes.data ?? []} onChange={recharger} />
+      <ComptesEtPays comptes={comptes.data ?? []} onChange={recharger} />
 
       {comptes.data?.find(
         (c) => c.plateforme === "linkedin" && c.statut === "connecte",
@@ -477,7 +482,7 @@ function Comptes() {
 
 // Plusieurs comptes pour un même réseau (plusieurs pages Facebook, ou LinkedIn
 // en page entreprise via Zernio et en profil perso direct) : l'utilisateur
-// choisit celui au nom duquel l'agent publie.
+// choisit ceux au nom desquels l'agent publie, et la langue de chacun.
 function libelleCompte(c: Compte) {
   if (c.fournisseur === "zernio")
     return `${c.cible_nom ? `Page ${c.cible_nom}` : (c.nom_utilisateur ?? "Compte")} · via Zernio`;
@@ -486,7 +491,10 @@ function libelleCompte(c: Compte) {
   return `${c.nom_utilisateur ?? c.compte_externe_id} · direct`;
 }
 
-function ComptesActifs({
+// Langue et pays de chaque compte : une page « BTP Ecosystem Italia » réglée
+// sur « Italiano — Italia » reçoit des posts, visuels et vidéos en italien.
+// Un seul compte actif par réseau et par pays.
+function ComptesEtPays({
   comptes,
   onChange,
 }: {
@@ -494,37 +502,57 @@ function ComptesActifs({
   onChange: () => Promise<void>;
 }) {
   const [erreur, setErreur] = useState<string | null>(null);
+  const [enCours, setEnCours] = useState<string | null>(null);
   const utiles = comptes.filter(
     (c) => c.statut === "connecte" || c.statut === "desactive",
   );
-  const plateformes = [...new Set(utiles.map((c) => c.plateforme))].filter(
-    (p) => utiles.filter((c) => c.plateforme === p).length > 1,
-  );
+  const plateformes = [...new Set(utiles.map((c) => c.plateforme))];
   if (plateformes.length === 0) return null;
 
-  async function utiliser(c: Compte) {
+  async function enregistrer(
+    c: Compte,
+    changement: { statut?: string; marche?: string },
+  ) {
+    const statut = changement.statut ?? c.statut;
+    const marche = changement.marche ?? c.marche;
+    setEnCours(c.id);
     const sb = supabase();
-    const autres = utiles
-      .filter((x) => x.plateforme === c.plateforme && x.id !== c.id)
-      .map((x) => x.id);
-    const r1 = await sb
-      .from("comptes_connectes")
-      .update({ statut: "desactive" })
-      .in("id", autres);
+    // Le compte actif du même réseau et du même pays passe en réserve.
+    const autres =
+      statut === "connecte"
+        ? utiles
+            .filter(
+              (x) =>
+                x.id !== c.id &&
+                x.plateforme === c.plateforme &&
+                x.statut === "connecte" &&
+                x.marche === marche,
+            )
+            .map((x) => x.id)
+        : [];
+    const r1 = autres.length
+      ? await sb
+          .from("comptes_connectes")
+          .update({ statut: "desactive" })
+          .in("id", autres)
+      : { error: null };
     const r2 = await sb
       .from("comptes_connectes")
-      .update({ statut: "connecte" })
+      .update({ statut, marche })
       .eq("id", c.id);
     setErreur(r1.error?.message ?? r2.error?.message ?? null);
     await onChange();
+    setEnCours(null);
   }
 
   return (
     <Carte className="my-4">
-      <h2 className="font-medium">Compte utilisé pour publier</h2>
+      <h2 className="font-medium">Comptes et pays</h2>
       <p className="mt-1 text-xs text-doux">
-        Plusieurs comptes sont connectés pour un même réseau : l'agent publie
-        avec celui qui est coché.
+        Cochez les comptes avec lesquels l'agent publie et choisissez la langue
+        de chacun. Une page réglée sur « Italiano — Italia » reçoit des posts,
+        des visuels et des vidéos en italien, avec des hashtags italiens. Un
+        seul compte actif par réseau et par pays.
       </p>
       {plateformes.map((p) => (
         <fieldset key={p} className="mt-3">
@@ -532,25 +560,48 @@ function ComptesActifs({
             <LogoPlateforme id={p} taille={20} />
             {nomPlateforme(p)}
           </legend>
-          <div className="space-y-1.5">
+          <ul className="space-y-2">
             {utiles
               .filter((c) => c.plateforme === p)
               .map((c) => (
-                <label
+                <li
                   key={c.id}
-                  className="flex min-h-9 cursor-pointer items-center gap-2 text-sm"
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1.5"
                 >
-                  <input
-                    type="radio"
-                    name={`compte-${p}`}
-                    checked={c.statut === "connecte"}
-                    onChange={() => utiliser(c)}
-                    className="accent-accent"
-                  />
-                  {libelleCompte(c)}
-                </label>
+                  <label className="flex min-h-9 min-w-0 flex-1 cursor-pointer items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={c.statut === "connecte"}
+                      disabled={enCours !== null}
+                      onChange={(e) =>
+                        enregistrer(c, {
+                          statut: e.target.checked ? "connecte" : "desactive",
+                        })
+                      }
+                      className="accent-accent"
+                    />
+                    <span className="truncate">{libelleCompte(c)}</span>
+                  </label>
+                  {estPilotable(c.plateforme) && (
+                    <select
+                      aria-label={`Langue et pays de ${libelleCompte(c)}`}
+                      value={c.marche}
+                      disabled={enCours !== null}
+                      onChange={(e) =>
+                        enregistrer(c, { marche: e.target.value })
+                      }
+                      className={`${champ} w-full sm:w-auto`}
+                    >
+                      {MARCHES.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.drapeau} {m.libelle}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </li>
               ))}
-          </div>
+          </ul>
         </fieldset>
       ))}
       <Erreur message={erreur} />

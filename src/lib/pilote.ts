@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PLATEFORMES } from "./plateformes";
+import { MARCHE_DEFAUT, marcheDe, type Canal } from "./marches";
 
 // Pilote automatique : chaque jour, l'agent planifie seul N publications par
 // réseau connecté, aux créneaux choisis (heure de Paris). Logique pure,
@@ -178,27 +179,50 @@ export function instantParis(jour: string, heure: string): Date {
 
 export type Creneau = {
   plateforme: string;
+  marche: string;
   heure: string;
   quand: string;
   sujet: number;
 };
 
-// Créneaux restant à planifier aujourd'hui pour chaque réseau pilotable. Un
-// même sujet par heure (décliné sur tous les réseaux), des sujets différents
-// d'une heure à l'autre. Les heures passées (ou dans moins de 5 min) sont
-// ignorées : pilote activé en cours de journée.
+// Créneaux restant à planifier aujourd'hui pour chaque réseau pilotable (et
+// chaque marché : une page en Italie, une autre en France…). Un même sujet
+// par heure (décliné sur tous les réseaux et dans chaque langue), des sujets
+// différents d'une heure à l'autre. L'heure est l'heure locale du marché.
+// Les heures passées (ou dans moins de 5 min) sont ignorées : pilote activé
+// en cours de journée.
 export function planDuJour(
-  plateformes: string[],
+  canaux: (string | Canal)[],
   rythme: unknown,
   creneaux: string[],
   jour: string,
   maintenant = new Date(),
 ): { heures: string[]; creneaux: Creneau[] } {
-  const reseaux = [...new Set(plateformes)].filter(estPilotable);
+  const vus = new Set<string>();
+  const liste = canaux
+    .map((c) =>
+      typeof c === "string"
+        ? { plateforme: c, marche: MARCHE_DEFAUT }
+        : { plateforme: c.plateforme, marche: marcheDe(c.marche).id },
+    )
+    .filter((c) => {
+      const cle = `${c.plateforme}|${c.marche}`;
+      if (vus.has(cle) || !estPilotable(c.plateforme)) return false;
+      vus.add(cle);
+      return true;
+    });
   const limite = maintenant.getTime() + 5 * 60_000;
-  const brut = reseaux.flatMap((plateforme) =>
+  const brut = liste.flatMap(({ plateforme, marche }) =>
     heuresDuJour(postsParJour(rythme, plateforme), creneaux)
-      .map((heure) => ({ plateforme, heure, quand: instantParis(jour, heure) }))
+      .map((heure) => ({
+        plateforme,
+        marche,
+        heure,
+        quand: new Date(
+          instantParis(jour, heure).getTime() +
+            marcheDe(marche).decalage * 60_000,
+        ),
+      }))
       .filter((c) => c.quand.getTime() > limite),
   );
   const heures = [...new Set(brut.map((c) => c.heure))].sort();
@@ -206,6 +230,7 @@ export function planDuJour(
     heures,
     creneaux: brut.map((c) => ({
       plateforme: c.plateforme,
+      marche: c.marche,
       heure: c.heure,
       quand: c.quand.toISOString(),
       sujet: heures.indexOf(c.heure),
@@ -324,7 +349,9 @@ export function lireSujets(
   return sujets.length >= k ? sujets.slice(0, k) : null;
 }
 
-// Tâches prêtes à enregistrer : un sujet par heure, décliné sur chaque réseau.
+// Tâches prêtes à enregistrer : un sujet par heure, décliné sur chaque réseau
+// et dans chaque marché (le titre reste en français, le texte sera écrit dans
+// la langue du marché).
 export function tachesDuJour(
   creneaux: Creneau[],
   sujets: Sujet[],
@@ -335,6 +362,7 @@ export function tachesDuJour(
     const type = CATEGORIES_SUJET.find((x) => x.id === categories[c.sujet]);
     return {
       plateforme: c.plateforme,
+      marche: c.marche,
       titre: s.titre,
       consigne: `${s.consigne}\n\nType de publication : ${type?.consigne ?? ""}\n${REGLES_PILOTE}`,
       planifiee_pour: c.quand,

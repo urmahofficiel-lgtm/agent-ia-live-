@@ -1,5 +1,6 @@
 import { nettoyerPost, reglesReseau, sansLienSiReseau } from "./texte";
 import { nomPlateforme } from "./plateformes";
+import { marcheDe, reglesMarche, systemeMarche } from "./marches";
 
 // Cerveau de l'agent : NVIDIA NIM (API compatible OpenAI).
 const NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
@@ -46,7 +47,8 @@ const CONSIGNES_TYPE: Record<string, string> = {
   autre: "Accomplis la consigne de la façon la plus utile possible.",
 };
 
-export type Consigne = { type: string; plateforme: string | null; titre: string; consigne: string };
+// `marche` : langue et pays du compte visé (« it-IT »…) ; France par défaut.
+export type Consigne = { type: string; plateforme: string | null; titre: string; consigne: string; marche?: string | null };
 
 const SYSTEME =
   "Tu es l'assistant marketing et commercial d'un entrepreneur français. Tu écris en français, de façon naturelle et concrète. Tu ne réponds qu'avec le contenu demandé, sans commentaire autour, sans guillemets englobants.";
@@ -230,14 +232,17 @@ const REGLES_MARQUE = `Règles impératives :
 export async function rediger(t: Consigne, contexte?: string | null): Promise<string> {
   const texte = await demanderIA(
     [
-      contexte ? `Fiche de la marque (source de vérité) :\n${contexte}\n\n${REGLES_MARQUE}\n${reglesReseau(t.plateforme)}\n` : "",
+      contexte ? `Fiche de la marque (source de vérité) :\n${contexte}\n\n${REGLES_MARQUE}\n${reglesReseau(t.plateforme, marcheDe(t.marche).langue)}\n` : "",
       CONSIGNES_TYPE[t.type] ?? CONSIGNES_TYPE.autre,
       t.plateforme ? `Plateforme : ${nomPlateforme(t.plateforme)}.` : "",
       `Titre : ${t.titre}`,
       t.consigne ? `Consigne : ${t.consigne}` : "",
+      // Marché étranger : tout le post dans la langue du pays.
+      reglesMarche(t.marche),
     ]
       .filter(Boolean)
       .join("\n"),
+    { systeme: systemeMarche(t.marche) },
   );
   return sansLienSiReseau(nettoyerPost(texte, t.titre), t.plateforme);
 }
