@@ -1,4 +1,4 @@
-import { nettoyerPost, reglesReseau, sansLienSiReseau } from "./texte";
+import { nettoyerPost, reglesReseau, sansHashtagsSiGroupe, sansLienSiReseau } from "./texte";
 import { nomPlateforme } from "./plateformes";
 import { decorMarche, marcheDe, reglesMarche, systemeMarche } from "./marches";
 
@@ -256,7 +256,7 @@ export async function rediger(t: Consigne, contexte?: string | null): Promise<st
       .join("\n"),
     { systeme: systemeMarche(t.marche) },
   );
-  return sansLienSiReseau(nettoyerPost(texte, t.titre), t.plateforme);
+  return sansHashtagsSiGroupe(sansLienSiReseau(nettoyerPost(texte, t.titre), t.plateforme), t.plateforme);
 }
 
 // --- Images -------------------------------------------------------------------

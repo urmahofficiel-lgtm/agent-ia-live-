@@ -20,7 +20,7 @@ import { STYLES_IMAGE, STYLES_VIDEO, lireStyleVideo, nomStyleVideo, type StyleIm
 export const Route = createFileRoute("/taches")({ component: Publications });
 
 const ONGLETS: { id: string; libelle: string; statuts: StatutTache[]; vide: string }[] = [
-  { id: "partager", libelle: "À partager", statuts: ["a_partager"], vide: "Rien à partager. Les publications « Facebook perso » arrivent ici à l'heure prévue." },
+  { id: "partager", libelle: "À partager", statuts: ["a_partager"], vide: "Rien à partager. Les publications « Facebook perso » et « Groupes Facebook » arrivent ici à l'heure prévue." },
   { id: "valider", libelle: "À valider", statuts: ["a_valider"], vide: "Rien à valider. L'agent déposera ici ses prochains brouillons." },
   { id: "planifiees", libelle: "Planifiées", statuts: ["en_attente", "en_cours"], vide: "Aucune publication planifiée. Validez un brouillon pour le planifier." },
   { id: "publiees", libelle: "Publiées", statuts: ["terminee"], vide: "Rien de publié pour l'instant." },

@@ -23,6 +23,7 @@ type Logo = { fond: string; encre: string; chemin?: string; lettres?: string };
 const LOGOS: Record<string, Logo> = {
   facebook: { fond: `#${siFacebook.hex}`, encre: "#fff", chemin: siFacebook.path },
   facebook_profil: { fond: `#${siFacebook.hex}`, encre: "#fff", chemin: siFacebook.path },
+  facebook_groupe: { fond: `#${siFacebook.hex}`, encre: "#fff", chemin: siFacebook.path },
   instagram: { fond: "linear-gradient(45deg,#f58529,#dd2a7b,#8134af)", encre: "#fff", chemin: siInstagram.path },
   linkedin: { fond: "#0A66C2", encre: "#fff", lettres: "in" },
   tiktok: { fond: "#111", encre: "#fff", chemin: siTiktok.path },

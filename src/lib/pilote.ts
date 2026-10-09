@@ -16,11 +16,14 @@ const FUSEAU = "Europe/Paris";
 export type Rythme = Record<string, number>;
 
 // Réseaux que le pilote peut alimenter : pas de messagerie ni d'e-mail, pas
-// de réseau « manuel » (profil Facebook perso, sans API).
+// de réseau « manuel » (profil Facebook perso, sans API), sauf les groupes
+// Facebook : un post prêt à partager chaque jour.
 export const estPilotable = (id: string) => {
   const p = PLATEFORMES.find((x) => x.id === id);
   return Boolean(
-    p && !p.manuel && (p.categorie === "reseau" || p.categorie === "local"),
+    p &&
+    (!p.manuel || p.id === "facebook_groupe") &&
+    (p.categorie === "reseau" || p.categorie === "local"),
   );
 };
 

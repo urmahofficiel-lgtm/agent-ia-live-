@@ -14,6 +14,8 @@ export type Plateforme = {
 export const PLATEFORMES: Plateforme[] = [
   { id: "facebook", nom: "Facebook", categorie: "reseau", zernio: "facebook" },
   { id: "facebook_profil", nom: "Facebook perso", categorie: "reseau", zernio: null, manuel: true },
+  // Posts écrits pour les groupes Facebook, partagés par l'utilisateur.
+  { id: "facebook_groupe", nom: "Groupes Facebook", categorie: "reseau", zernio: null, manuel: true },
   { id: "instagram", nom: "Instagram", categorie: "reseau", zernio: "instagram" },
   { id: "linkedin", nom: "LinkedIn", categorie: "reseau", zernio: "linkedin" },
   { id: "tiktok", nom: "TikTok", categorie: "reseau", zernio: "tiktok" },

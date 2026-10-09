@@ -71,7 +71,11 @@ const GROUPES: { titre: string; filtre: (p: Plateforme) => boolean }[] = [
     titre: "Messageries",
     filtre: (p) => p.zernio !== null && p.categorie === "messagerie",
   },
-  { titre: "Bientôt disponible", filtre: (p) => p.zernio === null },
+  // Groupes Facebook : réglés dans leur propre carte, rien à connecter.
+  {
+    titre: "Bientôt disponible",
+    filtre: (p) => p.zernio === null && p.id !== "facebook_groupe",
+  },
 ];
 
 function Comptes() {
@@ -326,6 +330,7 @@ function Comptes() {
       )}
 
       <ComptesEtPays comptes={comptes.data ?? []} onChange={recharger} />
+      <GroupesFacebook />
 
       {comptes.data?.find(
         (c) => c.plateforme === "linkedin" && c.statut === "connecte",
@@ -652,6 +657,64 @@ function ComptesEtPays({
         </fieldset>
       ))}
       <Erreur message={erreur} />
+    </Carte>
+  );
+}
+
+// Groupes Facebook : aucune API ne permet d'y publier. L'agent écrit chaque
+// jour un post pour les groupes (rythme « facebook_groupe » du pilote) ;
+// l'utilisateur le partage depuis son téléphone (Publications → À partager).
+function GroupesFacebook() {
+  const userId = useUserId();
+  const req = useRequete<{ rythme: Record<string, number> | null }>(
+    () => supabase().from("reglages_agent").select("rythme").maybeSingle(),
+    [userId],
+  );
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [enCours, setEnCours] = useState(false);
+  const rythme = req.data?.rythme ?? {};
+  const actif = Number(rythme.facebook_groupe ?? 0) > 0;
+
+  async function basculer() {
+    if (!userId) return;
+    setEnCours(true);
+    const { facebook_groupe: _retire, ...reste } = rythme;
+    const { error } = await supabase()
+      .from("reglages_agent")
+      .update({ rythme: actif ? reste : { ...reste, facebook_groupe: 1 } })
+      .eq("user_id", userId);
+    setErreur(error?.message ?? null);
+    await req.recharger();
+    setEnCours(false);
+  }
+
+  return (
+    <Carte className="my-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <LogoPlateforme id="facebook_groupe" taille={28} />
+          <div className="min-w-0">
+            <h2 className="font-medium">
+              Groupes Facebook{actif ? " · 1 post par jour" : ""}
+            </h2>
+            <p className="mt-0.5 text-xs text-doux">
+              Un post par jour écrit pour les groupes d'artisans et
+              d'architectes : un conseil ou une question, sans pub ni lien.
+              Facebook ne laisse aucun logiciel publier dans un groupe : le post
+              vous attend dans Publications → À partager, et vous le partagez en
+              1 clic depuis votre téléphone.
+            </p>
+          </div>
+        </div>
+        <button
+          className={actif ? boutonSecondaire : bouton}
+          disabled={enCours || req.chargement}
+          onClick={basculer}
+        >
+          {enCours ? "…" : actif ? "Désactiver" : "Activer"}
+        </button>
+      </div>
+      <Erreur message={erreur ?? req.erreur} />
     </Carte>
   );
 }
