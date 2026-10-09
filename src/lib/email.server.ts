@@ -88,6 +88,10 @@ async function envoyerResend(
       from: expediteur(a.marque, a.expediteur),
       to: [a.email.trim()],
       reply_to: a.reponse && adresseValide(a.reponse) ? a.reponse : undefined,
+      // Copie cachée dans la boîte de réponse (contact@…) : l'envoi passe par
+      // Resend, pas par Gmail, donc sans cette copie l'utilisateur ne voit
+      // aucun e-mail envoyé dans sa messagerie.
+      bcc: a.reponse && adresseValide(a.reponse) ? [a.reponse] : undefined,
       subject: mail.objet,
       text: mail.texte,
       html: mail.html,
