@@ -252,6 +252,16 @@ describe("choisirCaptures", () => {
     expect(choix).toEqual([0, 1, 2, 3].map((i) => liste[(depart + i) % liste.length]));
   });
 
+  it("met d'abord les écrans dont le nom reprend le sujet", async () => {
+    const { choisirCaptures } = await import("./video");
+    const liste = ["u/01-tableau.jpg", "u/02-devis-ia.jpg", "u/03-metre-ia.jpg", "u/04-plan.jpg", "u/05-reunion.jpg", "u/06-devis-stats.jpg"];
+    const choix = choisirCaptures(liste, "tache-1", 4, "Le devis dicté sur le chantier, prêt en PDF");
+    expect(choix.slice(0, 2)).toEqual(["u/02-devis-ia.jpg", "u/06-devis-stats.jpg"]);
+    expect(choix).toHaveLength(4);
+    expect(new Set(choix).size).toBe(4);
+    expect(choisirCaptures(liste, "tache-1", 4, "Réunion de chantier : les comptes rendus")[0]).toBe("u/05-reunion.jpg");
+  });
+
   it("varie les écrans d'une publication à l'autre", async () => {
     const { choisirCaptures } = await import("./video");
     const liste = ["1", "2", "3", "4", "5", "6", "7", "8"];

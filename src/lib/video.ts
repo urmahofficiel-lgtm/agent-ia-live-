@@ -466,13 +466,31 @@ export function imposerScenesProduit(script: ScriptVideo): ScriptVideo {
   return { ...script, scenes };
 }
 
-// Captures de l'application montrées dans une vidéo : `max` à la suite, à
-// partir d'un rang tiré de `graine` (l'identifiant de la publication), pour
-// que deux vidéos ne montrent pas toujours les mêmes écrans.
-export function choisirCaptures<T>(liste: T[], graine: string, max = 4): T[] {
-  if (liste.length <= max) return [...liste];
+// Captures de l'application montrées dans une vidéo : d'abord celles dont le
+// nom de fichier reprend un mot du sujet (« devis-ia.jpg » pour un post sur
+// les devis), puis `max` au total à la suite, à partir d'un rang tiré de
+// `graine` (l'identifiant de la publication), pour que deux vidéos ne
+// montrent pas toujours les mêmes écrans.
+const sansAccents = (texte: string) =>
+  texte
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+export function choisirCaptures(liste: string[], graine: string, max = 4, sujet = ""): string[] {
+  const motsSujet = new Set(sansAccents(sujet).match(/[a-z]{4,}/g) ?? []);
+  const score = (lien: string) =>
+    (sansAccents(lien.split("/").pop() ?? "").match(/[a-z]{4,}/g) ?? []).filter((m) => motsSujet.has(m)).length;
+  const pertinentes = liste
+    .map((lien, i) => ({ lien, i, s: score(lien) }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s || a.i - b.i)
+    .map((x) => x.lien)
+    .slice(0, max);
+  const autres = liste.filter((l) => !pertinentes.includes(l));
   let h = 0;
   for (const c of graine) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  const depart = h % liste.length;
-  return Array.from({ length: max }, (_, i) => liste[(depart + i) % liste.length]);
+  const depart = autres.length ? h % autres.length : 0;
+  const tournante = Array.from({ length: Math.min(autres.length, max - pertinentes.length) }, (_, i) => autres[(depart + i) % autres.length]);
+  return [...pertinentes, ...tournante];
 }

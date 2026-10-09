@@ -54,7 +54,8 @@ export async function fabriquerVideo(
   await etat({ video_etat: "en_cours", video_erreur: null, video_debut: new Date().toISOString(), video_style: style });
 
   // Vraies vues du produit : les captures de l'application de l'utilisateur
-  // d'abord (quatre, différentes d'une vidéo à l'autre), sinon les images lues
+  // d'abord (quatre : celles qui parlent du sujet, puis d'autres qui changent
+  // d'une vidéo à l'autre), sinon les images lues
   // sur le site de la marque ; et la couleur du site, pour les surlignages des
   // styles autres que classique. En parallèle.
   const site = siteMarque || contexte?.match(/Site \/ lien[^:]*: (\S+)/)?.[1] || "";
@@ -63,7 +64,7 @@ export async function fabriquerVideo(
     site && style !== "classique" ? couleurDuSite(site).catch(() => null) : null,
     liensCaptures
       ? Promise.resolve(liensCaptures())
-          .then((liens) => telechargerCaptures(choisirCaptures(liens, t.id)))
+          .then((liens) => telechargerCaptures(choisirCaptures(liens, t.id, 4, `${t.titre} ${t.consigne}`)))
           .catch(() => [] as Buffer[])
       : ([] as Buffer[]),
   ]);

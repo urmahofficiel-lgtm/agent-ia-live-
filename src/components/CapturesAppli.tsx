@@ -8,6 +8,18 @@ const TYPES = ["image/jpeg", "image/png", "image/webp"];
 const TAILLE_MAX = 6 * 1024 * 1024;
 const NOMBRE_MAX = 30;
 
+// Nom du fichier sans extension ni accents (« Devis IA.png » → « devis-ia ») :
+// les vidéos montrent d'abord les captures dont le nom reprend leur sujet.
+const nomFichier = (nom: string) =>
+  nom
+    .replace(/\.[^.]+$/, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 60) || "capture";
+
 // Captures d'écran de l'application de l'utilisateur : les vidéos créées par
 // l'agent les montrent à la place des images lues sur le site.
 export function CapturesAppli() {
@@ -33,7 +45,7 @@ export function CapturesAppli() {
       const ext = f.type === "image/png" ? "png" : f.type === "image/webp" ? "webp" : "jpg";
       const { error } = await supabase()
         .storage.from("captures")
-        .upload(`${userId}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`, f, { contentType: f.type });
+        .upload(`${userId}/${Date.now()}-${nomFichier(f.name)}.${ext}`, f, { contentType: f.type });
       if (error) {
         setErreur(/fetch|network/i.test(error.message) ? "La connexion a coupé pendant l'envoi. Réessayez." : error.message);
         break;
@@ -56,8 +68,9 @@ export function CapturesAppli() {
         <div>
           <h2 className="font-medium">Captures de votre application</h2>
           <p className="mt-1 text-xs text-doux">
-            Les vidéos de l'agent montrent ces écrans pour présenter votre produit, quatre différents à chaque vidéo. Sans
-            capture, il utilise les images de votre site.
+            Les vidéos de l'agent montrent ces écrans pour présenter votre produit, quatre différents à chaque vidéo. Nommez
+            vos fichiers d'après l'écran (« devis.png », « planning.png ») : une vidéo sur les devis montrera d'abord
+            l'écran des devis. Sans capture, l'agent utilise les images de votre site.
           </p>
         </div>
         <button
