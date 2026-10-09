@@ -185,6 +185,11 @@ async function tick(secret: string) {
             if (errDepot) throw new Error(`Enregistrement de la vidéo impossible : ${errDepot.message}`);
             return sb.storage.from("videos").getPublicUrl(chemin).data.publicUrl;
           },
+          // Captures de l'application déposées par l'utilisateur (page Stratégie).
+          captures: async () => {
+            const { data } = await sb.rpc("agent_captures_appli", { p_secret: secret, p_user: v.user_id });
+            return ((data ?? []) as string[]).map((nom) => sb.storage.from("captures").getPublicUrl(nom).data.publicUrl);
+          },
         }, style);
         traitees++;
       } catch (e) {

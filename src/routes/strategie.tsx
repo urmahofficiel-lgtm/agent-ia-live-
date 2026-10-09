@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { CalendarPlus, Globe, LoaderCircle, Search } from "lucide-react";
 import { Carte, Erreur, Titre, bouton, champ } from "@/components/ui";
 import { LogoPlateforme } from "@/components/LogoPlateforme";
+import { CapturesAppli } from "@/components/CapturesAppli";
 import { supabase } from "@/lib/supabase";
 import { jetonSession } from "@/lib/session";
 import { useRequete, useUserId } from "@/lib/donnees";
@@ -207,6 +208,8 @@ function Strategie() {
           </div>
         </Carte>
       )}
+
+      <CapturesAppli />
 
       {a && (
         <div className="space-y-4">

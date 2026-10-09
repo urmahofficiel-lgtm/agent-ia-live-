@@ -465,3 +465,14 @@ export function imposerScenesProduit(script: ScriptVideo): ScriptVideo {
   if (scenes[n - 1].type_visuel !== "produit") scenes[n - 1].type_visuel = "produit";
   return { ...script, scenes };
 }
+
+// Captures de l'application montrées dans une vidéo : `max` à la suite, à
+// partir d'un rang tiré de `graine` (l'identifiant de la publication), pour
+// que deux vidéos ne montrent pas toujours les mêmes écrans.
+export function choisirCaptures<T>(liste: T[], graine: string, max = 4): T[] {
+  if (liste.length <= max) return [...liste];
+  let h = 0;
+  for (const c of graine) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const depart = h % liste.length;
+  return Array.from({ length: max }, (_, i) => liste[(depart + i) % liste.length]);
+}

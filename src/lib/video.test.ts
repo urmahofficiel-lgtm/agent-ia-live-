@@ -234,3 +234,28 @@ describe("sous-titres mot à mot", () => {
     expect(aa.split("\n").filter((l) => l.includes(",Principal,"))).toHaveLength(4);
   });
 });
+
+describe("choisirCaptures", () => {
+  it("garde toutes les captures quand il y en a peu", async () => {
+    const { choisirCaptures } = await import("./video");
+    expect(choisirCaptures(["a", "b"], "x")).toEqual(["a", "b"]);
+  });
+
+  it("prend 4 captures à la suite, toujours les mêmes pour une même publication", async () => {
+    const { choisirCaptures } = await import("./video");
+    const liste = ["1", "2", "3", "4", "5", "6", "7", "8"];
+    const choix = choisirCaptures(liste, "tache-42");
+    expect(choix).toHaveLength(4);
+    expect(new Set(choix).size).toBe(4);
+    expect(choisirCaptures(liste, "tache-42")).toEqual(choix);
+    const depart = liste.indexOf(choix[0]);
+    expect(choix).toEqual([0, 1, 2, 3].map((i) => liste[(depart + i) % liste.length]));
+  });
+
+  it("varie les écrans d'une publication à l'autre", async () => {
+    const { choisirCaptures } = await import("./video");
+    const liste = ["1", "2", "3", "4", "5", "6", "7", "8"];
+    const premiers = new Set(["a", "b", "c", "d", "e", "f"].map((g) => choisirCaptures(liste, `tache-${g}`)[0]));
+    expect(premiers.size).toBeGreaterThan(1);
+  });
+});

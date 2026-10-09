@@ -1395,6 +1395,13 @@ export const creerVideo = createServerFn({ method: "POST" })
             return sb.storage.from("videos").getPublicUrl(chemin).data
               .publicUrl;
           },
+          captures: async () => {
+            const { data: noms } = await sb.rpc("mes_captures_appli");
+            return ((noms ?? []) as string[]).map(
+              (nom) =>
+                sb.storage.from("captures").getPublicUrl(nom).data.publicUrl,
+            );
+          },
         },
         style,
       );
