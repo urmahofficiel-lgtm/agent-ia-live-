@@ -8,6 +8,7 @@ describe("groupes Facebook", () => {
     const r = reglesReseau("facebook_groupe");
     expect(r).toContain("première personne");
     expect(r).toContain("AUCUN lien, AUCUN hashtag");
+    expect(r).toContain("N'invente AUCUNE expérience personnelle");
   });
 
   it("retire les hashtags et les liens du post", () => {
