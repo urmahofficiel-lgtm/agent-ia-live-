@@ -62,7 +62,8 @@ export async function fabriquerVideo(
   const [visuelsSite, accent, ecransAppli] = await Promise.all([
     site ? visuelsDuSite(site).catch(() => []) : [],
     site && style !== "classique" ? couleurDuSite(site).catch(() => null) : null,
-    liensCaptures
+    // Captures de l'application : seulement sur TikTok (et la vidéo promo, faite à part).
+    liensCaptures && t.plateforme === "tiktok"
       ? Promise.resolve(liensCaptures())
           .then((liens) => telechargerCaptures(choisirCaptures(liens, t.id, 4, `${t.titre} ${t.consigne}`)))
           .catch(() => [] as Buffer[])
