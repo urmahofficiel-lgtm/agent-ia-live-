@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import ffmpeg from "ffmpeg-static";
 import { POLICE_SOUS_TITRES_BASE64 } from "./generes/police.server";
+import { MUSIQUE_FOND_BASE64 } from "./generes/musique.server";
 import { coupesSaccadees, indexTransition, sousTitresStyle } from "./video";
 import type { StyleVideo } from "./styles";
 
@@ -237,18 +238,25 @@ export async function monterVideo(
         args.push("-f", "s16le", "-ar", "24000", "-ac", "1");
       args.push("-i", `voix.${voix.format}`);
     }
-    args.push("-filter_complex", filtres.join(";"), "-map", "[video]");
-    if (voix)
-      args.push(
-        "-map",
-        `${scenes.length}:a`,
-        "-c:a",
-        "aac",
-        "-b:a",
-        "128k",
-        "-af",
-        "apad",
-      );
+    // Musique de fond bouclée sous la voix off ; elle s'arrête avec la vidéo (-t plus bas).
+    await writeFile(path.join(dossier, "fond.m4a"), Buffer.from(MUSIQUE_FOND_BASE64, "base64"));
+    args.push("-stream_loop", "-1", "-i", "fond.m4a");
+    const musique = scenes.length + (voix ? 1 : 0);
+    const son = voix
+      ? `[${scenes.length}:a]apad[v];[${musique}:a]volume=0.2[m];[v][m]amix=inputs=2:duration=first:dropout_transition=0[a]`
+      : `[${musique}:a]volume=0.45[a]`;
+    args.push(
+      "-filter_complex",
+      [...filtres, son].join(";"),
+      "-map",
+      "[video]",
+      "-map",
+      "[a]",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "128k",
+    );
     args.push(
       "-t",
       duree.toFixed(2),
