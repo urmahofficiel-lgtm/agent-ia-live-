@@ -1,6 +1,6 @@
 import { URL_SITE } from "./preparation.server";
 import { lireJetonInstagram, urlDialogueInstagram, VERSION_GRAPH } from "./meta";
-import { creerEtat, graph, publierInstagram } from "./meta.server";
+import { creerEtat, graph, publierInstagram, publierStoryInstagram } from "./meta.server";
 import type { Media } from "./zernio.server";
 
 // Connexion Instagram directe (« API Instagram avec connexion Instagram ») :
@@ -66,4 +66,8 @@ export async function prolongerJetonInstagram(jeton: string) {
 
 export function publierInstagramDirect(igUserId: string, jeton: string, texte: string, media: Media | null) {
   return publierInstagram(igUserId, jeton, texte, media, GRAPH_IG);
+}
+
+export function publierStoryInstagramDirect(igUserId: string, jeton: string, media: Media | null) {
+  return publierStoryInstagram(igUserId, jeton, media, GRAPH_IG);
 }

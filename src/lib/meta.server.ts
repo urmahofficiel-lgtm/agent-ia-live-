@@ -128,13 +128,14 @@ const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // média, puis on le publie.
 // `base` : graph.facebook.com (compte relié à une page) ou graph.instagram.com
 // (connexion Instagram directe) ; les appels sont identiques.
-export async function publierInstagram(igId: string, jeton: string, texte: string, media: Media | null, base = GRAPH) {
+export async function publierInstagram(igId: string, jeton: string, texte: string, media: Media | null, base = GRAPH, story = false) {
   if (!media) throw new Error("Instagram exige une image ou une vidéo : créez d'abord le visuel.");
+  // Story : même visuel, sans légende ; sinon Reel ou photo du fil.
   const conteneur = await graph<{ id: string }>(
     `/${igId}/media`,
     media.type === "video"
-      ? { access_token: jeton, media_type: "REELS", video_url: media.url, caption: texte, share_to_feed: "true" }
-      : { access_token: jeton, image_url: media.url, caption: texte },
+      ? { access_token: jeton, media_type: story ? "STORIES" : "REELS", video_url: media.url, ...(story ? {} : { caption: texte, share_to_feed: "true" }) }
+      : { access_token: jeton, ...(story ? { media_type: "STORIES" } : {}), image_url: media.url, ...(story ? {} : { caption: texte }) },
     "POST",
     base,
   );
@@ -147,6 +148,11 @@ export async function publierInstagram(igId: string, jeton: string, texte: strin
     await pause(4000);
   }
   return graph<{ id: string }>(`/${igId}/media_publish`, { access_token: jeton, creation_id: conteneur.id }, "POST", base);
+}
+
+// Story Instagram (affichée 24 h) : même média que le Reel, sans légende.
+export function publierStoryInstagram(igId: string, jeton: string, media: Media | null, base = GRAPH) {
+  return publierInstagram(igId, jeton, "", media, base, true);
 }
 
 // --- Commentaires : lecture et réponse ---------------------------------------------

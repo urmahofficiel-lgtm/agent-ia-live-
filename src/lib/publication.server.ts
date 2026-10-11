@@ -1,8 +1,8 @@
 import { PLATEFORMES } from "./plateformes";
 import { nettoyerPost } from "./texte";
 import { clientMoteur } from "./supabase-serveur";
-import { publierFacebook, publierInstagram } from "./meta.server";
-import { prolongerJetonInstagram, publierInstagramDirect } from "./instagram.server";
+import { publierFacebook, publierInstagram, publierStoryInstagram } from "./meta.server";
+import { prolongerJetonInstagram, publierInstagramDirect, publierStoryInstagramDirect } from "./instagram.server";
 import { publierBluesky, type IdentifiantsBluesky } from "./bluesky.server";
 import { publierTelegram, type IdentifiantsTelegram } from "./telegram.server";
 import { publierLinkedin, type IdentifiantsLinkedin } from "./linkedin.server";
@@ -49,12 +49,16 @@ export async function publierSur(
         jeton = neuf;
         await sb.rpc("compte_maj_jeton", { p_secret: secret, p_user: userId, p_externe: compte.compte_externe_id, p_jeton: neuf });
       }
-      return (await publierInstagramDirect(compte.compte_externe_id, jeton, texte, media)).id;
+      const post = await publierInstagramDirect(compte.compte_externe_id, jeton, texte, media);
+      // La Story après le Reel : si elle échoue, le Reel reste publié.
+      await publierStoryInstagramDirect(compte.compte_externe_id, jeton, media).catch((e) => console.warn("Story Instagram non publiée", e));
+      return post.id;
     }
     const post =
       plateforme === "instagram"
         ? await publierInstagram(compte.compte_externe_id, jeton, texte, media)
         : await publierFacebook(compte.compte_externe_id, jeton, texte, media);
+    if (plateforme === "instagram") await publierStoryInstagram(compte.compte_externe_id, jeton, media).catch((e) => console.warn("Story Instagram non publiée", e));
     return post.id;
   }
   const zernio = PLATEFORMES.find((p) => p.id === plateforme)?.zernio;
