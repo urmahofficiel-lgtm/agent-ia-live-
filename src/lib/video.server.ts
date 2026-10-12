@@ -81,7 +81,8 @@ export type SceneMontage = {
 
 // Réglages du montage selon le style ; `accent` : couleur de la marque.
 // `marche` : langue des repères affichés (« PRIMA » / « DOPO »…).
-export type OptionsMontage = { style?: StyleVideo; accent?: string; marche?: string | null };
+// `titre` : titre de la série, affiché pendant toute la vidéo (style « journée »).
+export type OptionsMontage = { style?: StyleVideo; accent?: string; marche?: string | null; titre?: string };
 
 // Durée du fondu « avant → après » (balayage).
 const TRANSITION = 0.5;
@@ -95,7 +96,7 @@ export async function monterVideo(
   scenes: SceneMontage[],
   d: number[],
   voix?: { donnees: Buffer; format: "wav" | "pcm" },
-  { style = "classique", accent, marche }: OptionsMontage = {},
+  { style = "classique", accent, marche, titre }: OptionsMontage = {},
 ) {
   const dossier = await mkdtemp(path.join(tmpdir(), "video-"));
   try {
@@ -112,7 +113,7 @@ export async function monterVideo(
     );
     await writeFile(
       path.join(dossier, "textes.ass"),
-      sousTitresStyle(style, scenes, d, LARGEUR, HAUTEUR, accent, marche),
+      sousTitresStyle(style, scenes, d, LARGEUR, HAUTEUR, accent, marche, titre),
     );
     // Avant / après : la dernière scène « AVANT » dure un peu plus, le temps
     // du balayage vers la scène « APRÈS » (la frise totale ne change pas).

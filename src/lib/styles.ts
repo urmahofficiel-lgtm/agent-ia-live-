@@ -7,6 +7,7 @@ export const STYLES_VIDEO = [
   { id: "avant_apres", nom: "Avant / après", description: "La situation de départ, puis la transformation." },
   { id: "etapes", nom: "Tutoriel en étapes", description: "Étapes numérotées 1, 2, 3 avec gros numéros." },
   { id: "top3", nom: "Top 3", description: "3 raisons ou 3 erreurs, en compte à rebours." },
+  { id: "journee", nom: "Une journée de…", description: "Une journée type heure par heure, du réveil au devis du soir, avec l'heure à l'écran." },
 ] as const;
 
 export const STYLES_IMAGE = [

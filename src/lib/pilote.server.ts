@@ -2,6 +2,7 @@ import { avecVeille } from "./veille";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { demanderIA } from "./ia.server";
 import { lireCanaux } from "./marches";
+import { tachesJournee } from "./journee";
 import {
   consigneSujets,
   ferieProche,
@@ -56,8 +57,9 @@ export async function planifierJournees(
   for (const u of (data ?? []) as APlanifier[]) {
     if (Date.now() > echeance - 30_000) break;
     try {
+      const canaux = lireCanaux(u.canaux);
       const plan = planDuJour(
-        lireCanaux(u.canaux),
+        canaux,
         u.rythme,
         normaliserCreneaux(u.creneaux),
         u.jour,
@@ -87,6 +89,12 @@ export async function planifierJournees(
         if (!sujets) throw new Error("réponse de l'IA inutilisable");
         taches = tachesDuJour(plan.creneaux, sujets, categories);
       }
+      // Série « Une journée de… » (essai d'une semaine) : l'épisode du jour,
+      // en plus des sujets choisis par l'IA.
+      taches = [
+        ...taches,
+        ...tachesJournee(u.jour, canaux, u.rythme, normaliserCreneaux(u.creneaux)),
+      ];
       // Sans créneau restant (ou sans réseau), le jour est tout de même marqué
       // planifié : rien à refaire avant demain.
       const { data: n, error: err } = await sb.rpc("agent_planifier_jour", {

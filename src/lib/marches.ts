@@ -198,9 +198,11 @@ export function systemeMarche(
 }
 
 // Manière de lire la voix off, dans la langue du marché.
-export function tonVoix(id: string | null | undefined, parle: boolean): string {
+export function tonVoix(id: string | null | undefined, parle: boolean, recit = false): string {
   const m = marcheDe(id);
   const voix = m.id === MARCHE_DEFAUT ? "française" : `en ${m.langue}`;
+  // Récit d'une journée : un vlog sincère, un peu fatigué au réveil, qui s'anime ensuite.
+  if (recit) return `voix ${voix} naturelle et complice, comme un vlog sincère : ton posé et un peu fatigué au réveil, qui s'anime au fil de la journée, rythme soutenu`;
   return parle
     ? `voix ${voix} naturelle et enjouée, comme une personne qui parle face caméra sur TikTok : spontanée, rythme rapide, sourire dans la voix`
     : `voix off publicitaire ${voix}, dynamique et chaleureuse`;

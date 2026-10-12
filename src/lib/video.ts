@@ -193,6 +193,18 @@ Les images AVANT et APRÈS montrent le même lieu ou le même objet dans deux é
     images: "Images : chaque point montre une situation concrète de la clientèle visée, avec des mots-clés DIFFÉRENTS à chaque scène.",
     scenes: "Exactement 5 scènes.",
   },
+  journee: {
+    duree: "30 secondes environ",
+    structure: `Format « une journée dans la vie » : le scénario heure par heure d'une journée type, du réveil au soir, sur le métier décrit dans le sujet (sinon, celui de la clientèle visée par la marque). La voix parle à la 2e personne (« tu »), comme un vlog sincère : phrases courtes, langage parlé.
+Scène 1 = 5H00, le réveil : une accroche qui met tout de suite le spectateur dans la peau du métier. Chaque scène suivante = un moment précis, du plus tôt au plus tard (repere = l'heure de la scène au format « 5H00 », « 6H30 »… : toujours croissante, jamais deux fois la même), avec un détail concret et reconnaissable du métier (la route et le plein de carburant, le chantier ou le rendez-vous, le client, le téléphone qui sonne pendant que les mains sont occupées, le déjeuner sur le pouce, le dîner à 21 heures, le devis ou la paperasse du soir…). Appuie-toi sur les détails du sujet, sans en faire la liste : deux journées ne doivent jamais se ressembler.
+La charge physique et la charge mentale se voient dans les détails (le dos, les genoux, le message resté sans réponse, la facture à envoyer), jamais dans de grandes phrases.
+L'avant-dernière scène est le moment le plus lourd de la journée. La dernière scène (repere vide) apporte la solution : ce que la marque fait réellement pour alléger ce moment, uniquement avec les fonctionnalités de la fiche, sans promesse chiffrée, puis appel à l'action avec le nom de la marque.
+C'est une journée type imaginée : jamais de « je », aucun faux témoignage, aucune personne réelle, aucun prix ni statistique inventés (un prix n'est cité que s'il est dans le sujet).
+Voix : 1 phrase par scène, 10 mots au plus, les heures en toutes lettres (« cinq heures du matin »). Au total 60 à 75 mots.`,
+    images:
+      "Images : chaque scène montre exactement ce que dit la voix à ce moment-là (un réveil dans la pénombre, une camionnette sur la route à l'aube, une pompe à carburant, le chantier, un smartphone qui sonne, un ordinateur allumé le soir…), dans le vrai décor du métier. Mots-clés DIFFÉRENTS et précis à chaque scène : le moment, l'objet, le lieu. Jamais deux fois la même séquence.",
+    scenes: "Exactement 8 scènes : 7 avec une heure, puis l'appel à l'action.",
+  },
 };
 
 function consigneScriptStyle(t: { titre: string; consigne: string }, contexte: string | null, plateforme: string, avecCaptures: boolean, style: StyleAvecConsigne, marche?: string | null) {
@@ -208,14 +220,36 @@ ${
     : "Mets type_visuel \"terrain\" sur toutes les scènes."
 }
 Réponds UNIQUEMENT par un objet JSON valide :
-{"titre": "titre court", "scenes": [{"repere": "${style === "ugc" ? "vide" : "vide pour l'accroche et l'appel à l'action, sinon le repère du format"}", "texte_ecran": "4 à 6 mots formant une idée complète, jamais coupée", "voix": "1 à 2 phrases parlées, naturelles", "type_visuel": "terrain ou produit", "visuel": "English prompt: realistic vertical photo of the scene, the niche's real setting, no text", "recherche_stock": "2 to 4 English keywords for a real stock video of this exact moment"}], "legende": "texte du post qui accompagne la vidéo, avec l'appel à l'action, le lien du site et 3 à 5 hashtags"}
+{"titre": "titre court", "scenes": [{"repere": "${style === "ugc" ? "vide" : style === "journee" ? "l'heure de la scène (5H00, 6H30…), vide pour la dernière scène" : "vide pour l'accroche et l'appel à l'action, sinon le repère du format"}", "texte_ecran": "4 à 6 mots formant une idée complète, jamais coupée", "voix": "1 à 2 phrases parlées, naturelles", "type_visuel": "terrain ou produit", "visuel": "English prompt: realistic vertical photo of the scene, the niche's real setting, no text", "recherche_stock": "2 to 4 English keywords for a real stock video of this exact moment"}], "legende": "texte du post qui accompagne la vidéo, avec l'appel à l'action, le lien du site et 3 à 5 hashtags"}
 ${f.scenes}`;
+}
+
+// Style « journée » : l'heure de chaque scène (« 5H00 », « 6H30 »…), toujours
+// croissante ; la dernière scène (l'appel à l'action) n'en a pas. Si l'IA
+// donne des heures illisibles, répétées ou dans le désordre, on les remplace
+// par une frise régulière de 5H00 à 22H00, à la demi-heure près.
+const minutesDeHeure = (brut: string) => {
+  const m = brut.match(/^\s*(\d{1,2})\s*(?:[hH:]\s*(\d{1,2})?)?\s*$/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = m[2] === undefined ? 0 : Number(m[2]);
+  return h < 24 && min < 60 ? h * 60 + min : null;
+};
+const heureAffichee = (minutes: number) => `${Math.floor(minutes / 60)}H${String(minutes % 60).padStart(2, "0")}`;
+
+export function reperesJournee(scenes: ScriptVideo["scenes"]): ScriptVideo["scenes"] {
+  const n = scenes.length;
+  const lues = scenes.slice(0, -1).map((s) => minutesDeHeure(s.repere));
+  const croissantes = lues.every((m, i) => m !== null && (i === 0 || m > (lues[i - 1] as number)));
+  const secours = (i: number) => Math.round((300 + (i * 1020) / Math.max(1, n - 2)) / 30) * 30;
+  return scenes.map((s, i) => ({ ...s, repere: i === n - 1 ? "" : heureAffichee(croissantes ? (lues[i] as number) : secours(i)) }));
 }
 
 // Repères imposés selon le style, quelle que soit la réponse de l'IA (ou le
 // script de secours) : numéros d'étapes, compte à rebours 3-2-1, AVANT puis
 // APRÈS. L'accroche (1re scène) et l'appel à l'action (dernière) n'en ont pas.
 export function normaliserScript(script: ScriptVideo, style: StyleVideo): ScriptVideo {
+  if (style === "journee") return { ...script, scenes: reperesJournee(script.scenes) };
   const scenes = script.scenes.map((s) => ({ ...s, repere: "" }));
   if (scenes.length < 3 || style === "classique" || style === "ugc") return { ...script, scenes };
   const premiere = scenes[0];
@@ -333,9 +367,43 @@ export function sousTitresMotAMot(
   return documentAss(largeur, hauteur, styles, lignes);
 }
 
+// Style « journée » : le titre de la série (« UNE JOURNÉE DE PLOMBIER EN 2026 »)
+// reste en haut pendant toute la vidéo, l'heure de chaque scène s'affiche en
+// dessous dans un encart de couleur, le texte de la scène au centre-bas.
+function sousTitresJournee(
+  scenes: { texte_ecran: string; repere?: string }[],
+  d: number[],
+  largeur: number,
+  hauteur: number,
+  accent: string,
+  titre?: string,
+) {
+  const encre = couleurAss(texteSurCouleur(accent));
+  const fond = couleurAss(accent);
+  const styles = [
+    stylePrincipal(largeur, hauteur),
+    `Style: Serie,DejaVu Sans,${Math.round(largeur * 0.045)},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,${Math.round(largeur * 0.008)},2,8,40,40,${Math.round(hauteur * 0.075)},1`,
+    `Style: Heure,DejaVu Sans,${Math.round(largeur * 0.11)},${encre},${encre},${fond},&H00000000,-1,0,0,0,100,100,0,0,3,${Math.round(largeur * 0.022)},0,7,0,0,0,1`,
+  ];
+  const lignes = lignesPrincipales(scenes, d);
+  const total = d.reduce((a, b) => a + b, 0);
+  if (titre?.trim()) lignes.push(`Dialogue: 2,${horodatage(0)},${horodatage(total)},Serie,,0,0,0,,${echapperAss(titre.trim().toUpperCase().slice(0, 60))}`);
+  const x = Math.round(largeur * 0.08);
+  const y = Math.round(hauteur * 0.14);
+  debuts(d).forEach((debut, i) => {
+    const r = scenes[i].repere;
+    if (!r) return;
+    lignes.push(
+      `Dialogue: 1,${horodatage(debut)},${horodatage(debut + d[i])},Heure,,0,0,0,,{\\pos(${x},${y})\\fad(120,0)\\fscx118\\fscy118\\t(0,140,\\fscx100\\fscy100)}${echapperAss(r)}`,
+    );
+  });
+  return documentAss(largeur, hauteur, styles, lignes);
+}
+
 // Sous-titres selon le style : texte à l'écran au centre-bas (comme le style
 // classique) plus le repère de chaque scène (gros numéro, rang du top 3,
-// badge AVANT / APRÈS) dans un encart de couleur.
+// badge AVANT / APRÈS) dans un encart de couleur. `titre` : titre de la série
+// du style « journée ».
 export function sousTitresStyle(
   style: StyleVideo,
   scenes: { texte_ecran: string; voix?: string; repere?: string }[],
@@ -344,8 +412,10 @@ export function sousTitresStyle(
   hauteur: number,
   accent = ACCENT_DEFAUT,
   marche?: string | null,
+  titre?: string,
 ) {
   if (style === "classique") return sousTitresAss(scenes, d, largeur, hauteur);
+  if (style === "journee") return sousTitresJournee(scenes, d, largeur, hauteur, accent, titre);
   const mots = marcheDe(marche).mots;
   if (style === "ugc") return sousTitresMotAMot(scenes, d, largeur, hauteur, accent);
   const encre = couleurAss(texteSurCouleur(accent));
@@ -449,8 +519,10 @@ export function scriptDeSecours(t: { titre: string; consigne: string; brouillon?
 
 // Avec des captures du produit : au moins une scène du milieu et la dernière
 // les montrent, trois au plus (le reste montre la clientèle au travail).
-export function imposerScenesProduit(script: ScriptVideo): ScriptVideo {
+export function imposerScenesProduit(script: ScriptVideo, style?: StyleVideo): ScriptVideo {
   const n = script.scenes.length;
+  // Style « journée » : le produit n'apparaît qu'à la fin, comme la solution.
+  if (style === "journee") return { ...script, scenes: script.scenes.map((s, i) => ({ ...s, type_visuel: i === n - 1 ? ("produit" as const) : ("terrain" as const) })) };
   const scenes = script.scenes.map((s, i) => ({ ...s, type_visuel: i === n - 1 ? ("produit" as const) : s.type_visuel }));
   // Une scène « AVANT » montre la situation de départ, jamais le produit.
   for (const s of scenes) if (s.repere === "AVANT") s.type_visuel = "terrain";

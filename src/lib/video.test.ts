@@ -120,7 +120,7 @@ describe("styles de vidéo : consignes du script", () => {
     expect(consigneScript(t, null, "TikTok", false, "avant_apres")).toContain('repere "AVANT"');
     expect(consigneScript(t, null, "TikTok", false, "etapes")).toContain('repere "1", "2", "3"');
     expect(consigneScript(t, null, "TikTok", false, "top3")).toContain("compte à rebours");
-    for (const style of ["ugc", "avant_apres", "etapes", "top3"] as const) {
+    for (const style of ["ugc", "avant_apres", "etapes", "top3", "journee"] as const) {
       expect(consigneScript(t, "Marque : X", "TikTok", true, style)).toContain('"repere"');
     }
   });
@@ -267,5 +267,62 @@ describe("choisirCaptures", () => {
     const liste = ["1", "2", "3", "4", "5", "6", "7", "8"];
     const premiers = new Set(["a", "b", "c", "d", "e", "f"].map((g) => choisirCaptures(liste, `tache-${g}`)[0]));
     expect(premiers.size).toBeGreaterThan(1);
+  });
+});
+
+describe("style journée", () => {
+  const scene = (texte: string, repere = "") => ({ texte_ecran: texte, voix: texte, visuel: "", recherche_stock: "", type_visuel: "terrain" as const, repere });
+  const script = (reperes: string[]) => ({ titre: "T", legende: "L", scenes: reperes.map((r, i) => scene(`Scène ${i}`, r)) });
+
+  it("la consigne demande 8 scènes horodatées, à la 2e personne, sans faux témoignage", async () => {
+    const { consigneScript } = await import("./video");
+    const c = consigneScript({ titre: "Une journée de plombier en 2026", consigne: "" }, null, "TikTok", false, "journee");
+    expect(c).toContain("5H00");
+    expect(c).toContain("2e personne");
+    expect(c).toContain("Exactement 8 scènes");
+    expect(c).toContain("aucun faux témoignage");
+    expect(c).toContain("l'heure de la scène");
+  });
+
+  it("garde les heures de l'IA, écrites de façon uniforme", async () => {
+    const { normaliserScript } = await import("./video");
+    const s = normaliserScript(script(["5H00", "6h30", "8:00", "12H15", "15h", "19H00", "21H30", "ignorée"]), "journee");
+    expect(s.scenes.map((x) => x.repere)).toEqual(["5H00", "6H30", "8H00", "12H15", "15H00", "19H00", "21H30", ""]);
+  });
+
+  it("remplace des heures illisibles, répétées ou dans le désordre par une frise régulière", async () => {
+    const { normaliserScript } = await import("./video");
+    for (const reperes of [["", "", "", "", "", "", "", ""], ["5H00", "5H00", "8H00", "9H00", "10H00", "11H00", "12H00", ""], ["5H00", "9H00", "8H00", "10H00", "11H00", "12H00", "13H00", ""], ["matin", "midi", "soir", "", "", "", "", ""]]) {
+      const h = normaliserScript(script(reperes), "journee").scenes.map((x) => x.repere);
+      expect(h.at(-1)).toBe("");
+      expect(h[0]).toBe("5H00");
+      expect(h.at(-2)).toBe("22H00");
+      const minutes = h.slice(0, -1).map((x) => Number(x.split("H")[0]) * 60 + Number(x.split("H")[1]));
+      for (let i = 1; i < minutes.length; i++) expect(minutes[i]).toBeGreaterThan(minutes[i - 1]);
+    }
+  });
+
+  it("le produit n'apparaît que dans la dernière scène", async () => {
+    const { imposerScenesProduit, normaliserScript } = await import("./video");
+    const s = imposerScenesProduit(normaliserScript(script(["", "", "", "", "", ""]), "journee"), "journee");
+    expect(s.scenes.map((x) => x.type_visuel)).toEqual(["terrain", "terrain", "terrain", "terrain", "terrain", "produit"]);
+  });
+
+  it("sous-titres : titre de la série en haut, une heure par scène, texte centré", async () => {
+    const { sousTitresStyle } = await import("./video");
+    const sc = ["5H00", "7H30", ""].map((repere, i) => ({ texte_ecran: `Texte ${i}`, repere }));
+    const ass = sousTitresStyle("journee", sc, [3, 4, 3], 720, 1280, undefined, null, "Une journée de plombier en 2026");
+    const lignes = ass.split("\n");
+    expect(lignes.filter((l) => l.includes(",Serie,"))).toHaveLength(1);
+    expect(ass).toContain(",Serie,,0,0,0,,UNE JOURNÉE DE PLOMBIER EN 2026");
+    expect(lignes.filter((l) => l.includes(",Heure,"))).toHaveLength(2);
+    expect(ass).toMatch(/,Heure,.*5H00/);
+    expect(ass).toMatch(/,Heure,.*7H30/);
+    expect(lignes.filter((l) => l.includes(",Principal,"))).toHaveLength(3);
+  });
+
+  it("sans titre, pas de ligne de série", async () => {
+    const { sousTitresStyle } = await import("./video");
+    expect(sousTitresStyle("journee", [{ texte_ecran: "A", repere: "5H00" }], [3], 720, 1280)).not.toContain(",Serie,,0,0,0,,");
   });
 });

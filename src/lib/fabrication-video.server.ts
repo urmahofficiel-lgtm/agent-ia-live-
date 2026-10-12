@@ -4,6 +4,7 @@ import { choisirCaptures, consigneScript, durees, imposerScenesProduit, lireScri
 import { monterVideo } from "./video.server";
 import { voixConfiguree, voixOff } from "./voix.server";
 import { tonVoix } from "./marches";
+import { estJournee } from "./journee";
 import { pexelsConfigure, photo, sequenceVerticale } from "./pexels.server";
 import { couleurDuSite, visuelsDuSite } from "./site.server";
 import { nomStyleVideo, type StyleVideo } from "./styles";
@@ -41,7 +42,8 @@ async function telechargerCaptures(liens: string[]): Promise<Buffer[]> {
 // `marche` : langue et pays du compte visé (script, voix et repères dans sa langue).
 export type SujetVideo = { id: string; plateforme: string | null; titre: string; consigne: string; brouillon?: string | null; marche?: string | null };
 
-// `style` : classique (par défaut), ugc, avant_apres, etapes ou top3.
+// `style` : classique (par défaut), ugc, avant_apres, etapes, top3 ou journee
+// (toujours imposé aux publications de la série « Une journée de… »).
 export async function fabriquerVideo(
   t: SujetVideo,
   contexte: string | null,
@@ -49,6 +51,7 @@ export async function fabriquerVideo(
   { journal, etat, deposer, captures: liensCaptures }: AtelierVideo,
   style: StyleVideo = "classique",
 ) {
+  if (estJournee(t.consigne)) style = "journee";
   const debutVideo = Date.now();
   const reseau = PLATEFORMES.find((p) => p.id === t.plateforme)?.nom ?? "TikTok, Reels et Shorts";
   await etat({ video_etat: "en_cours", video_erreur: null, video_debut: new Date().toISOString(), video_style: style });
@@ -98,13 +101,13 @@ export async function fabriquerVideo(
     await journal("info", "IA occupée : script construit à partir du texte de la publication.");
   }
   script = normaliserScript(script, style);
-  if (produitVisible) script = imposerScenesProduit(script);
+  if (produitVisible) script = imposerScenesProduit(script, style);
   await journal("info", `Script : ${script.scenes.length} scènes — « ${script.scenes[0].texte_ecran} »`);
 
   let voix = null;
   if (voixConfiguree()) {
     await journal("action", "🎙️ Enregistrement de la voix off (Gemini)…");
-    voix = await voixOff(script.scenes.map((s) => s.voix).join(" "), tonVoix(t.marche, style === "ugc"));
+    voix = await voixOff(script.scenes.map((s) => s.voix).join(" "), tonVoix(t.marche, style === "ugc", style === "journee"));
     await journal(voix ? "info" : "erreur", voix ? `Voix off prête (${Math.round(voix.duree)} s).` : "Voix off impossible : vidéo sans voix.");
   }
   const d = durees(script.scenes, voix ? voix.duree + 0.6 : undefined);
@@ -166,7 +169,7 @@ export async function fabriquerVideo(
     script.scenes.map((s, i) => ({ ...medias[i], texte_ecran: s.texte_ecran, voix: s.voix, repere: s.repere })),
     d,
     voix ?? undefined,
-    { style, accent: accent ?? undefined, marche: t.marche },
+    { style, accent: accent ?? undefined, marche: t.marche, titre: style === "journee" ? t.titre : undefined },
   );
 
   const video_url = await deposer(mp4);
