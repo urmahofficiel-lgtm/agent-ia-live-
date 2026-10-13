@@ -202,7 +202,7 @@ L'avant-dernière scène est le moment le plus lourd de la journée. La dernièr
 C'est une journée type imaginée : jamais de « je », aucun faux témoignage, aucune personne réelle, aucun prix ni statistique inventés (un prix n'est cité que s'il est dans le sujet).
 Voix : 1 phrase par scène, 10 mots au plus, les heures en toutes lettres (« cinq heures du matin »). Au total 60 à 75 mots.`,
     images:
-      "Images : chaque scène montre exactement ce que dit la voix à ce moment-là (un réveil dans la pénombre, une camionnette sur la route à l'aube, une pompe à carburant, le chantier, un smartphone qui sonne, un ordinateur allumé le soir…), dans le vrai décor du métier. Mots-clés DIFFÉRENTS et précis à chaque scène : le moment, l'objet, le lieu. Jamais deux fois la même séquence.",
+      "Images : chaque scène montre exactement ce que dit la voix à ce moment-là (un réveil dans la pénombre, une camionnette sur la route à l'aube, une pompe à carburant, le chantier, un smartphone qui sonne, un ordinateur allumé le soir…), dans le vrai décor du métier. Mots-clés DIFFÉRENTS à chaque scène, jamais deux fois la même séquence. recherche_stock : 2 ou 3 mots courants et très répandus (le métier + le geste ou le lieu, ex. « plumber pipe repair », « work van road », « electrician fuse box »), jamais un détail technique rare qui ramène des images hors sujet.",
     scenes: "Exactement 8 scènes : 7 avec une heure, puis l'appel à l'action.",
   },
 };
