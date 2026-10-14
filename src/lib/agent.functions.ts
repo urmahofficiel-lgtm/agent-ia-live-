@@ -9,6 +9,12 @@ import {
 } from "./plateformes";
 import { demanderIA, genererImage } from "./ia.server";
 import {
+  SYSTEME_CONVERSATION,
+  consigneConversation,
+  lireReponseConversation,
+  type ReponseConversation,
+} from "./conversation";
+import {
   consigneScript,
   durees,
   imposerScenesProduit,
@@ -827,6 +833,62 @@ export const redigerProspect = createServerFn({ method: "POST" })
             erreur: messageErreurProspect(e2.message) ?? e2.message,
           };
         return { ok: true, brouillon };
+      } catch (e) {
+        return { ok: false, erreur: message(e) };
+      }
+    },
+  );
+
+// Écrit le prochain message d'une conversation de prospection (texte collé
+// ou captures d'écran), à envoyer par l'utilisateur lui-même.
+export const repondreConversation = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        conversation: z.string().max(12_000).default(""),
+        precisions: z.string().max(600).default(""),
+        // Captures réduites par le navigateur (JPEG, quelques centaines de Ko).
+        images: z
+          .array(
+            z.object({
+              mime: z.enum(["image/jpeg", "image/png", "image/webp"]),
+              donnees: z.string().max(1_200_000),
+            }),
+          )
+          .max(3)
+          .default([]),
+        jeton,
+      })
+      .refine((d) => d.conversation.trim() || d.images.length, {
+        message: "Collez la conversation ou ajoutez une capture d'écran.",
+      })
+      .parse(input),
+  )
+  .handler(
+    async ({ data }): Promise<Resultat<{ reponse: ReponseConversation }>> => {
+      try {
+        const { sb } = await utilisateurDepuisJeton(data.jeton);
+        const brut = await demanderIA(
+          consigneConversation({
+            contexte: await contexteMarque(sb),
+            conversation: data.conversation,
+            precisions: data.precisions,
+            avecCaptures: data.images.length > 0,
+          }),
+          {
+            systeme: SYSTEME_CONVERSATION,
+            maxTokens: 900,
+            delaiTotal: 55_000,
+            images: data.images,
+          },
+        );
+        const reponse = lireReponseConversation(brut);
+        if (!reponse)
+          return {
+            ok: false,
+            erreur: "L'IA n'a pas écrit de message utilisable. Réessayez.",
+          };
+        return { ok: true, reponse };
       } catch (e) {
         return { ok: false, erreur: message(e) };
       }

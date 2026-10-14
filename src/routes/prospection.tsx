@@ -24,6 +24,7 @@ import {
   boutonSecondaire,
   champ,
 } from "@/components/ui";
+import { ReponseConversation } from "@/components/ReponseConversation";
 import { supabase } from "@/lib/supabase";
 import { useRequete, useUserId } from "@/lib/donnees";
 import type { Prospect } from "@/lib/types";
@@ -596,6 +597,8 @@ function Prospection() {
           <Erreur message={erreur ?? reglages.erreur} />
         </Repli>
       </div>
+
+      <ReponseConversation />
 
       <nav
         className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0"

@@ -99,7 +99,10 @@ export async function listerGemini(cle: string) {
   return modelesGemini;
 }
 
-async function demanderGemini(cle: string, systeme: string, demande: string, echeance: number) {
+// `images` : captures d'écran jointes à la demande (Gemini seulement).
+export type ImageJointe = { mime: string; donnees: string };
+
+async function demanderGemini(cle: string, systeme: string, demande: string, echeance: number, images: ImageJointe[] = []) {
   let derniere = "Gemini n'a pas répondu.";
   const modeles = await listerGemini(cle);
   // Surcharge (503) ou quota (429) : un second essai sur le premier modèle,
@@ -117,7 +120,7 @@ async function demanderGemini(cle: string, systeme: string, demande: string, ech
         headers: { "x-goog-api-key": cle, "Content-Type": "application/json" },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systeme }] },
-          contents: [{ role: "user", parts: [{ text: demande }] }],
+          contents: [{ role: "user", parts: [...images.map((i) => ({ inlineData: { mimeType: i.mime, data: i.donnees } })), { text: demande }] }],
           generationConfig: { temperature: 0.7 },
         }),
       });
@@ -200,7 +203,7 @@ async function demanderNvidia(cle: string, systeme: string, demande: string, max
 // pour rester sous la limite d'exécution de Vercel.
 export async function demanderIA(
   demande: string,
-  options: { systeme?: string; maxTokens?: number; delaiTotal?: number; gemini?: "d'abord" | "secours" } = {},
+  options: { systeme?: string; maxTokens?: number; delaiTotal?: number; gemini?: "d'abord" | "secours"; images?: ImageJointe[] } = {},
 ) {
   const maxTokens = options.maxTokens ?? 800;
   const systeme = options.systeme ?? SYSTEME;
@@ -210,8 +213,11 @@ export async function demanderIA(
   if (!cleN && !cleG) throw new Error("Aucune clé d'IA (NVIDIA ou Gemini) dans les variables Vercel.");
 
   const nvidia = () => demanderNvidia(cleN, systeme, demande, maxTokens, echeance);
-  const gemini = () => demanderGemini(cleG, systeme, demande, echeance);
-  const ordre = (options.gemini ?? (maxTokens >= 1500 ? "d'abord" : "secours")) === "d'abord" ? [gemini, nvidia] : [nvidia, gemini];
+  const images = options.images ?? [];
+  const gemini = () => demanderGemini(cleG, systeme, demande, echeance, images);
+  // Avec des captures d'écran, seul Gemini sait les lire.
+  if (images.length && !cleG) throw new Error("La lecture des captures d'écran demande la clé Gemini (variable GEMINI_API_KEY).");
+  const ordre = images.length ? [gemini] : (options.gemini ?? (maxTokens >= 1500 ? "d'abord" : "secours")) === "d'abord" ? [gemini, nvidia] : [nvidia, gemini];
   const essais = ordre.filter((f) => (f === gemini ? cleG : cleN));
 
   let erreur: unknown = null;
