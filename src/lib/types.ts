@@ -39,6 +39,7 @@ export type Tache = {
     stats?: Partial<Stats>;
   } | null;
   created_at: string;
+  updated_at?: string;
 };
 
 export type Evenement = {

@@ -79,3 +79,11 @@ export async function creerCopies(userId: string, base: NouvellePublication, res
   }
   return null;
 }
+
+// Une publication « en cours » depuis plus de 30 minutes n'avance plus (le
+// moteur passe toutes les 5 minutes : un passage dure 5 minutes au plus).
+export const DELAI_BLOQUEE_MIN = 30;
+export function estBloquee(t: Pick<Tache, "statut" | "updated_at">, maintenant = Date.now()) {
+  if (t.statut !== "en_cours" || !t.updated_at) return false;
+  return maintenant - new Date(t.updated_at).getTime() > DELAI_BLOQUEE_MIN * 60_000;
+}

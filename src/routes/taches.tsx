@@ -11,7 +11,7 @@ import { creerVideo, genererBrouillon, publierTache, regenererVisuel } from "@/l
 import { jetonSession } from "@/lib/session";
 import { STATUTS } from "@/lib/statuts";
 import { LIBELLE_TYPE, type StatutTache, type Tache } from "@/lib/types";
-import { creerCopies, statutPourReseau, supprimerPublications } from "@/lib/publications";
+import { creerCopies, estBloquee, statutPourReseau, supprimerPublications } from "@/lib/publications";
 import { cheminVideo, consigneVideoPerso, creneauxConseilles, resultatVideoPerso, valeurChampDate, verifierVideo } from "@/lib/video-perso";
 import { ChoixReseaux } from "@/components/ChoixReseaux";
 import { BoutonPartage } from "@/components/BoutonPartage";
@@ -309,6 +309,17 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
               Suivre en direct
             </Link>
           </p>
+        )}
+
+        {estBloquee(t) && !ici && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-alerte/10 px-3 py-2 text-sm text-alerte" role="status">
+            <span>
+              Cette publication n'avance plus depuis plus de 30 minutes. Vérifiez d'abord sur votre page qu'elle n'est pas déjà sortie.
+            </span>
+            <button className="inline-flex items-center gap-1.5 font-medium underline disabled:opacity-50" disabled={occupe} onClick={() => a.statut(t.id, "echouee")}>
+              Marquer comme échouée
+            </button>
+          </div>
         )}
 
         {video_etat === "echec" && !ici && (
