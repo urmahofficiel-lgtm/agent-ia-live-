@@ -30,6 +30,8 @@ export type Tache = {
     video_erreur?: string | null;
     video_debut?: string;
     video_style?: string;
+    // Vidéo apportée par l'utilisateur (pas créée par l'agent).
+    video_perso?: boolean;
     visuel_style?: string;
     post_id?: string;
     publie_le?: string;

@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { AlertTriangle, Clapperboard, ImageIcon, LoaderCircle, PenLine, Plus, RotateCcw, Send, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import { AlertTriangle, Clapperboard, ImageIcon, LoaderCircle, PenLine, Plus, RotateCcw, Send, SlidersHorizontal, Trash2, Upload, X } from "lucide-react";
 import { Carte, Erreur, Pastille, Titre, bouton, boutonSecondaire, champ } from "@/components/ui";
 import { LogoPlateforme } from "@/components/LogoPlateforme";
 import { supabase } from "@/lib/supabase";
@@ -12,6 +12,7 @@ import { jetonSession } from "@/lib/session";
 import { STATUTS } from "@/lib/statuts";
 import { LIBELLE_TYPE, type StatutTache, type Tache } from "@/lib/types";
 import { creerCopies, statutPourReseau, supprimerPublications } from "@/lib/publications";
+import { cheminVideo, consigneVideoPerso, creneauxConseilles, resultatVideoPerso, valeurChampDate, verifierVideo } from "@/lib/video-perso";
 import { ChoixReseaux } from "@/components/ChoixReseaux";
 import { BoutonPartage } from "@/components/BoutonPartage";
 import { MenuStyle } from "@/components/StylesCreatifs";
@@ -257,7 +258,9 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
           <h3 className="font-semibold">{t.titre}</h3>
           <Pastille ton={STATUTS[t.statut].ton}>{STATUTS[t.statut].libelle}</Pastille>
           {video && video_etat !== "en_cours" && (
-            <Pastille ton="plan">Vidéo{styleVideo && styleVideo !== "classique" ? ` · ${nomStyleVideo(styleVideo)}` : ""}</Pastille>
+            <Pastille ton="plan">
+              {t.resultat?.video_perso ? "Votre vidéo" : `Vidéo${styleVideo && styleVideo !== "classique" ? ` · ${nomStyleVideo(styleVideo)}` : ""}`}
+            </Pastille>
           )}
           {sansReseau && (
             <Pastille ton="alerte">
@@ -590,24 +593,65 @@ function NouvelleTache({ onCree }: { onCree: () => Promise<void> }) {
     (m) => m.id === MARCHE_DEFAUT || comptes.data?.some((c) => c.marche === m.id || c.langues_en_plus?.includes(m.id)),
   );
   const [marche, setMarche] = useState(MARCHE_DEFAUT);
+  // Vidéo toute faite (Google Flow, téléphone…) : publiée telle quelle.
+  const [video, setVideo] = useState<File | null>(null);
+  const [apercu, setApercu] = useState<string | null>(null);
+  const [envoi, setEnvoi] = useState(false);
+  const entreeVideo = useRef<HTMLInputElement>(null);
+  const creneaux = creneauxConseilles();
+
+  useEffect(() => {
+    if (!video) return setApercu(null);
+    const url = URL.createObjectURL(video);
+    setApercu(url);
+    return () => URL.revokeObjectURL(url);
+  }, [video]);
+
+  function choisirVideo(e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    e.target.value = "";
+    if (!f) return;
+    const refus = verifierVideo(f);
+    setErreur(refus);
+    if (!refus) setVideo(f);
+  }
 
   async function creer(e: FormEvent) {
     e.preventDefault();
-    if (!userId) return;
+    if (!userId || envoi) return;
     if (reseaux.length === 0) return setErreur("Choisissez au moins un réseau.");
+    setErreur(null);
     const statut: StatutTache = reglages.validation_requise ? "a_valider" : "en_attente";
+
+    // La vidéo est déposée une seule fois ; chaque réseau reçoit le même lien.
+    let lien: string | null = null;
+    let chemin: string | null = null;
+    if (video) {
+      setEnvoi(true);
+      chemin = cheminVideo(userId, video.name);
+      const { error } = await supabase().storage.from("videos").upload(chemin, video, { contentType: "video/mp4" });
+      if (error) {
+        setEnvoi(false);
+        return setErreur(/fetch|network/i.test(error.message) ? "La connexion a coupé pendant l'envoi de la vidéo. Réessayez." : error.message);
+      }
+      lien = supabase().storage.from("videos").getPublicUrl(chemin).data.publicUrl;
+    }
+
     const erreur = await creerCopies(
       userId,
       {
         titre,
-        consigne,
+        consigne: lien ? consigneVideoPerso(consigne) : consigne,
         statut,
         planifiee_pour: quand ? new Date(quand).toISOString() : null,
-        resultat: null,
+        resultat: lien ? resultatVideoPerso(lien) : null,
         marche: marche === MARCHE_DEFAUT ? null : marche,
       },
       reseaux,
     );
+    // Publication non créée : la vidéo déposée ne servirait à rien.
+    if (erreur && chemin) await supabase().storage.from("videos").remove([chemin]);
+    setEnvoi(false);
     setErreur(erreur);
     if (!erreur) await onCree();
   }
@@ -643,12 +687,50 @@ function NouvelleTache({ onCree }: { onCree: () => Promise<void> }) {
             placeholder="Ex. : Mettre en avant la signature électronique, ton direct, finir par le lien vers le site."
           />
         </label>
-        <label className="text-sm">
-          Date de publication (optionnel)
-          <input className={champ} type="datetime-local" value={quand} onChange={(e) => setQuand(e.target.value)} />
-        </label>
+        <div className="md:col-span-2">
+          <p className="text-sm">Votre vidéo (optionnel)</p>
+          <p className="mt-0.5 text-xs text-doux">
+            Une vidéo déjà prête (Google Flow, téléphone…) est publiée telle quelle, avec sa voix : l'agent écrit seulement la légende.
+            MP4, 50 Mo au maximum, format vertical conseillé.
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <button type="button" className={`${boutonSecondaire} inline-flex items-center gap-2`} disabled={envoi} onClick={() => entreeVideo.current?.click()}>
+              <Upload size={15} aria-hidden />
+              {video ? "Changer de vidéo" : "Choisir une vidéo"}
+            </button>
+            <input ref={entreeVideo} type="file" accept="video/mp4" hidden onChange={choisirVideo} />
+            {video && (
+              <button type="button" className="text-xs text-doux underline hover:text-texte" disabled={envoi} onClick={() => setVideo(null)}>
+                Retirer « {video.name} »
+              </button>
+            )}
+          </div>
+          {apercu && <video src={apercu} controls playsInline muted className="mt-3 max-h-72 rounded-lg border border-bord" />}
+        </div>
+        <div className="text-sm md:col-span-2">
+          <label>
+            Date de publication (optionnel)
+            <input className={champ} type="datetime-local" value={quand} onChange={(e) => setQuand(e.target.value)} />
+          </label>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-doux">Meilleurs moments (le soir) :</span>
+            {creneaux.map((c) => (
+              <button
+                key={c.instant.toISOString()}
+                type="button"
+                onClick={() => setQuand(valeurChampDate(c.instant))}
+                className="rounded-full border border-bord px-3 py-1 text-xs text-doux hover:border-accent/60 hover:text-texte"
+              >
+                {c.libelle}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="flex items-end">
-          <button className={bouton}>Créer</button>
+          <button className={`${bouton} inline-flex items-center gap-2`} disabled={envoi}>
+            {envoi && <LoaderCircle size={15} className="animate-spin" aria-hidden />}
+            {envoi ? "Envoi de la vidéo…" : "Créer"}
+          </button>
         </div>
       </form>
       <Erreur message={erreur} />
