@@ -7,8 +7,34 @@ import { publierBluesky, type IdentifiantsBluesky } from "./bluesky.server";
 import { publierTelegram, type IdentifiantsTelegram } from "./telegram.server";
 import { publierLinkedin, type IdentifiantsLinkedin } from "./linkedin.server";
 import { publier, type Media } from "./zernio.server";
+import { lienCliquable, remplacerLiens, trouverLiens } from "./liens-suivis";
 
 export type CompteCible = { fournisseur: string | null; compte_externe_id: string; cible_urn: string | null };
+
+// Remplace les liens du post par des liens courts qui comptent les clics. En
+// cas de souci, le post part avec ses liens d'origine.
+async function suivreLiens(texte: string, plateforme: string, userId: string, tacheId: string) {
+  if (!lienCliquable(plateforme)) return texte;
+  const liens = trouverLiens(texte).slice(0, 5);
+  if (!liens.length) return texte;
+  try {
+    const codes = new Map<string, string>();
+    for (const url of liens) {
+      const { data, error } = await clientMoteur().rpc("lien_suivi_creer", {
+        p_secret: process.env.AGENT_TICK_SECRET ?? "",
+        p_user: userId,
+        p_tache: tacheId,
+        p_url: url,
+      });
+      if (error || typeof data !== "string") throw new Error(error?.message ?? "code absent");
+      codes.set(url, data);
+    }
+    return remplacerLiens(texte, codes);
+  } catch (e) {
+    console.warn("Liens suivis indisponibles", e instanceof Error ? e.message : e);
+    return texte;
+  }
+}
 
 // Publie par le bon canal : connexion directe (Meta ou Instagram) si elle
 // existe, sinon Zernio. Renvoie l'identifiant du post.
@@ -19,9 +45,11 @@ export async function publierSur(
   texte: string,
   media: Media | null,
   image?: string | null,
+  tacheId?: string,
 ) {
   // Dernier filet de sécurité : jamais de markdown affiché tel quel sur un réseau.
   texte = nettoyerPost(texte);
+  if (tacheId) texte = await suivreLiens(texte, plateforme, userId, tacheId);
   if (compte.fournisseur === "bluesky" || compte.fournisseur === "telegram" || compte.fournisseur === "linkedin") {
     const { data, error } = await clientMoteur().rpc("compte_jeton", {
       p_secret: process.env.AGENT_TICK_SECRET ?? "",

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { Eye, Heart, MessageCircle, Share2, Sparkles, Video } from "lucide-react";
+import { Eye, Heart, MessageCircle, Share2, Sparkles, Video, MousePointerClick } from "lucide-react";
 import { Carte, Erreur, Pastille, Titre } from "@/components/ui";
 import { LogoPlateforme } from "@/components/LogoPlateforme";
 import { supabase } from "@/lib/supabase";
@@ -66,6 +66,12 @@ function Statistiques() {
   const mesurees = useMemo(() => pubs.filter(aDesStats), [pubs]);
   const totaux = useMemo(() => totauxParReseau(pubs), [pubs]);
   const top = useMemo(() => classer(mesurees).slice(0, 5), [mesurees]);
+  // Clics sur les liens courts des publications (liens suivis).
+  const liens = useRequete<{ clics: number }[]>(
+    () => supabase().from("liens_suivis").select("clics").gte("created_at", depuis),
+    [userId, depuis],
+  );
+  const clics = liens.data?.length ? liens.data.reduce((n, l) => n + l.clics, 0) : null;
   const apprentissage = reglages.data?.apprentissage;
   const puces = apprentissage?.resume.split("\n").map((p) => p.replace(/^-\s*/, "")).filter(Boolean) ?? [];
 
@@ -117,11 +123,12 @@ function Statistiques() {
 
       {pubs.length > 0 && (
         <>
-          <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-5">
             <Tuile icone={Eye} libelle="Vues" valeur={somme("vues")} />
             <Tuile icone={Heart} libelle="Likes / réactions" valeur={somme("likes")} />
             <Tuile icone={MessageCircle} libelle="Commentaires" valeur={somme("commentaires")} />
             <Tuile icone={Share2} libelle="Partages" valeur={somme("partages")} />
+            <Tuile icone={MousePointerClick} libelle="Clics vers votre site" valeur={clics} />
           </div>
 
           <Carte className="mb-6 p-5">

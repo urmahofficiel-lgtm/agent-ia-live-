@@ -49,6 +49,13 @@ function Publications() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [travail, setTravail] = useState<Travail | null>(null);
   const styles = useStylesParDefaut();
+  // Clics sur les liens courts de chaque publication (liens suivis).
+  const liens = useRequete<{ tache_id: string | null; clics: number }[]>(
+    () => supabase().from("liens_suivis").select("tache_id, clics").not("tache_id", "is", null),
+    [userId],
+  );
+  const clics: Record<string, number> = {};
+  for (const l of liens.data ?? []) if (l.tache_id) clics[l.tache_id] = (clics[l.tache_id] ?? 0) + l.clics;
 
   // Appel serveur commun : affiche l'erreur éventuelle puis recharge la liste.
   async function action(t: Travail, appel: (jeton: string) => Promise<{ ok: boolean; erreur?: string }>) {
@@ -72,6 +79,7 @@ function Publications() {
 
   const actions: Actions = {
     travail,
+    clics,
     styles: { video: styles.video, image: styles.image },
     rediger: (id) => action({ id, quoi: "texte" }, (jeton) => genererBrouillon({ data: { tacheId: id, jeton } })),
     image: (id, style) => action({ id, quoi: "image" }, (jeton) => regenererVisuel({ data: { tacheId: id, jeton, style } })),
@@ -180,6 +188,8 @@ function Publications() {
 
 type Actions = {
   travail: Travail | null;
+  // Clics sur les liens suivis, par publication.
+  clics: Record<string, number>;
   // Styles par défaut (Réglages), proposés en premier dans les menus.
   styles: { video: StyleVideo; image: StyleImage };
   rediger: (id: string) => void;
@@ -260,6 +270,11 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
           {video && video_etat !== "en_cours" && (
             <Pastille ton="plan">
               {t.resultat?.video_perso ? "Votre vidéo" : `Vidéo${styleVideo && styleVideo !== "classique" ? ` · ${nomStyleVideo(styleVideo)}` : ""}`}
+            </Pastille>
+          )}
+          {t.id in a.clics && (
+            <Pastille ton="ok">
+              {a.clics[t.id]} clic{a.clics[t.id] > 1 ? "s" : ""} vers le site
             </Pastille>
           )}
           {sansReseau && (

@@ -25,6 +25,7 @@ import { Route as StudioVideoRouteImport } from './routes/studio-video'
 import { Route as SuppressionDonneesRouteImport } from './routes/suppression-donnees'
 import { Route as TachesRouteImport } from './routes/taches'
 import { Route as DesinscriptionJetonRouteImport } from './routes/desinscription/$jeton'
+import { Route as LCodeRouteImport } from './routes/l/$code'
 import { Route as ApiAgentCoordonneesRouteImport } from './routes/api/agent/coordonnees'
 import { Route as ApiAgentEmailsRouteImport } from './routes/api/agent/emails'
 import { Route as ApiAgentStatsRouteImport } from './routes/api/agent/stats'
@@ -120,6 +121,11 @@ const DesinscriptionJetonRoute = DesinscriptionJetonRouteImport.update({
   path: '/desinscription/$jeton',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LCodeRoute = LCodeRouteImport.update({
+  id: '/l/$code',
+  path: '/l/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentCoordonneesRoute = ApiAgentCoordonneesRouteImport.update({
   id: '/api/agent/coordonnees',
   path: '/api/agent/coordonnees',
@@ -208,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
   '/desinscription/$jeton': typeof DesinscriptionJetonRoute
+  '/l/$code': typeof LCodeRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
@@ -240,6 +247,7 @@ export interface FileRoutesByTo {
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
   '/desinscription/$jeton': typeof DesinscriptionJetonRoute
+  '/l/$code': typeof LCodeRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
@@ -273,6 +281,7 @@ export interface FileRoutesById {
   '/suppression-donnees': typeof SuppressionDonneesRoute
   '/taches': typeof TachesRoute
   '/desinscription/$jeton': typeof DesinscriptionJetonRoute
+  '/l/$code': typeof LCodeRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
@@ -307,6 +316,7 @@ export interface FileRouteTypes {
     | '/suppression-donnees'
     | '/taches'
     | '/desinscription/$jeton'
+    | '/l/$code'
     | '/api/agent/coordonnees'
     | '/api/agent/emails'
     | '/api/agent/stats'
@@ -339,6 +349,7 @@ export interface FileRouteTypes {
     | '/suppression-donnees'
     | '/taches'
     | '/desinscription/$jeton'
+    | '/l/$code'
     | '/api/agent/coordonnees'
     | '/api/agent/emails'
     | '/api/agent/stats'
@@ -371,6 +382,7 @@ export interface FileRouteTypes {
     | '/suppression-donnees'
     | '/taches'
     | '/desinscription/$jeton'
+    | '/l/$code'
     | '/api/agent/coordonnees'
     | '/api/agent/emails'
     | '/api/agent/stats'
@@ -404,6 +416,7 @@ export interface RootRouteChildren {
   SuppressionDonneesRoute: typeof SuppressionDonneesRoute
   TachesRoute: typeof TachesRoute
   DesinscriptionJetonRoute: typeof DesinscriptionJetonRoute
+  LCodeRoute: typeof LCodeRoute
   ApiAgentCoordonneesRoute: typeof ApiAgentCoordonneesRoute
   ApiAgentEmailsRoute: typeof ApiAgentEmailsRoute
   ApiAgentStatsRoute: typeof ApiAgentStatsRoute
@@ -534,6 +547,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DesinscriptionJetonRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/l/$code': {
+      id: '/l/$code'
+      path: '/l/$code'
+      fullPath: '/l/$code'
+      preLoaderRoute: typeof LCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/coordonnees': {
       id: '/api/agent/coordonnees'
       path: '/api/agent/coordonnees'
@@ -652,6 +672,7 @@ const rootRouteChildren: RootRouteChildren = {
   SuppressionDonneesRoute: SuppressionDonneesRoute,
   TachesRoute: TachesRoute,
   DesinscriptionJetonRoute: DesinscriptionJetonRoute,
+  LCodeRoute: LCodeRoute,
   ApiAgentCoordonneesRoute: ApiAgentCoordonneesRoute,
   ApiAgentEmailsRoute: ApiAgentEmailsRoute,
   ApiAgentStatsRoute: ApiAgentStatsRoute,

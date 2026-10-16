@@ -415,6 +415,7 @@ export const publierTache = createServerFn({ method: "POST" })
           brouillon,
           media,
           r.visuel_url,
+          t.id,
         );
         await sb
           .from("taches")
