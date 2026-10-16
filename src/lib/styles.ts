@@ -8,6 +8,7 @@ export const STYLES_VIDEO = [
   { id: "etapes", nom: "Tutoriel en étapes", description: "Étapes numérotées 1, 2, 3 avec gros numéros." },
   { id: "top3", nom: "Top 3", description: "3 raisons ou 3 erreurs, en compte à rebours." },
   { id: "journee", nom: "Une journée de…", description: "Une journée type heure par heure, du réveil au devis du soir, avec l'heure à l'écran." },
+  { id: "conversation", nom: "Conversation SMS", description: "Une discussion de messagerie vécue (client difficile, fournisseur…) qui s'affiche bulle après bulle, et une question qui fait commenter." },
 ] as const;
 
 export const STYLES_IMAGE = [
@@ -32,7 +33,16 @@ export const lireStyleImage = (x: unknown): StyleImage =>
 export const nomStyleVideo = (id: StyleVideo) => STYLES_VIDEO.find((s) => s.id === id)?.nom ?? id;
 export const nomStyleImage = (id: StyleImage) => STYLES_IMAGE.find((s) => s.id === id)?.nom ?? id;
 
-// TikTok ne récompense que la vidéo « face caméra » : le style classique y
-// devient UGC ; un autre style choisi par l'utilisateur est respecté.
-export const styleVideoPour = (plateforme: string | null | undefined, style: StyleVideo): StyleVideo =>
-  plateforme === "tiktok" && style === "classique" ? "ugc" : style;
+// Vidéos automatiques : une sur deux devient une « conversation » (le format
+// qui fait le plus réagir), choisie d'après l'identifiant de la publication ;
+// sinon TikTok passe en « face caméra », qu'il récompense. Un autre style
+// choisi par l'utilisateur est respecté.
+export function styleVideoPour(plateforme: string | null | undefined, style: StyleVideo, graine?: string): StyleVideo {
+  const parDefaut = style === "classique" || style === "ugc";
+  if (parDefaut && graine) {
+    let h = 0;
+    for (const c of graine) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    if (h % 2 === 0) return "conversation";
+  }
+  return plateforme === "tiktok" && style === "classique" ? "ugc" : style;
+}

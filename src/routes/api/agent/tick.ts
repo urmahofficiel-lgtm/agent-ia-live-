@@ -172,7 +172,7 @@ async function tick(secret: string) {
         const tiktok = v.plateforme === "tiktok";
         await maj(v.tache_id, null, { essais_video: v.essais + 1 }, "action", `🎬 Création automatique ${tiktok ? "de la vidéo TikTok" : "du Reel"} pour « ${v.titre} »`);
         // TikTok : style « face caméra » plutôt que classique.
-        const style = styleVideoPour(v.plateforme, (await styles(v.tache_id)).video);
+        const style = styleVideoPour(v.plateforme, (await styles(v.tache_id)).video, v.tache_id);
         await fabriquerVideo({ id: v.tache_id, plateforme: v.plateforme, titre: v.titre, consigne: v.consigne, brouillon: v.brouillon, marche: v.marche }, avecVeille(v.contexte), v.site, {
           journal: (niveau, msg) => maj(v.tache_id, null, null, niveau, msg),
           etat,

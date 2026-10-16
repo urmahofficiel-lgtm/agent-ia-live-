@@ -8,6 +8,8 @@ import { estJournee } from "./journee";
 import { pexelsConfigure, photo, sequenceVerticale } from "./pexels.server";
 import { couleurDuSite, visuelsDuSite } from "./site.server";
 import { nomStyleVideo, type StyleVideo } from "./styles";
+import { conversationDeSecours, consigneConversation, lireConversation, minutage, scenarioPour } from "./conversation-video";
+import { monterConversation } from "./conversation-video.server";
 
 // Fabrication d'une vidéo verticale (script IA, captures de l'appli ou du
 // site, séquences Pexels, voix off, montage). Utilisée par le bouton « Créer
@@ -52,6 +54,15 @@ export async function fabriquerVideo(
   style: StyleVideo = "classique",
 ) {
   if (estJournee(t.consigne)) style = "journee";
+  if (style === "conversation") {
+    try {
+      return await fabriquerConversation(t, contexte, siteMarque, { journal, etat, deposer });
+    } catch (err) {
+      // Montage impossible : la vidéo classique prend le relais.
+      await journal("erreur", `Vidéo conversation impossible (${err instanceof Error ? err.message.slice(0, 120) : "erreur"}) : vidéo classique à la place.`);
+      style = t.plateforme === "tiktok" ? "ugc" : "classique";
+    }
+  }
   const debutVideo = Date.now();
   const reseau = PLATEFORMES.find((p) => p.id === t.plateforme)?.nom ?? "TikTok, Reels et Shorts";
   await etat({ video_etat: "en_cours", video_erreur: null, video_debut: new Date().toISOString(), video_style: style });
@@ -183,5 +194,54 @@ export async function fabriquerVideo(
     video_style: style,
   });
   await journal("info", `✅ Vidéo prête (${Math.round(d.reduce((a, b) => a + b, 0))} s, ${(mp4.length / 1e6).toFixed(1)} Mo).`);
+  return video_url;
+}
+
+// Vidéo « conversation » : l'IA écrit une discussion vécue par la clientèle
+// (situation différente à chaque publication), montée bulle après bulle.
+async function fabriquerConversation(
+  t: SujetVideo,
+  contexte: string | null,
+  siteMarque: string | null,
+  { journal, etat, deposer }: Pick<AtelierVideo, "journal" | "etat" | "deposer">,
+) {
+  await etat({ video_etat: "en_cours", video_erreur: null, video_debut: new Date().toISOString(), video_style: "conversation" });
+  const scenario = scenarioPour(t.id);
+  await journal("action", `💬 Écriture d'une conversation (${scenario}) : « ${t.titre} »`);
+  let script = null;
+  for (let essai = 0; essai < 2 && !script; essai++) {
+    try {
+      script = lireConversation(
+        await demanderIA(consigneConversation(t, contexte, scenario, t.marche), {
+          systeme: "Tu es scénariste de vidéos virales pour TikTok et Reels. Tu réponds uniquement en JSON valide.",
+          maxTokens: 1500,
+          delaiTotal: 70_000,
+        }),
+      );
+    } catch (err) {
+      console.warn("Conversation : IA indisponible", err instanceof Error ? err.message : err);
+      break;
+    }
+  }
+  if (!script) {
+    if (t.marche && t.marche !== "fr-FR") throw new Error("conversation non écrite");
+    script = conversationDeSecours(siteMarque || "notre site");
+    await journal("info", "IA occupée : conversation de secours utilisée.");
+  }
+  await journal("info", `Conversation prête : ${script.messages.length} messages — « ${script.accroche} »`);
+  await journal("action", "✂️ Montage de la conversation (bulles, sons, question finale)…");
+  const mp4 = await monterConversation(script);
+  const video_url = await deposer(mp4);
+  await etat({
+    // La légende va avec l'histoire racontée (elle invite à commenter).
+    brouillon: script.legende || t.brouillon,
+    video_url,
+    video_script: script,
+    video_le: new Date().toISOString(),
+    video_etat: "prete",
+    video_erreur: null,
+    video_style: "conversation",
+  });
+  await journal("info", `✅ Vidéo conversation prête (${Math.round(minutage(script.messages).total)} s, ${(mp4.length / 1e6).toFixed(1)} Mo).`);
   return video_url;
 }
