@@ -17,6 +17,7 @@ import { Route as ConfidentialiteRouteImport } from './routes/confidentialite'
 import { Route as ConnexionRouteImport } from './routes/connexion'
 import { Route as EnDirectRouteImport } from './routes/en-direct'
 import { Route as MessagesRouteImport } from './routes/messages'
+import { Route as MontageRouteImport } from './routes/montage'
 import { Route as ParametresRouteImport } from './routes/parametres'
 import { Route as ProspectionRouteImport } from './routes/prospection'
 import { Route as StatistiquesRouteImport } from './routes/statistiques'
@@ -79,6 +80,11 @@ const EnDirectRoute = EnDirectRouteImport.update({
 const MessagesRoute = MessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MontageRoute = MontageRouteImport.update({
+  id: '/montage',
+  path: '/montage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ParametresRoute = ParametresRouteImport.update({
@@ -206,6 +212,7 @@ export interface FileRoutesByFullPath {
   '/connexion': typeof ConnexionRoute
   '/en-direct': typeof EnDirectRoute
   '/messages': typeof MessagesRoute
+  '/montage': typeof MontageRoute
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
   '/statistiques': typeof StatistiquesRoute
@@ -239,6 +246,7 @@ export interface FileRoutesByTo {
   '/connexion': typeof ConnexionRoute
   '/en-direct': typeof EnDirectRoute
   '/messages': typeof MessagesRoute
+  '/montage': typeof MontageRoute
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
   '/statistiques': typeof StatistiquesRoute
@@ -273,6 +281,7 @@ export interface FileRoutesById {
   '/connexion': typeof ConnexionRoute
   '/en-direct': typeof EnDirectRoute
   '/messages': typeof MessagesRoute
+  '/montage': typeof MontageRoute
   '/parametres': typeof ParametresRoute
   '/prospection': typeof ProspectionRoute
   '/statistiques': typeof StatistiquesRoute
@@ -308,6 +317,7 @@ export interface FileRouteTypes {
     | '/connexion'
     | '/en-direct'
     | '/messages'
+    | '/montage'
     | '/parametres'
     | '/prospection'
     | '/statistiques'
@@ -341,6 +351,7 @@ export interface FileRouteTypes {
     | '/connexion'
     | '/en-direct'
     | '/messages'
+    | '/montage'
     | '/parametres'
     | '/prospection'
     | '/statistiques'
@@ -374,6 +385,7 @@ export interface FileRouteTypes {
     | '/connexion'
     | '/en-direct'
     | '/messages'
+    | '/montage'
     | '/parametres'
     | '/prospection'
     | '/statistiques'
@@ -408,6 +420,7 @@ export interface RootRouteChildren {
   ConnexionRoute: typeof ConnexionRoute
   EnDirectRoute: typeof EnDirectRoute
   MessagesRoute: typeof MessagesRoute
+  MontageRoute: typeof MontageRoute
   ParametresRoute: typeof ParametresRoute
   ProspectionRoute: typeof ProspectionRoute
   StatistiquesRoute: typeof StatistiquesRoute
@@ -489,6 +502,13 @@ declare module '@tanstack/react-router' {
       path: '/messages'
       fullPath: '/messages'
       preLoaderRoute: typeof MessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/montage': {
+      id: '/montage'
+      path: '/montage'
+      fullPath: '/montage'
+      preLoaderRoute: typeof MontageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/parametres': {
@@ -664,6 +684,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConnexionRoute: ConnexionRoute,
   EnDirectRoute: EnDirectRoute,
   MessagesRoute: MessagesRoute,
+  MontageRoute: MontageRoute,
   ParametresRoute: ParametresRoute,
   ProspectionRoute: ProspectionRoute,
   StatistiquesRoute: StatistiquesRoute,

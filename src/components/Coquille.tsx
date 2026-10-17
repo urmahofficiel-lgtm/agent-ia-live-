@@ -10,6 +10,7 @@ import {
   LogOut,
   Menu,
   MessageCircle,
+  Scissors,
   Settings,
   Target,
   Users,
@@ -37,6 +38,7 @@ const MENU = [
     liens: [
       { to: "/taches", label: "Publications", icone: ListChecks },
       { to: "/messages", label: "Messages", icone: MessageCircle },
+      { to: "/montage", label: "Studio montage IA", icone: Scissors },
       { to: "/studio-video", label: "Studio vidéo IA", icone: Clapperboard },
       { to: "/animer", label: "Animer une photo", icone: Wand2 },
     ],
