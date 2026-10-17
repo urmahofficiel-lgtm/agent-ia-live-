@@ -71,7 +71,7 @@ Règles pour que la vidéo explose :
 - La marque n'apparaît qu'UNE fois, au plus, et naturellement (par exemple « je t'envoie le suivi avec photos datées »), jamais comme une pub.
 - Pas d'émoji, pas de hashtag dans les messages.
 Réponds UNIQUEMENT par un objet JSON valide :
-{"accroche": "phrase choc affichée en haut pendant toute la vidéo, 4 à 9 mots, qui donne envie de lire la suite", "contact": "nom affiché en haut de la conversation (ex. M. Durand - Client, Fournisseur Point P)", "messages": [{"de": "lui ou moi", "texte": "..."}], "chute": "phrase finale affichée à la fin, 4 à 10 mots", "question": "question au public pour faire commenter, 5 à 12 mots", "legende": "texte du post : 1 à 2 phrases qui donnent envie de commenter, l'appel à l'action de la marque avec son lien, 3 à 5 hashtags"}
+{"accroche": "phrase choc affichée en haut pendant toute la vidéo, 4 à 9 mots, qui donne envie de lire la suite", "contact": "nom court affiché en haut de la conversation, 22 caractères au plus (ex. M. Durand - Client)", "messages": [{"de": "lui ou moi", "texte": "..."}], "chute": "phrase finale affichée à la fin, 4 à 10 mots", "question": "question au public pour faire commenter, 5 à 12 mots", "legende": "texte du post : 1 à 2 phrases qui donnent envie de commenter, l'appel à l'action de la marque avec son lien, 3 à 5 hashtags"}
 Entre 7 et 9 messages, en commençant par « lui ».${reglesMarche(marche) ? `\n${reglesMarche(marche)}` : ""}`;
 }
 
@@ -207,6 +207,14 @@ const COULEURS = {
   accroche: "&H00000000&",
 };
 
+// Nom du contact dans l'en-tête : coupé entre deux mots, sans parenthèse ouverte.
+export function nomCourt(nom: string, max = 28) {
+  const propre = nom.replace(/\s*\([^)]*$/, "").trim();
+  if (propre.length <= max) return propre;
+  const coupe = propre.slice(0, max).replace(/\s+\S*$/, "");
+  return `${coupe || propre.slice(0, max)}...`;
+}
+
 // Accroche de la bande du haut : la plus grande taille qui tient en 3 lignes.
 export function lignesAccroche(accroche: string) {
   const texte = accroche.toUpperCase();
@@ -236,7 +244,7 @@ export function sousTitresConversation(s: ScriptConversation, heure = "18:42") {
   dessin(0, total, 30, 238, "&H00BDBDBD&", rectangleArrondi(64, 64, 32));
   const initiale = (s.contact.match(/[A-Za-zÀ-ÿ]/)?.[0] ?? "C").toUpperCase();
   ecrire(2, 0, total, `\\an5\\pos(62,270)\\fs34\\1c&H00FFFFFF&\\bord0\\shad0`, initiale);
-  ecrire(2, 0, total, `\\an4\\pos(112,256)\\fs30\\1c&H00FFFFFF&\\bord0\\shad0`, s.contact.slice(0, 30));
+  ecrire(2, 0, total, `\\an4\\pos(112,256)\\fs30\\1c&H00FFFFFF&\\bord0\\shad0`, nomCourt(s.contact));
   dessin(0, total, 0, ZONE.bas, "&H00F0F0F0&", rectangleArrondi(ECRAN.largeur, ECRAN.hauteur - ZONE.bas, 0));
   dessin(0, total, 24, ZONE.bas + 22, "&H00FFFFFF&", rectangleArrondi(ECRAN.largeur - 48, 66, 33));
   ecrire(2, 0, total, `\\an4\\pos(56,${ZONE.bas + 55})\\fs28\\1c&H00A0A0A0&\\bord0\\shad0`, "Message");
@@ -280,7 +288,7 @@ export function sousTitresConversation(s: ScriptConversation, heure = "18:42") {
   }
 
   // Carte finale : la chute et la question qui fait commenter.
-  dessin(finMessages, total, 0, 0, "&H00000000&", rectangleArrondi(ECRAN.largeur, ECRAN.hauteur, 0), "\\1a&H28&\\fad(250,0)", 5);
+  dessin(finMessages, total, 0, 0, "&H00000000&", rectangleArrondi(ECRAN.largeur, ECRAN.hauteur, 0), "\\1a&H12&\\fad(250,0)", 5);
   const chute = couper(s.chute, 620, 52).join("\\N");
   const question = couper(s.question, 620, 40).join("\\N");
   ecrire(6, finMessages, total, `\\an5\\pos(360,560)\\fs52\\1c&H00FFFFFF&\\bord3\\3c&H00000000&\\shad0\\fad(250,0)`, chute);

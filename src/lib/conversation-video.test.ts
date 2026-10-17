@@ -5,6 +5,7 @@ import {
   bulles,
   conversationDeSecours,
   couper,
+  nomCourt,
   lignesAccroche,
   defilement,
   lireConversation,
@@ -93,6 +94,15 @@ describe("minutage et mise en page", () => {
     const longue = lignesAccroche("Mon fournisseur m'a fait le coup du siècle ce matin à six heures");
     expect(longue.lignes.length).toBeLessThanOrEqual(3);
     for (const l of longue.lignes) expect(l.length * longue.taille * 0.6).toBeLessThanOrEqual(660);
+  });
+});
+
+describe("nom du contact", () => {
+  it("coupé entre deux mots, sans parenthèse ouverte", () => {
+    expect(nomCourt("M. Bernard (Client Chantier Rénovation Salle de bain")).toBe("M. Bernard");
+    expect(nomCourt("Marc - Client Villa Les Pins")).toBe("Marc - Client Villa Les Pins");
+    expect(nomCourt("Jean-Pierre Dupont - Fournisseur matériaux Mérignac")).toBe("Jean-Pierre Dupont -...");
+    expect(nomCourt("M. Durand (Client)")).toBe("M. Durand (Client)");
   });
 });
 
