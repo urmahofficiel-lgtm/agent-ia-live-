@@ -24,6 +24,8 @@ const entree = z.object({
   duree: z.number().int().min(15).max(45).default(25),
   // Plan déjà écrit (sinon l'IA l'écrit d'après le lien).
   plan: z.unknown().optional(),
+  // Diagnostic : dépose aussi les séquences brutes téléchargées.
+  deposer_medias: z.boolean().default(false),
 });
 
 export const Route = createFileRoute("/api/studio/montage-auto")({
@@ -118,6 +120,10 @@ export const Route = createFileRoute("/api/studio/montage-auto")({
           }
 
           // 4. Montage et dépôt dans le dossier de l'utilisateur.
+          const medias_brutes: string[] = [];
+          if (e.deposer_medias) {
+            for (const [i, m] of medias.entries()) if (m.clip) medias_brutes.push(await deposer(m.clip, `brut-scene${i + 1}`).catch(() => ""));
+          }
           let mp4: Buffer;
           try {
             mp4 = await monterMontage(plan, medias, d, voix, note);
@@ -126,7 +132,7 @@ export const Route = createFileRoute("/api/studio/montage-auto")({
           }
           note(`montage ${(mp4.length / 1e6).toFixed(1)} Mo`);
           const video_url = await deposer(mp4, `studio-${e.modele}`);
-          return Response.json({ ok: true, video_url, clips_ia: clipsIA, plan, secondes: Math.round((Date.now() - debut) / 1000), journal });
+          return Response.json({ ok: true, video_url, clips_ia: clipsIA, medias_brutes, plan, secondes: Math.round((Date.now() - debut) / 1000), journal });
         } catch (x) {
           return Response.json({ ok: false, erreur: x instanceof Error ? x.message : String(x), journal, secondes: Math.round((Date.now() - debut) / 1000) });
         }
