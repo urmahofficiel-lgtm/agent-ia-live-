@@ -109,7 +109,7 @@ export const monterLeMontage = createServerFn({ method: "POST" })
             )
           ).flatMap((b) => (b && b.length > 5000 ? [b] : []))
         : [];
-      const medias = await preparerMedias(plan.scenes, d, captures, debut + 200_000);
+      const medias = await preparerMedias(plan.scenes, d, captures, debut + 200_000, () => {}, u.user.id);
       const mp4 = await monterMontage(plan, medias, d, voix);
 
       const chemin = `${u.user.id}/montage-${data.id}-${Date.now()}.mp4`;

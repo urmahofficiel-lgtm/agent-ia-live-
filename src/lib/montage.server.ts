@@ -8,7 +8,8 @@ import { genererImage } from "./ia.server";
 import { photo, pexelsConfigure, sequenceVerticale } from "./pexels.server";
 import { choisirFichierVertical, type VideoPexels } from "./pexels";
 import type { Audio } from "./voix.server";
-import { URL_EMOJIS, XFADE, debutsScenes, dureeTransition, fichierEmoji, sousTitresMontage, type PlanMontage, type SceneMontage } from "./montage";
+import { FILTRE_FFMPEG, URL_EMOJIS, XFADE, debutsScenes, dureeTransition, fichierEmoji, sousTitresMontage, type PlanMontage, type SceneMontage } from "./montage";
+import { SUPABASE_URL } from "./supabase-serveur";
 
 const L = 720;
 const H = 1280;
@@ -61,6 +62,12 @@ async function sequenceChoisie(id: number) {
 
 export type MediaScene = { clip?: Buffer; image?: Buffer };
 
+// Fichiers de l'utilisateur : seulement ceux du stockage du Studio (jamais une
+// adresse quelconque fournie par le navigateur).
+export const PREFIXE_STUDIO = `${SUPABASE_URL}/storage/v1/object/public/studio/`;
+export const estFichierStudio = (url: string | null | undefined, userId?: string) =>
+  Boolean(url && url.startsWith(PREFIXE_STUDIO + (userId ? `${userId}/` : "")) && !url.includes(".."));
+
 // Pour chaque scène : la séquence choisie dans l'éditeur, sinon une vidéo
 // Pexels, une photo, une image IA ; « capture » prend les écrans de l'appli.
 // `fin` : heure limite (la fonction serveur dure 5 minutes au plus).
@@ -70,12 +77,21 @@ export async function preparerMedias(
   captures: Buffer[],
   fin: number,
   journal: (m: string) => unknown = () => {},
+  userId?: string,
 ): Promise<MediaScene[]> {
   const dejaVus = new Set<number>();
   let k = 0;
   const sortie: MediaScene[] = [];
   for (const [i, s] of scenes.entries()) {
     const reste = fin - Date.now();
+    if (s.source === "perso" && s.media_url && estFichierStudio(s.media_url, userId)) {
+      const fichier = await telecharger(s.media_url, 50_000_000).catch(() => null);
+      if (fichier) {
+        sortie.push(s.media_type === "image" ? { image: fichier } : { clip: fichier });
+        continue;
+      }
+      journal(`Votre fichier de la scène ${i + 1} est illisible : une autre image est utilisée.`);
+    }
     if (s.source === "capture" && captures.length) {
       sortie.push({ image: captures[k++ % captures.length] });
       continue;
@@ -160,9 +176,11 @@ export async function monterMontage(plan: PlanMontage, medias: MediaScene[], d: 
     for (const [i, s] of scenes.entries()) {
       const m = medias[i] ?? {};
       const len = longueurs[i];
+      // Ralenti / accéléré : on lit len × vitesse secondes de la séquence.
+      const v = m.clip ? s.vitesse || 1 : 1;
       if (m.clip) {
         await writeFile(path.join(dossier, `s${i}.mp4`), m.clip);
-        entrees.push("-stream_loop", "-1", "-t", String(len), "-i", `s${i}.mp4`);
+        entrees.push("-stream_loop", "-1", "-t", (len * v).toFixed(2), "-i", `s${i}.mp4`);
       } else if (m.image) {
         const nom = `s${i}.${extensionImage(m.image)}`;
         await writeFile(path.join(dossier, nom), m.image);
@@ -170,9 +188,10 @@ export async function monterMontage(plan: PlanMontage, medias: MediaScene[], d: 
       } else {
         entrees.push("-f", "lavfi", "-t", String(len), "-i", `color=c=0x1F2937:s=${L}x${H}:r=${IPS}`);
       }
+      const couleur = FILTRE_FFMPEG[plan.filtre ?? "aucun"];
       filtres.push(
-        `[${i}:v]scale=${L}:${H}:force_original_aspect_ratio=increase,crop=${L}:${H},fps=${IPS},trim=duration=${len},setpts=PTS-STARTPTS` +
-          `${filtreEffet(s, len, !m.clip)},setsar=1,format=yuv420p[v${i}]`,
+        `[${i}:v]${v !== 1 ? `setpts=(PTS-STARTPTS)/${v},` : ""}scale=${L}:${H}:force_original_aspect_ratio=increase,crop=${L}:${H},fps=${IPS},trim=duration=${len},setpts=PTS-STARTPTS` +
+          `${filtreEffet(s, len, !m.clip)}${couleur ? `,${couleur}` : ""},setsar=1,format=yuv420p[v${i}]`,
       );
     }
     // Transitions : fondus, glissements, zooms ou coupes entre les scènes.
@@ -203,25 +222,27 @@ export async function monterMontage(plan: PlanMontage, medias: MediaScene[], d: 
       entree++;
     }
 
-    // Son : voix, musique et effets sonores (au début de chaque scène).
+    // Son : voix, musique et effets sonores (au début de chaque scène), aux
+    // volumes réglés dans l'éditeur.
+    const mix = plan.mix ?? { voix: 1, musique: 1, effets: 1 };
     const pistes: string[] = [];
     if (voix) {
       await writeFile(path.join(dossier, `voix.${voix.format}`), voix.donnees);
       if (voix.format === "pcm") entrees.push("-f", "s16le", "-ar", "24000", "-ac", "1");
       entrees.push("-i", `voix.${voix.format}`);
-      filtres.push(`[${entree}:a]adelay=250:all=1,apad[voix]`);
+      filtres.push(`[${entree}:a]adelay=250:all=1,volume=${mix.voix},apad[voix]`);
       pistes.push("[voix]");
       entree++;
     }
     await writeFile(path.join(dossier, "fond.m4a"), Buffer.from(MUSIQUE_FOND_BASE64, "base64"));
     entrees.push("-stream_loop", "-1", "-i", "fond.m4a");
-    filtres.push(`[${entree}:a]volume=${voix ? 0.16 : 0.45}[musique]`);
+    filtres.push(`[${entree}:a]volume=${((voix ? 0.16 : 0.45) * mix.musique).toFixed(3)}[musique]`);
     pistes.push("[musique]");
     scenes.forEach((s, i) => {
       const src = sonEffet(s.son);
-      if (!src) return;
+      if (!src || mix.effets <= 0) return;
       const t = Math.max(0, debuts[i] - (s.son === "whoosh" ? 0.15 : 0));
-      filtres.push(`${src},adelay=${Math.round(t * 1000)}:all=1[son${i}]`);
+      filtres.push(`${src},volume=${mix.effets},adelay=${Math.round(t * 1000)}:all=1[son${i}]`);
       pistes.push(`[son${i}]`);
     });
     filtres.push(`${pistes.join("")}amix=inputs=${pistes.length}:duration=longest:normalize=0,alimiter=limit=0.95[audio]`);
