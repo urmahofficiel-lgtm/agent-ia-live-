@@ -214,7 +214,9 @@ export async function monterMontage(plan: PlanMontage, medias: MediaScene[], d: 
       const clipOk = m.clip ? await normaliserClip(m.clip, dossier, i, len, s.vitesse || 1) : false;
       if (m.clip && !clipOk) journal(`Séquence de la scène ${i + 1} illisible : fond uni à la place.`);
       if (clipOk) {
-        entrees.push("-stream_loop", "-1", "-t", String(len), "-i", `s${i}.mp4`);
+        // Déjà à la bonne durée : pas de seconde boucle (une reprise pile à la
+        // fin du fichier peut dérégler l'horloge et figer les transitions suivantes).
+        entrees.push("-i", `s${i}.mp4`);
       } else if (m.image) {
         const nom = `s${i}.${extensionImage(m.image)}`;
         await writeFile(path.join(dossier, nom), m.image);
