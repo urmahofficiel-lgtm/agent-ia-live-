@@ -22,7 +22,13 @@ function executer(args: string[], dossier: string) {
     p.stderr.on("data", (d) => (erreurs += d.toString()));
     p.on("error", reject);
     // Les premières lignes d'erreur disent la cause ; la fin, seulement l'arrêt.
-    const cause = () => erreurs.split("\n").filter((l) => /error|invalid|failed|no such|not found|unknown|impossible/i.test(l)).slice(0, 4).join(" | ");
+    // (Les avertissements Fontconfig sont sans effet : les polices sont fournies.)
+    const cause = () =>
+      erreurs
+        .split("\n")
+        .filter((l) => /error|invalid|failed|no such|not found|unknown|impossible/i.test(l) && !/fontconfig|fonctconfig/i.test(l))
+        .slice(0, 4)
+        .join(" | ");
     p.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg ${code} : ${(cause() || erreurs.slice(-600)).slice(0, 900)}`))));
   });
 }

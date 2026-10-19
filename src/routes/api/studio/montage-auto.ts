@@ -5,7 +5,7 @@ import { lireSite } from "@/lib/site.server";
 import { voixOff } from "@/lib/voix.server";
 import { tonVoix } from "@/lib/marches";
 import { photo } from "@/lib/pexels.server";
-import { clientMoteur } from "@/lib/supabase-serveur";
+import { SUPABASE_URL, clientMoteur } from "@/lib/supabase-serveur";
 import { monterMontage, preparerMedias } from "@/lib/montage.server";
 import { genererClipIA, moteursDisponibles } from "@/lib/video-ia.server";
 import { MODELES, appliquerModele, consignePlan, dureesScenes, lirePlan, type Modele, type PlanMontage } from "@/lib/montage";
@@ -70,7 +70,7 @@ export const Route = createFileRoute("/api/studio/montage-auto")({
           const wan = moteursDisponibles().some((m) => m.id === "wan");
           const choisies = plan.scenes.flatMap((s, i) => (s.source === "ia_video" ? [i] : []));
           for (const i of [0, Math.floor(plan.scenes.length / 2)]) if (!choisies.includes(i)) choisies.push(i);
-          const cles = wan ? choisies.slice(0, e.ia) : [];
+          const cles = wan ? choisies.filter((i) => !plan!.scenes[i].media_url).slice(0, e.ia) : [];
           const clips = new Map<number, Buffer>();
           const p = plan;
           const sb = clientMoteur();
@@ -104,6 +104,13 @@ export const Route = createFileRoute("/api/studio/montage-auto")({
               }
             })(),
           ]);
+          // Clips IA déjà générés (dossier vidéos de l'utilisateur) : réutilisés tels quels.
+          const prefixe = `${SUPABASE_URL}/storage/v1/object/public/videos/${e.user}/`;
+          for (const [i, s] of plan.scenes.entries()) {
+            if (clips.has(i) || !s.media_url?.startsWith(prefixe) || s.media_url.includes("..")) continue;
+            const r = await fetch(s.media_url, { signal: AbortSignal.timeout(30_000) }).catch(() => null);
+            if (r?.ok) clips.set(i, Buffer.from(await r.arrayBuffer()));
+          }
           for (const [i, clip] of clips) {
             medias[i] = { clip };
             // Un clip IA dure 5 s au plus : un léger ralenti couvre une scène plus longue.
