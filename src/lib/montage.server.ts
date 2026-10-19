@@ -223,7 +223,8 @@ export async function monterMontage(plan: PlanMontage, medias: MediaScene[], d: 
       const couleur = FILTRE_FFMPEG[plan.filtre ?? "aucun"];
       filtres.push(
         `[${i}:v]scale=${L}:${H}:force_original_aspect_ratio=increase,crop=${L}:${H},fps=${IPS},trim=duration=${len},setpts=PTS-STARTPTS` +
-          `${filtreEffet(s, len, !clipOk)}${couleur ? `,${couleur}` : ""},setsar=1,format=yuv420p[v${i}]`,
+          // Cadence constante en sortie de chaque scène : les transitions (xfade) l'exigent.
+          `${filtreEffet(s, len, !clipOk)}${couleur ? `,${couleur}` : ""},setsar=1,format=yuv420p,fps=${IPS},settb=AVTB[v${i}]`,
       );
     }
     // Transitions : fondus, glissements, zooms ou coupes entre les scènes.
