@@ -113,7 +113,7 @@ export const Route = createFileRoute("/api/studio/montage-auto")({
           // 4. Montage et dépôt dans le dossier de l'utilisateur.
           let mp4: Buffer;
           try {
-            mp4 = await monterMontage(plan, medias, d, voix);
+            mp4 = await monterMontage(plan, medias, d, voix, note);
           } catch (x) {
             return Response.json({ ok: false, erreur: x instanceof Error ? x.message : String(x), clips_ia: clipsIA, plan, journal });
           }

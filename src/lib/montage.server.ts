@@ -21,7 +21,9 @@ function executer(args: string[], dossier: string) {
     let erreurs = "";
     p.stderr.on("data", (d) => (erreurs += d.toString()));
     p.on("error", reject);
-    p.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg ${code} : ${erreurs.slice(-600)}`))));
+    // Les premières lignes d'erreur disent la cause ; la fin, seulement l'arrêt.
+    const cause = () => erreurs.split("\n").filter((l) => /error|invalid|failed|no such|not found|unknown|impossible/i.test(l)).slice(0, 4).join(" | ");
+    p.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg ${code} : ${(cause() || erreurs.slice(-600)).slice(0, 900)}`))));
   });
 }
 
@@ -156,9 +158,32 @@ function sonEffet(son: SceneMontage["son"]) {
   return null;
 }
 
+// Séquence filmée remise au format du montage (720 × 1280, 30 i/s, vitesse
+// appliquée, sans son) dans un passage séparé : une séquence illisible ne
+// fait échouer que sa scène, pas toute la vidéo.
+async function normaliserClip(clip: Buffer, dossier: string, i: number, duree: number, vitesse: number) {
+  await writeFile(path.join(dossier, `brut${i}.mp4`), clip);
+  try {
+    await executer(
+      [
+        "-stream_loop", "-1", "-t", (duree * vitesse + 0.5).toFixed(2), "-i", `brut${i}.mp4`,
+        "-an",
+        "-vf", `setpts=(PTS-STARTPTS)/${vitesse},scale=${L}:${H}:force_original_aspect_ratio=increase,crop=${L}:${H},fps=${IPS},format=yuv420p`,
+        "-t", duree.toFixed(2),
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
+        `s${i}.mp4`,
+      ],
+      dossier,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Monte la vidéo : une scène par phrase (média, effet, transition), sous-titres
 // karaoké, emojis animés, sons d'effet, voix off et musique.
-export async function monterMontage(plan: PlanMontage, medias: MediaScene[], d: number[], voix: Audio | null) {
+export async function monterMontage(plan: PlanMontage, medias: MediaScene[], d: number[], voix: Audio | null, journal: (m: string) => unknown = () => {}) {
   const dossier = await mkdtemp(path.join(tmpdir(), "montage-"));
   try {
     const polices = await dossierPolices();
@@ -177,11 +202,11 @@ export async function monterMontage(plan: PlanMontage, medias: MediaScene[], d: 
     for (const [i, s] of scenes.entries()) {
       const m = medias[i] ?? {};
       const len = longueurs[i];
-      // Ralenti / accéléré : on lit len × vitesse secondes de la séquence.
-      const v = m.clip ? s.vitesse || 1 : 1;
-      if (m.clip) {
-        await writeFile(path.join(dossier, `s${i}.mp4`), m.clip);
-        entrees.push("-stream_loop", "-1", "-t", (len * v).toFixed(2), "-i", `s${i}.mp4`);
+      // Ralenti / accéléré appliqués à la normalisation de la séquence.
+      const clipOk = m.clip ? await normaliserClip(m.clip, dossier, i, len, s.vitesse || 1) : false;
+      if (m.clip && !clipOk) journal(`Séquence de la scène ${i + 1} illisible : fond uni à la place.`);
+      if (clipOk) {
+        entrees.push("-stream_loop", "-1", "-t", String(len), "-i", `s${i}.mp4`);
       } else if (m.image) {
         const nom = `s${i}.${extensionImage(m.image)}`;
         await writeFile(path.join(dossier, nom), m.image);
@@ -191,8 +216,8 @@ export async function monterMontage(plan: PlanMontage, medias: MediaScene[], d: 
       }
       const couleur = FILTRE_FFMPEG[plan.filtre ?? "aucun"];
       filtres.push(
-        `[${i}:v]${v !== 1 ? `setpts=(PTS-STARTPTS)/${v},` : ""}scale=${L}:${H}:force_original_aspect_ratio=increase,crop=${L}:${H},fps=${IPS},trim=duration=${len},setpts=PTS-STARTPTS` +
-          `${filtreEffet(s, len, !m.clip)}${couleur ? `,${couleur}` : ""},setsar=1,format=yuv420p[v${i}]`,
+        `[${i}:v]scale=${L}:${H}:force_original_aspect_ratio=increase,crop=${L}:${H},fps=${IPS},trim=duration=${len},setpts=PTS-STARTPTS` +
+          `${filtreEffet(s, len, !clipOk)}${couleur ? `,${couleur}` : ""},setsar=1,format=yuv420p[v${i}]`,
       );
     }
     // Transitions : fondus, glissements, zooms ou coupes entre les scènes.
