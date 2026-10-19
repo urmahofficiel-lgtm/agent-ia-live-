@@ -8,6 +8,7 @@ import { clientMoteur } from "@/lib/supabase-serveur";
 import { lireStyleImage, lireStyleVideo, styleVideoPour } from "@/lib/styles";
 import { planifierJournees } from "@/lib/pilote.server";
 import { estEtranger, marcheDe } from "@/lib/marches";
+import { controlerPublication, type DejaPubliee } from "@/lib/controle-qualite";
 
 // Moteur de l'agent : appelé toutes les 5 minutes par pg_cron (Supabase).
 // 1. Publie les tâches validées dont l'heure est venue (texte + visuel).
@@ -68,11 +69,28 @@ async function tick(secret: string) {
   };
   const styleImage = async (tacheId: string, visuel: string | null) => (visuel ? undefined : (await styles(tacheId)).image);
 
+  // 0. Publications restées en attente 12 h après leur heure : en échec.
+  await sb.rpc("agent_echouer_perimees", { p_secret: secret });
+
+  // Sujets publiés ces derniers jours, par utilisateur (contrôle des doublons).
+  const recentes = new Map<string, DejaPubliee[]>();
+  const publieesRecemment = async (userId: string) => {
+    if (!recentes.has(userId)) {
+      const { data: r } = await sb.rpc("agent_publications_recentes", { p_secret: secret, p_user: userId });
+      recentes.set(userId, (r ?? []) as DejaPubliee[]);
+    }
+    return recentes.get(userId)!;
+  };
+
   // 1. Publications à l'heure.
   const { data, error } = await sb.rpc("agent_publications_dues", { p_secret: secret });
   if (error) throw new Error(error.message);
+  const dues = (data ?? []) as Due[];
+  // Déjà mises de côté par le contrôle qualité puis revalidées : relues, elles partent.
+  const { data: vus } = dues.length ? await sb.rpc("agent_controles_vus", { p_secret: secret, p_ids: dues.map((t) => t.tache_id) }) : { data: [] };
+  const relues = new Set((vus ?? []) as string[]);
   let traitees = 0;
-  for (const t of (data ?? []) as Due[]) {
+  for (const t of dues) {
     // Profil Facebook perso : on prépare tout, l'utilisateur partage en 1 clic.
     if (estManuel(t.plateforme)) {
       try {
@@ -119,6 +137,13 @@ async function tick(secret: string) {
         avecVeille(t.contexte),
         ecrivainMoteur(t.tache_id),
       );
+      // Contrôle qualité : langue, texte, doublon. En cas de doute, la
+      // publication attend une relecture au lieu de partir.
+      const raisons = relues.has(t.tache_id) ? [] : controlerPublication({ plateforme: t.plateforme, titre: t.titre, marche: t.marche, texte: pret.brouillon }, await publieesRecemment(t.user_id));
+      if (raisons.length) {
+        await maj(t.tache_id, "a_valider", { controle_raisons: raisons }, "erreur", `🛑 « ${t.titre} » mise de côté par le contrôle qualité (${raisons.join(" ; ")}). À relire dans Publications → À valider.`);
+        continue;
+      }
       // TikTok : la publication a attendu sa vidéo (45 min au plus) ; sans
       // elle, on publie ce qu'on a et on le dit.
       if (t.plateforme === "tiktok" && !t.video_url) {

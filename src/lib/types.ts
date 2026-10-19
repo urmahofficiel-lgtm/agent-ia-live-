@@ -32,6 +32,8 @@ export type Tache = {
     video_style?: string;
     // Vidéo apportée par l'utilisateur (pas créée par l'agent).
     video_perso?: boolean;
+    // Raisons pour lesquelles le contrôle qualité a mis la publication de côté.
+    controle_raisons?: string[];
     visuel_style?: string;
     post_id?: string;
     publie_le?: string;

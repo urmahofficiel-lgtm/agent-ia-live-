@@ -12,6 +12,7 @@ import { jetonSession } from "@/lib/session";
 import { STATUTS } from "@/lib/statuts";
 import { LIBELLE_TYPE, type StatutTache, type Tache } from "@/lib/types";
 import { creerCopies, estBloquee, statutPourReseau, supprimerPublications } from "@/lib/publications";
+import { controlerPublication, estProchaine, type DejaPubliee } from "@/lib/controle-qualite";
 import { cheminVideo, consigneVideoPerso, creneauxConseilles, resultatVideoPerso, valeurChampDate, verifierVideo } from "@/lib/video-perso";
 import { ChoixReseaux } from "@/components/ChoixReseaux";
 import { BoutonPartage } from "@/components/BoutonPartage";
@@ -20,7 +21,14 @@ import { STYLES_IMAGE, STYLES_VIDEO, lireStyleVideo, nomStyleVideo, type StyleIm
 
 export const Route = createFileRoute("/taches")({ component: Publications });
 
-const ONGLETS: { id: string; libelle: string; statuts: StatutTache[]; vide: string }[] = [
+const ONGLETS: { id: string; libelle: string; statuts: StatutTache[]; vide: string; filtre?: (t: Tache) => boolean }[] = [
+  {
+    id: "prochaines",
+    libelle: "Prochaines 24 h",
+    statuts: ["a_valider", "en_attente"],
+    vide: "Rien de prévu dans les 24 prochaines heures. Le pilote automatique planifie la journée vers 5 h du matin.",
+    filtre: (t) => t.type === "publication" && estProchaine(t.planifiee_pour),
+  },
   { id: "partager", libelle: "À partager", statuts: ["a_partager"], vide: "Rien à partager. Les publications « Facebook perso » et « Groupes Facebook » arrivent ici à l'heure prévue." },
   { id: "valider", libelle: "À valider", statuts: ["a_valider"], vide: "Rien à valider. L'agent déposera ici ses prochains brouillons." },
   { id: "planifiees", libelle: "Planifiées", statuts: ["en_attente", "en_cours"], vide: "Aucune publication planifiée. Validez un brouillon pour le planifier." },
@@ -77,9 +85,19 @@ function Publications() {
     await liste.recharger();
   }
 
+  // Le même contrôle qualité que le moteur, pour prévenir avant l'envoi.
+  const recentes: DejaPubliee[] = (liste.data ?? [])
+    .filter((t) => t.statut === "terminee")
+    .map((t) => ({ plateforme: t.plateforme, titre: t.titre, publiee_le: t.resultat?.publie_le ?? t.updated_at ?? null }));
+
   const actions: Actions = {
     travail,
     clics,
+    controle: (t) =>
+      // Déjà mise de côté une fois : relue par l'utilisateur, elle n'est plus contrôlée.
+      t.type === "publication" && ["a_valider", "en_attente"].includes(t.statut) && t.resultat?.brouillon && !t.resultat.controle_raisons
+        ? controlerPublication({ plateforme: t.plateforme, titre: t.titre, marche: t.marche, texte: t.resultat.brouillon }, recentes)
+        : [],
     styles: { video: styles.video, image: styles.image },
     rediger: (id) => action({ id, quoi: "texte" }, (jeton) => genererBrouillon({ data: { tacheId: id, jeton } })),
     image: (id, style) => action({ id, quoi: "image" }, (jeton) => regenererVisuel({ data: { tacheId: id, jeton, style } })),
@@ -111,10 +129,18 @@ function Publications() {
     return () => clearInterval(id);
   }, [videoEnCours, recharger]);
 
-  // Par défaut : « À partager » s'il y a quelque chose à publier soi-même, sinon « À valider ».
-  const parDefaut = taches.some((t) => t.statut === "a_partager") ? "partager" : "valider";
-  const courant = ONGLETS.find((o) => o.id === (onglet ?? parDefaut)) ?? ONGLETS[1];
-  const visibles = taches.filter((t) => courant.statuts.includes(t.statut));
+  const dansOnglet = (o: (typeof ONGLETS)[number], t: Tache) => o.statuts.includes(t.statut) && (!o.filtre || o.filtre(t));
+  // Par défaut : « À partager » s'il y a quelque chose à publier soi-même,
+  // sinon ce qui part dans les 24 h, sinon « À valider ».
+  const parDefaut = taches.some((t) => t.statut === "a_partager")
+    ? "partager"
+    : taches.some((t) => dansOnglet(ONGLETS[0], t))
+      ? "prochaines"
+      : "valider";
+  const courant = ONGLETS.find((o) => o.id === (onglet ?? parDefaut)) ?? ONGLETS[2];
+  const visibles = taches.filter((t) => dansOnglet(courant, t));
+  // Relecture avant envoi : dans l'ordre de départ.
+  if (courant.id === "prochaines") visibles.sort((x, y) => Date.parse(x.planifiee_pour ?? "") - Date.parse(y.planifiee_pour ?? ""));
 
   return (
     <>
@@ -138,7 +164,7 @@ function Publications() {
 
       <div role="tablist" aria-label="Filtrer par statut" className="mb-5 flex gap-1 overflow-x-auto border-b border-bord">
         {ONGLETS.map((o) => {
-          const n = taches.filter((t) => o.statuts.includes(t.statut)).length;
+          const n = taches.filter((t) => dansOnglet(o, t)).length;
           const actif = o.id === courant.id;
           return (
             <button
@@ -190,6 +216,8 @@ type Actions = {
   travail: Travail | null;
   // Clics sur les liens suivis, par publication.
   clics: Record<string, number>;
+  // Raisons du contrôle qualité de bloquer cette publication (vide : rien à signaler).
+  controle: (t: Tache) => string[];
   // Styles par défaut (Réglages), proposés en premier dans les menus.
   styles: { video: StyleVideo; image: StyleImage };
   rediger: (id: string) => void;
@@ -227,6 +255,7 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
   const manuel = estManuel(t.plateforme);
   const video_etat = ici === "video" ? "en_cours" : etatVideo(t);
   const styleVideo = t.resultat?.video_style ? lireStyleVideo(t.resultat.video_style) : null;
+  const avertissements = a.controle(t);
 
   // Une seule action principale, selon l'état de la publication.
   let principale: ReactNode = null;
@@ -324,6 +353,18 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
               Suivre en direct
             </Link>
           </p>
+        )}
+
+        {t.statut === "a_valider" && t.resultat?.controle_raisons?.length ? (
+          <p className="mt-3 rounded-lg bg-alerte/10 px-3 py-2 text-sm text-alerte" role="status">
+            Mise de côté par le contrôle qualité : {t.resultat.controle_raisons.join(" ; ")}. Corrigez-la, ou validez-la telle quelle : elle partira sans nouveau contrôle.
+          </p>
+        ) : (
+          avertissements.length > 0 && (
+            <p className="mt-3 rounded-lg bg-alerte/10 px-3 py-2 text-sm text-alerte" role="status">
+              Le contrôle qualité la bloquera à l'envoi : {avertissements.join(" ; ")}. Modifiez-la ou annulez-la.
+            </p>
+          )
         )}
 
         {estBloquee(t) && !ici && (
