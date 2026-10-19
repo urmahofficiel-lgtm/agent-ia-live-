@@ -73,6 +73,17 @@ export const Route = createFileRoute("/api/studio/montage-auto")({
           const cles = wan ? choisies.slice(0, e.ia) : [];
           const clips = new Map<number, Buffer>();
           const p = plan;
+          const sb = clientMoteur();
+          // Dépôt dans le dossier de l'utilisateur (un ticket à usage unique par fichier).
+          const deposer = async (mp4: Buffer, nom: string) => {
+            const { data: ticket, error } = await sb.rpc("agent_depot_video", { p_secret: secret, p_user: e.user });
+            if (error || !ticket) throw new Error("Dépôt de la vidéo refusé.");
+            const chemin = `${e.user}/auto-${ticket as string}/${nom}-${Date.now()}.mp4`;
+            const { error: errDepot } = await sb.storage.from("videos").upload(chemin, mp4, { contentType: "video/mp4" });
+            if (errDepot) throw new Error(`Enregistrement impossible : ${errDepot.message}`);
+            return sb.storage.from("videos").getPublicUrl(chemin).data.publicUrl;
+          };
+          const clipsIA: string[] = [];
           const [medias] = await Promise.all([
             preparerMedias(p.scenes, d, [], debut + 170_000, note),
             (async () => {
@@ -83,8 +94,10 @@ export const Route = createFileRoute("/api/studio/montage-auto")({
                   const image =
                     (s.recherche ? await photo(s.recherche, "portrait").catch(() => null) : null) ??
                     Buffer.from((await genererImage(`${s.prompt || s.recherche}. Vertical 9:16 composition, realistic photo, no text.`, "tiktok")).base64, "base64");
-                  clips.set(i, await genererClipIA("wan", image, s.mouvement || s.prompt || s.recherche, Math.min(5, d[i]), 110_000));
-                  note(`vidéo IA Wan pour la scène ${i + 1}`);
+                  const clip = await genererClipIA("wan", image, s.mouvement || s.prompt || s.recherche, Math.min(5, d[i]), 110_000);
+                  clips.set(i, clip);
+                  clipsIA.push(await deposer(clip, `wan-scene${i + 1}`).catch(() => ""));
+                  note(`vidéo IA Wan pour la scène ${i + 1} (${(clip.length / 1e6).toFixed(1)} Mo)`);
                 } catch (x) {
                   note(`vidéo IA scène ${i + 1} impossible : ${x instanceof Error ? x.message : x}`);
                 }
@@ -98,16 +111,15 @@ export const Route = createFileRoute("/api/studio/montage-auto")({
           }
 
           // 4. Montage et dépôt dans le dossier de l'utilisateur.
-          const mp4 = await monterMontage(plan, medias, d, voix);
+          let mp4: Buffer;
+          try {
+            mp4 = await monterMontage(plan, medias, d, voix);
+          } catch (x) {
+            return Response.json({ ok: false, erreur: x instanceof Error ? x.message : String(x), clips_ia: clipsIA, plan, journal });
+          }
           note(`montage ${(mp4.length / 1e6).toFixed(1)} Mo`);
-          const sb = clientMoteur();
-          const { data: ticket, error } = await sb.rpc("agent_depot_video", { p_secret: secret, p_user: e.user });
-          if (error || !ticket) throw new Error("Dépôt de la vidéo refusé.");
-          const chemin = `${e.user}/auto-${ticket as string}/studio-${e.modele}-${Date.now()}.mp4`;
-          const { error: errDepot } = await sb.storage.from("videos").upload(chemin, mp4, { contentType: "video/mp4" });
-          if (errDepot) throw new Error(`Enregistrement impossible : ${errDepot.message}`);
-          const video_url = sb.storage.from("videos").getPublicUrl(chemin).data.publicUrl;
-          return Response.json({ ok: true, video_url, plan, clips_ia: clips.size, secondes: Math.round((Date.now() - debut) / 1000), journal });
+          const video_url = await deposer(mp4, `studio-${e.modele}`);
+          return Response.json({ ok: true, video_url, clips_ia: clipsIA, plan, secondes: Math.round((Date.now() - debut) / 1000), journal });
         } catch (x) {
           return Response.json({ ok: false, erreur: x instanceof Error ? x.message : String(x), journal, secondes: Math.round((Date.now() - debut) / 1000) });
         }
