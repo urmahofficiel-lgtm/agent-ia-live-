@@ -26,6 +26,7 @@ export const SONS = [
   { id: "aucun", nom: "Aucun" },
 ] as const;
 export const SOURCES = [
+  { id: "ia_video", nom: "Vidéo IA (Wan, CogVideoX)" },
   { id: "video", nom: "Vidéo filmée (Pexels)" },
   { id: "image_ia", nom: "Image IA" },
   { id: "capture", nom: "Capture de l'appli" },
@@ -135,6 +136,8 @@ const schemaScene = z.object({
   source: z.enum(ids(SOURCES)).catch("video"),
   recherche: texte(80),
   prompt: texte(300),
+  // Vidéo IA : mouvement à donner à l'image (en anglais).
+  mouvement: texte(300),
   // Séquence Pexels choisie dans l'éditeur (sinon : la première qui convient).
   choix: z.number().int().positive().nullable().catch(null),
   apercu: z.string().url().nullable().catch(null),
@@ -212,10 +215,11 @@ Règles de montage :
 - « effet » : zoom_avant (insister), zoom_arriere (révéler), secousse (choc, problème), flash (moment clé), aucun. Varie.
 - « transition » vers la scène suivante : coupe (rythme), fondu, glissement, zoom, flash. Surtout des coupes, 2 ou 3 effets au plus.
 - « son » au début de la scène : whoosh (transition forte), pop (apparition), ding (bonne nouvelle), aucun.
-- « source » : video (séquence filmée réaliste : métier, gestes, décor), capture (scène qui montre le produit lui-même), image_ia (idée abstraite introuvable en vidéo).
+- « source » : video (séquence filmée réaliste : métier, gestes, décor), ia_video (vraie vidéo générée par IA à partir d'une image : pour 1 ou 2 scènes clés au plus, celles qui doivent marquer, comme l'accroche), capture (scène qui montre le produit lui-même), image_ia (idée abstraite introuvable en vidéo).
+- « mouvement » (pour ia_video) : en anglais, ce qui bouge dans la scène et le mouvement de caméra (ex. "the worker looks up surprised at his phone, slow camera push in").
 - « recherche » : 2 à 4 mots-clés anglais pour trouver une vraie vidéo de stock de CE moment précis (ex. "construction worker phone site"). « prompt » : description anglaise d'une photo réaliste verticale, sans texte.
 Réponds UNIQUEMENT par un objet JSON valide :
-{"titre": "titre court", "accroche": "accroche affichée en haut au début, 4 à 8 mots", "cta": "appel à l'action affiché à la fin, 2 à 6 mots", "voix": "Charon", "scenes": [{"phrase": "...", "texte": "...", "mots_forts": ["..."], "emoji": "🔥", "effet": "zoom_avant", "transition": "coupe", "son": "whoosh", "source": "video", "recherche": "...", "prompt": "..."}], "legende": "texte du post : accroche, 2 phrases, appel à l'action avec le lien, 3 à 5 hashtags"}${reglesMarche(marche) ? `\n${reglesMarche(marche)}` : ""}`;
+{"titre": "titre court", "accroche": "accroche affichée en haut au début, 4 à 8 mots", "cta": "appel à l'action affiché à la fin, 2 à 6 mots", "voix": "Charon", "scenes": [{"phrase": "...", "texte": "...", "mots_forts": ["..."], "emoji": "🔥", "effet": "zoom_avant", "transition": "coupe", "son": "whoosh", "source": "video", "recherche": "...", "prompt": "...", "mouvement": ""}], "legende": "texte du post : accroche, 2 phrases, appel à l'action avec le lien, 3 à 5 hashtags"}${reglesMarche(marche) ? `\n${reglesMarche(marche)}` : ""}`;
 }
 
 // --- Minutage --------------------------------------------------------------------
@@ -348,6 +352,7 @@ export const sceneVide = (): SceneMontage => ({
   source: "video",
   recherche: "",
   prompt: "",
+  mouvement: "",
   choix: null,
   apercu: null,
   vitesse: 1,

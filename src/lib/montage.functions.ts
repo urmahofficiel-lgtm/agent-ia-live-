@@ -5,7 +5,10 @@ import { lireSite } from "./site.server";
 import { voixOff } from "./voix.server";
 import { tonVoix } from "./marches";
 import { utilisateurDepuisJeton } from "./supabase-serveur";
-import { chercherSequences, monterMontage, preparerMedias, type Sequence } from "./montage.server";
+import { chercherSequences, estFichierStudio, monterMontage, preparerMedias, type Sequence } from "./montage.server";
+import { genererClipIA, moteursDisponibles, type MoteurVideoIA } from "./video-ia.server";
+import { genererImage } from "./ia.server";
+import { photo } from "./pexels.server";
 import { consignePlan, dureesScenes, lirePlan, planValide, type PlanMontage } from "./montage";
 
 type Resultat<T = object> = ({ ok: true } & T) | { ok: false; erreur: string };
@@ -120,6 +123,70 @@ export const monterLeMontage = createServerFn({ method: "POST" })
       return { ok: true, video_url };
     } catch (e) {
       await sb?.from("montages").update({ statut: "echec", erreur: message(e).slice(0, 500) }).eq("id", data.id);
+      return { ok: false, erreur: message(e) };
+    }
+  });
+
+// Moteurs de vidéo IA utilisables (clés présentes dans Vercel).
+export const moteursVideoIA = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ jeton }).parse(input))
+  .handler(async ({ data }) => {
+    await utilisateurDepuisJeton(data.jeton);
+    return moteursDisponibles();
+  });
+
+// 3. Vidéo IA d'une scène : une image de départ (votre photo, la vignette de
+// la séquence choisie, une photo Pexels ou une image IA), animée par un
+// modèle chinois gratuit (Wan 2.2 ou CogVideoX-Flash). Le clip est rangé dans
+// le stockage du Studio et utilisé tel quel au montage.
+export const animerScene = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        jeton,
+        moteur: z.enum(["wan", "cogvideox"]),
+        mouvement: z.string().max(300).default(""),
+        recherche: z.string().max(80).default(""),
+        prompt: z.string().max(300).default(""),
+        image_url: z.string().url().nullable().default(null),
+        duree: z.number().min(2).max(5).default(4),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }): Promise<Resultat<{ video_url: string; image: string }>> => {
+    const debut = Date.now();
+    try {
+      const { sb, user } = await utilisateurDepuisJeton(data.jeton);
+      if (!moteursDisponibles().some((m) => m.id === data.moteur)) return { ok: false, erreur: "Ce moteur n'est pas configuré (clé absente dans Vercel)." };
+
+      // Image de départ : seulement des adresses sûres (Studio ou Pexels).
+      let image: Buffer | null = null;
+      let origine = "";
+      const url = data.image_url;
+      if (url && (estFichierStudio(url, user.id) || url.startsWith("https://images.pexels.com/"))) {
+        const r = await fetch(url, { signal: AbortSignal.timeout(20_000) }).catch(() => null);
+        if (r?.ok) {
+          image = Buffer.from(await r.arrayBuffer());
+          origine = estFichierStudio(url, user.id) ? "votre photo" : "la séquence choisie";
+        }
+      }
+      if (!image && data.recherche.trim()) {
+        image = await photo(data.recherche.trim(), "portrait").catch(() => null);
+        if (image) origine = "une photo Pexels";
+      }
+      if (!image && (data.prompt.trim() || data.recherche.trim())) {
+        const img = await genererImage(`${data.prompt.trim() || data.recherche.trim()}. Vertical 9:16 composition, realistic photo, no text.`, "tiktok");
+        image = Buffer.from(img.base64, "base64");
+        origine = "une image IA";
+      }
+      if (!image) return { ok: false, erreur: "Il faut une image de départ : choisissez une photo, une séquence ou écrivez une recherche." };
+
+      const mp4 = await genererClipIA(data.moteur as MoteurVideoIA, image, data.mouvement || data.prompt || data.recherche, data.duree, Math.max(60_000, 270_000 - (Date.now() - debut)));
+      const chemin = `${user.id}/ia-${data.moteur}-${Date.now()}.mp4`;
+      const { error } = await sb.storage.from("studio").upload(chemin, mp4, { contentType: "video/mp4" });
+      if (error) return { ok: false, erreur: `Enregistrement de la vidéo IA impossible : ${error.message}` };
+      return { ok: true, video_url: sb.storage.from("studio").getPublicUrl(chemin).data.publicUrl, image: origine };
+    } catch (e) {
       return { ok: false, erreur: message(e) };
     }
   });

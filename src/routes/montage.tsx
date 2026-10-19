@@ -8,7 +8,7 @@ import { useRequete, useUserId } from "@/lib/donnees";
 import { jetonSession } from "@/lib/session";
 import { creerCopies } from "@/lib/publications";
 import { creneauxConseilles, resultatVideoPerso, valeurChampDate } from "@/lib/video-perso";
-import { monterLeMontage, preparerMontage, sequencesScene } from "@/lib/montage.functions";
+import { animerScene, monterLeMontage, moteursVideoIA, preparerMontage, sequencesScene } from "@/lib/montage.functions";
 import {
   EFFETS,
   EMOJIS,
@@ -164,6 +164,7 @@ function StudioMontage() {
 }
 
 type Onglet = "scene" | "style" | "audio" | "textes";
+type Moteur = { id: "wan" | "cogvideox"; nom: string; dureeMax: number };
 
 const TYPES_FICHIERS = ["video/mp4", "video/quicktime", "video/webm", "image/jpeg", "image/png", "image/webp"];
 const TAILLE_MAX = 50 * 1024 * 1024;
@@ -196,6 +197,20 @@ function Editeur({
   const [sauvegarde, setSauvegarde] = useState<"ok" | "en_cours" | "erreur">("ok");
   const durees = useMemo(() => dureesEstimees(plan.scenes), [plan.scenes]);
   const i = Math.min(selection, plan.scenes.length - 1);
+
+  // Vidéo IA : moteurs disponibles (clés Vercel) et générations en cours.
+  const [moteurs, setMoteurs] = useState<Moteur[]>([]);
+  const [moteur, setMoteur] = useState<Moteur["id"]>("wan");
+  const [ia, setIa] = useState<Record<number, { etat: "en_cours" | "erreur" | "ok"; message?: string }>>({});
+  useEffect(() => {
+    void jetonSession()
+      .then((jeton) => moteursVideoIA({ data: { jeton } }))
+      .then((l) => {
+        setMoteurs(l);
+        if (l[0]) setMoteur(l[0].id);
+      })
+      .catch(() => setMoteurs([]));
+  }, []);
 
   // Historique : chaque changement est annulable ; une frappe continue dans
   // un champ compte pour un seul changement.
@@ -289,6 +304,37 @@ function Editeur({
     maj({ scenes: l });
     setSelection(k + 1);
   };
+  // Génère la vidéo IA d'une scène (30 s à 3 min), puis la place dans la scène.
+  async function animer(k: number) {
+    const sc = planRef.current.scenes[k];
+    if (!sc) return;
+    setIa((x) => ({ ...x, [k]: { etat: "en_cours" } }));
+    try {
+      const r = await animerScene({
+        data: {
+          jeton: await jetonSession(),
+          moteur,
+          mouvement: sc.mouvement,
+          recherche: sc.recherche,
+          prompt: sc.prompt,
+          image_url: sc.apercu,
+          duree: Math.min(5, Math.max(2, Math.round(durees[k] ?? 4))),
+        },
+      });
+      if (!r.ok) return setIa((x) => ({ ...x, [k]: { etat: "erreur", message: r.erreur } }));
+      const p = planRef.current;
+      changer({ ...p, scenes: p.scenes.map((x, n) => (n === k ? { ...x, source: "ia_video", media_url: r.video_url, media_type: "video" } : x)) });
+      setIa((x) => ({ ...x, [k]: { etat: "ok", message: `Animée à partir de ${r.image}.` } }));
+    } catch (e) {
+      setIa((x) => ({ ...x, [k]: { etat: "erreur", message: e instanceof Error ? e.message : "Génération interrompue. Réessayez." } }));
+    }
+  }
+  const aAnimer = plan.scenes.flatMap((x, k) => (x.source === "ia_video" && !x.media_url ? [k] : []));
+  const enGeneration = Object.values(ia).some((x) => x.etat === "en_cours");
+  async function animerTout() {
+    for (const k of aAnimer) await animer(k);
+  }
+
   const supprimer = (k: number) => {
     maj({ scenes: plan.scenes.filter((_, n) => n !== k) });
     setSelection(Math.max(0, k - 1));
@@ -314,7 +360,13 @@ function Editeur({
         <IconeBouton titre="Rétablir (Ctrl+Maj+Z)" onClick={futur.current.length ? retablir : undefined}>
           <Redo2 size={15} />
         </IconeBouton>
-        <button className={`${bouton} inline-flex items-center gap-2`} disabled={occupe} onClick={onMonter}>
+        {aAnimer.length > 0 && moteurs.length > 0 && (
+          <button className={`${boutonSecondaire} inline-flex items-center gap-2`} disabled={enGeneration || occupe} onClick={animerTout} title="Génère les vidéos IA des scènes « Vidéo IA », l'une après l'autre">
+            {enGeneration ? <LoaderCircle size={16} className="animate-spin" aria-hidden /> : <Sparkles size={16} aria-hidden />}
+            {enGeneration ? "Vidéos IA en cours…" : `Animer avec l'IA (${aAnimer.length})`}
+          </button>
+        )}
+        <button className={`${bouton} inline-flex items-center gap-2`} disabled={occupe || enGeneration} onClick={onMonter}>
           {enMontage ? <LoaderCircle size={16} className="animate-spin" aria-hidden /> : video ? <RefreshCw size={16} aria-hidden /> : <Clapperboard size={16} aria-hidden />}
           {enMontage ? "Montage (1 à 3 min)…" : video ? "Refaire la vidéo" : "Monter la vidéo"}
         </button>
@@ -354,6 +406,7 @@ function Editeur({
                 onDescendre={i < plan.scenes.length - 1 ? () => deplacer(i, i + 1) : undefined}
                 onDupliquer={plan.scenes.length < 12 ? () => dupliquer(i) : undefined}
                 onSupprimer={plan.scenes.length > 2 ? () => supprimer(i) : undefined}
+                ia={{ moteurs, moteur, onMoteur: setMoteur, etat: ia[i], onAnimer: () => animer(i), occupe: enGeneration }}
               />
             )}
             {onglet === "style" && <PanneauStyle plan={plan} scene={plan.scenes[i]} onChange={(p) => changer(p)} />}
@@ -400,6 +453,7 @@ function InspecteurScene({
   onDescendre,
   onDupliquer,
   onSupprimer,
+  ia,
 }: {
   scene: SceneMontage;
   numero: number;
@@ -409,6 +463,7 @@ function InspecteurScene({
   onDescendre?: () => void;
   onDupliquer?: () => void;
   onSupprimer?: () => void;
+  ia: { moteurs: Moteur[]; moteur: Moteur["id"]; onMoteur: (m: Moteur["id"]) => void; etat?: { etat: "en_cours" | "erreur" | "ok"; message?: string }; onAnimer: () => void; occupe: boolean };
 }) {
   const userId = useUserId();
   const [sequences, setSequences] = useState<{ id: number; apercu: string }[] | null>(null);
@@ -445,6 +500,8 @@ function InspecteurScene({
     setDepot(false);
     if (error) return setErreur(`Envoi impossible : ${error.message}`);
     const url = supabase().storage.from("studio").getPublicUrl(chemin).data.publicUrl;
+    // Vidéo IA : la photo devient l'image de départ à animer.
+    if (s.source === "ia_video" && f.type.startsWith("image/")) return onChange({ apercu: url, media_url: null, media_type: null, choix: null });
     onChange({ source: "perso", media_url: url, media_type: f.type.startsWith("video/") ? "video" : "image", choix: null });
   }
 
@@ -529,6 +586,59 @@ function InspecteurScene({
           ))}
         </div>
 
+        {s.source === "ia_video" && (
+          <div className="grid gap-3 text-sm">
+            {ia.moteurs.length === 0 ? (
+              <p className="rounded-lg bg-alerte/10 px-3 py-2 text-alerte">
+                Aucun moteur de vidéo IA n'est configuré : ajoutez HF_TOKEN (Wan 2.2, gratuit) ou ZHIPU_API_KEY (CogVideoX-Flash, gratuit) dans Vercel. En attendant, cette scène utilise une vidéo Pexels.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-doux">
+                  Une vraie vidéo générée par IA à partir d'une image : votre photo, la séquence choisie ci-dessous, une photo trouvée par la recherche ou une image IA.
+                </p>
+                <label>
+                  Mouvement à créer (en anglais de préférence)
+                  <input
+                    className={champ}
+                    value={s.mouvement}
+                    maxLength={300}
+                    placeholder="the worker looks at his phone and smiles, slow camera push in"
+                    onChange={(e) => onChange({ mouvement: e.target.value, media_url: null, media_type: null }, true)}
+                  />
+                </label>
+                <div className="flex flex-wrap items-end gap-2">
+                  {ia.moteurs.length > 1 && (
+                    <label>
+                      Moteur
+                      <select className={champ} value={ia.moteur} onChange={(e) => ia.onMoteur(e.target.value as Moteur["id"])}>
+                        {ia.moteurs.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.nom}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  <button type="button" className={`${bouton} inline-flex items-center gap-2`} disabled={ia.occupe} onClick={ia.onAnimer}>
+                    {ia.etat?.etat === "en_cours" ? <LoaderCircle size={15} className="animate-spin" aria-hidden /> : <Sparkles size={15} aria-hidden />}
+                    {ia.etat?.etat === "en_cours" ? "Génération (30 s à 3 min)…" : s.media_url ? "Régénérer la vidéo IA" : "Générer la vidéo IA"}
+                  </button>
+                  <label className={`${boutonSecondaire} inline-flex cursor-pointer items-center gap-2`}>
+                    <Upload size={14} aria-hidden />
+                    Ma photo de départ
+                    <input type="file" className="sr-only" accept="image/jpeg,image/png,image/webp" disabled={depot} onChange={deposer} />
+                  </label>
+                </div>
+                {s.media_url && ia.etat?.etat !== "en_cours" && <p className="text-xs text-ok">Vidéo IA prête : elle est dans l'aperçu.</p>}
+                {ia.etat?.etat === "ok" && ia.etat.message && <p className="text-xs text-doux">{ia.etat.message}</p>}
+                {ia.etat?.etat === "erreur" && <Erreur message={ia.etat.message ?? "Échec de la génération."} />}
+                {ia.moteurs.some((m) => m.id === "wan") && <p className="text-xs text-doux">Wan 2.2 gratuit : environ 5 vidéos par jour avec un compte Hugging Face gratuit.</p>}
+              </>
+            )}
+          </div>
+        )}
+
         {s.source === "perso" && (
           <div className="text-sm">
             <label className={`${boutonSecondaire} inline-flex cursor-pointer items-center gap-2`}>
@@ -540,20 +650,20 @@ function InspecteurScene({
           </div>
         )}
 
-        {(s.source === "video" || s.source === "image_ia") && (
+        {(s.source === "video" || s.source === "image_ia" || s.source === "ia_video") && (
           <div className="text-sm">
             <label>
-              {s.source === "video" ? "Recherche de la vidéo (mots-clés, en anglais de préférence)" : "Description de l'image IA (en anglais)"}
+              {s.source === "video" ? "Recherche de la vidéo (mots-clés, en anglais de préférence)" : s.source === "ia_video" ? "Image de départ : recherche (mots-clés en anglais)" : "Description de l'image IA (en anglais)"}
               <input
                 className={champ}
-                value={s.source === "video" ? s.recherche : s.prompt || s.recherche}
-                onChange={(e) => onChange(s.source === "video" ? { recherche: e.target.value, choix: null, apercu: null } : { prompt: e.target.value }, true)}
+                value={s.source === "image_ia" ? s.prompt || s.recherche : s.recherche}
+                onChange={(e) => onChange(s.source === "image_ia" ? { prompt: e.target.value } : { recherche: e.target.value, choix: null, apercu: null }, true)}
               />
             </label>
-            {s.source === "video" && (
+            {s.source !== "image_ia" && (
               <button type="button" className={`${boutonSecondaire} mt-2 inline-flex items-center gap-2`} disabled={recherche || !s.recherche.trim()} onClick={chercher}>
                 {recherche ? <LoaderCircle size={14} className="animate-spin" aria-hidden /> : <Wand2 size={14} aria-hidden />}
-                Voir d'autres vidéos
+                {s.source === "ia_video" ? "Choisir l'image de départ" : "Voir d'autres vidéos"}
               </button>
             )}
             {sequences && (
@@ -566,7 +676,7 @@ function InspecteurScene({
                     aria-label="Choisir cette vidéo"
                     aria-pressed={s.choix === q.id}
                     className={`overflow-hidden rounded-md border-2 ${s.choix === q.id ? "border-accent" : "border-transparent"}`}
-                    onClick={() => onChange({ choix: q.id, apercu: q.apercu })}
+                    onClick={() => onChange(s.source === "ia_video" ? { choix: q.id, apercu: q.apercu, media_url: null, media_type: null } : { choix: q.id, apercu: q.apercu })}
                   >
                     <img src={q.apercu} alt="" className="aspect-[9/16] w-full object-cover" loading="lazy" />
                   </button>

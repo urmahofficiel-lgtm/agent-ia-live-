@@ -178,7 +178,7 @@ function Bandeau({ haut, bas, taille, fond, couleur, children }: { haut?: number
 // images fixes zooment toujours un peu, comme dans la vidéo finale.
 function Media({ scene: s, progres, local, lecture, filtre }: { scene: SceneMontage; progres: number; local: number; lecture: boolean; filtre: string }) {
   const video = useRef<HTMLVideoElement>(null);
-  const estVideo = s.source === "perso" && s.media_type === "video" && s.media_url;
+  const estVideo = (s.source === "perso" || s.source === "ia_video") && s.media_type === "video" && s.media_url;
 
   // La vidéo perso suit la lecture ; à l'arrêt, elle se cale sur la position.
   useEffect(() => {
@@ -199,12 +199,12 @@ function Media({ scene: s, progres, local, lecture, filtre }: { scene: SceneMont
   const dy = secousse * 14 * Math.cos(2 * Math.PI * local * 11);
   const style: CSSProperties = { transform: `translate(${cqw(dx)}, ${cqw(dy)}) scale(${zoom * (secousse ? 1.06 : 1)})`, filter: filtre };
 
-  const image = s.source === "perso" ? (s.media_type === "image" ? s.media_url : null) : s.source === "video" ? s.apercu : null;
+  const image = s.source === "perso" ? (s.media_type === "image" ? s.media_url : null) : s.source === "video" || s.source === "ia_video" ? s.apercu : null;
   if (estVideo) return <video ref={video} src={s.media_url!} muted playsInline loop className="absolute inset-0 size-full object-cover" style={style} />;
   if (image) return <img src={image} alt="" className="absolute inset-0 size-full object-cover" style={style} draggable={false} />;
   return (
     <div className="absolute inset-0 flex items-end bg-gradient-to-br from-slate-700 to-slate-900 p-3 text-[10px] text-white/60" style={style}>
-      {s.source === "capture" ? "Capture de votre appli" : s.source === "image_ia" ? `Image IA : ${s.prompt || s.recherche || "à décrire"}` : `Vidéo : ${s.recherche || "à choisir"}`}
+      {s.source === "capture" ? "Capture de votre appli" : s.source === "ia_video" ? `Vidéo IA à générer : ${s.mouvement || s.recherche || "décrivez le mouvement"}` : s.source === "image_ia" ? `Image IA : ${s.prompt || s.recherche || "à décrire"}` : `Vidéo : ${s.recherche || "à choisir"}`}
     </div>
   );
 }

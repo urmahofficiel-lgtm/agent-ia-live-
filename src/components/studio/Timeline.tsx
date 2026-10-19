@@ -47,7 +47,7 @@ export function Timeline({
       <div className="overflow-x-auto pb-1">
         <div className="relative flex gap-1.5" style={{ width: (gauches.at(-1) ?? 0) + (largeurs.at(-1) ?? 0) + (onAjouter ? 60 : 0) }}>
           {plan.scenes.map((s, i) => {
-            const image = s.source === "perso" && s.media_type === "image" ? s.media_url : s.source === "video" ? s.apercu : null;
+            const image = s.source === "perso" && s.media_type === "image" ? s.media_url : s.source === "video" || s.source === "ia_video" ? s.apercu : null;
             const transition = TRANSITIONS.find((t) => t.id === s.transition);
             return (
               <div key={i} className="relative shrink-0" style={{ width: largeurs[i] }}>
@@ -88,7 +88,10 @@ export function Timeline({
                 >
                   <span className="flex items-center justify-between">
                     <span className="rounded bg-black/60 px-1 font-mono">{i + 1}</span>
-                    {s.emoji && <span className="text-base leading-none">{s.emoji}</span>}
+                    <span className="flex items-center gap-1">
+                      {s.source === "ia_video" && <span className={`rounded px-1 text-[9px] font-semibold ${s.media_url ? "bg-accent text-white" : "bg-black/60"}`}>IA</span>}
+                      {s.emoji && <span className="text-base leading-none">{s.emoji}</span>}
+                    </span>
                   </span>
                   <span className="line-clamp-2 leading-tight drop-shadow">{s.phrase || "Scène vide"}</span>
                 </button>

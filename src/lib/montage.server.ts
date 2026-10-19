@@ -84,7 +84,8 @@ export async function preparerMedias(
   const sortie: MediaScene[] = [];
   for (const [i, s] of scenes.entries()) {
     const reste = fin - Date.now();
-    if (s.source === "perso" && s.media_url && estFichierStudio(s.media_url, userId)) {
+    // Fichier de l'utilisateur ou vidéo IA déjà générée (stockage du Studio).
+    if ((s.source === "perso" || s.source === "ia_video") && s.media_url && estFichierStudio(s.media_url, userId)) {
       const fichier = await telecharger(s.media_url, 50_000_000).catch(() => null);
       if (fichier) {
         sortie.push(s.media_type === "image" ? { image: fichier } : { clip: fichier });
