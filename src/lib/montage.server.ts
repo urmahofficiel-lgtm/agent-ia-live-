@@ -174,7 +174,9 @@ async function normaliserClip(clip: Buffer, dossier: string, i: number, duree: n
       [
         "-stream_loop", "-1", "-t", (duree * vitesse + 0.5).toFixed(2), "-i", `brut${i}.mp4`,
         "-an",
-        "-vf", `setpts=(PTS-STARTPTS)/${vitesse},scale=${L}:${H}:force_original_aspect_ratio=increase,crop=${L}:${H},fps=${IPS},format=yuv420p`,
+        // tpad : une séquence trop courte (boucle impossible sur certains fichiers)
+        // garde sa dernière image jusqu'à la fin de la scène.
+        "-vf", `setpts=(PTS-STARTPTS)/${vitesse},scale=${L}:${H}:force_original_aspect_ratio=increase,crop=${L}:${H},fps=${IPS},tpad=stop_mode=clone:stop_duration=${duree.toFixed(2)},format=yuv420p`,
         "-t", duree.toFixed(2),
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
         `s${i}.mp4`,
@@ -222,7 +224,7 @@ export async function monterMontage(plan: PlanMontage, medias: MediaScene[], d: 
       }
       const couleur = FILTRE_FFMPEG[plan.filtre ?? "aucun"];
       filtres.push(
-        `[${i}:v]scale=${L}:${H}:force_original_aspect_ratio=increase,crop=${L}:${H},fps=${IPS},trim=duration=${len},setpts=PTS-STARTPTS` +
+        `[${i}:v]scale=${L}:${H}:force_original_aspect_ratio=increase,crop=${L}:${H},fps=${IPS},tpad=stop_mode=clone:stop_duration=${len},trim=duration=${len},setpts=PTS-STARTPTS` +
           // Cadence constante en sortie de chaque scène : les transitions (xfade) l'exigent.
           `${filtreEffet(s, len, !clipOk)}${couleur ? `,${couleur}` : ""},setsar=1,format=yuv420p,fps=${IPS},settb=AVTB[v${i}]`,
       );
