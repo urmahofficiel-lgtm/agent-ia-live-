@@ -22,6 +22,8 @@ const entree = z.object({
   modele: z.enum(MODELES.map((m) => m.id) as [Modele, ...Modele[]]).default("viral"),
   ia: z.number().int().min(0).max(3).default(2),
   duree: z.number().int().min(15).max(45).default(25),
+  // Plan déjà écrit (sinon l'IA l'écrit d'après le lien).
+  plan: z.unknown().optional(),
 });
 
 export const Route = createFileRoute("/api/studio/montage-auto")({
@@ -38,17 +40,21 @@ export const Route = createFileRoute("/api/studio/montage-auto")({
           const e = entree.parse(await request.json());
 
           // 1. Plan de montage écrit par l'IA d'après le site.
-          const site = await lireSite(e.lien).catch(() => null);
+          const site = e.plan ? null : await lireSite(e.lien).catch(() => null);
           const extrait = (site?.pages ?? []).map((p) => [p.titre, p.description, p.texte].filter(Boolean).join("\n")).join("\n---\n").slice(0, 4000);
-          let plan: PlanMontage | null = null;
+          let plan: PlanMontage | null = e.plan ? lirePlan(e.plan) : null;
           for (let essai = 0; essai < 2 && !plan; essai++) {
-            plan = lirePlan(
-              await demanderIA(consignePlan({ lien: e.lien, sujet: e.sujet, extrait }, e.contexte ?? null, e.duree), {
-                systeme: "Tu es monteur vidéo expert des réseaux sociaux. Tu réponds uniquement en JSON valide.",
-                maxTokens: 3000,
-                delaiTotal: 80_000,
-              }),
-            );
+            try {
+              plan = lirePlan(
+                await demanderIA(consignePlan({ lien: e.lien, sujet: e.sujet, extrait }, e.contexte ?? null, e.duree), {
+                  systeme: "Tu es monteur vidéo expert des réseaux sociaux. Tu réponds uniquement en JSON valide.",
+                  maxTokens: 3000,
+                  delaiTotal: 50_000,
+                }),
+              );
+            } catch (x) {
+              note(`plan, essai ${essai + 1} : ${x instanceof Error ? x.message : x}`);
+            }
           }
           if (!plan) return Response.json({ ok: false, erreur: "plan illisible", journal });
           plan = appliquerModele(plan, e.modele);
