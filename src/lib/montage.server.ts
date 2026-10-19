@@ -239,7 +239,8 @@ export async function monterMontage(plan: PlanMontage, medias: MediaScene[], d: 
     }
     filtres.push(`${courant}subtitles=montage.ass:fontsdir=${polices}[sub]`);
 
-    // Emojis : image Noto en surimpression pendant la scène, avec un rebond.
+    // Emojis : image Noto en surimpression pendant la scène, avec un rebond,
+    // en haut à droite (au centre, ils cachaient souvent les visages).
     let video = "[sub]";
     let entree = n;
     for (const [i, s] of scenes.entries()) {
@@ -251,8 +252,8 @@ export async function monterMontage(plan: PlanMontage, medias: MediaScene[], d: 
       entrees.push("-loop", "1", "-t", total.toFixed(2), "-i", `e${i}.png`);
       const a = debuts[i] + 0.1;
       const b = debuts[i] + d[i];
-      filtres.push(`[${entree}:v]scale=180:180,format=rgba,fade=t=in:st=${a.toFixed(2)}:d=0.18:alpha=1[em${i}]`);
-      filtres.push(`${video}[em${i}]overlay=x=(W-w)/2:y='420+12*sin(2*PI*t*1.6)':enable='between(t,${a.toFixed(2)},${b.toFixed(2)})'[ov${i}]`);
+      filtres.push(`[${entree}:v]scale=140:140,format=rgba,fade=t=in:st=${a.toFixed(2)}:d=0.18:alpha=1[em${i}]`);
+      filtres.push(`${video}[em${i}]overlay=x=W-w-50:y='320+10*sin(2*PI*t*1.6)':enable='between(t,${a.toFixed(2)},${b.toFixed(2)})'[ov${i}]`);
       video = `[ov${i}]`;
       entree++;
     }

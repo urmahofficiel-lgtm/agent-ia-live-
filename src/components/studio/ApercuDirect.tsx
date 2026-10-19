@@ -80,8 +80,8 @@ export function ApercuDirect({
 
         {scene?.emoji && (
           <span
-            className="absolute left-1/2 leading-none"
-            style={{ top: `${(420 / 1280) * 100}%`, fontSize: cqw(150), transform: `translate(-50%, ${cqw(12 * Math.sin(2 * Math.PI * temps * 1.6))})` }}
+            className="absolute leading-none"
+            style={{ top: `${(320 / 1280) * 100}%`, right: cqw(50), fontSize: cqw(118), transform: `translateY(${cqw(10 * Math.sin(2 * Math.PI * temps * 1.6))})` }}
             aria-hidden
           >
             {scene.emoji}
