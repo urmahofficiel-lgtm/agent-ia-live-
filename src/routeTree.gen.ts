@@ -39,6 +39,7 @@ import { Route as ApiMcpCleRouteImport } from './routes/api/mcp/$cle'
 import { Route as ApiMetaReglagesRouteImport } from './routes/api/meta/reglages'
 import { Route as ApiMetaRetourRouteImport } from './routes/api/meta/retour'
 import { Route as ApiResendWebhookRouteImport } from './routes/api/resend/webhook'
+import { Route as ApiStudioMontageAutoRouteImport } from './routes/api/studio/montage-auto'
 import { Route as ApiStudioTestRouteImport } from './routes/api/studio/test'
 import { Route as ApiVisuelsIdRouteImport } from './routes/api/visuels/$id'
 
@@ -192,6 +193,11 @@ const ApiResendWebhookRoute = ApiResendWebhookRouteImport.update({
   path: '/api/resend/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiStudioMontageAutoRoute = ApiStudioMontageAutoRouteImport.update({
+  id: '/api/studio/montage-auto',
+  path: '/api/studio/montage-auto',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStudioTestRoute = ApiStudioTestRouteImport.update({
   id: '/api/studio/test',
   path: '/api/studio/test',
@@ -234,6 +240,7 @@ export interface FileRoutesByFullPath {
   '/api/meta/reglages': typeof ApiMetaReglagesRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
   '/api/resend/webhook': typeof ApiResendWebhookRoute
+  '/api/studio/montage-auto': typeof ApiStudioMontageAutoRoute
   '/api/studio/test': typeof ApiStudioTestRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
@@ -268,6 +275,7 @@ export interface FileRoutesByTo {
   '/api/meta/reglages': typeof ApiMetaReglagesRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
   '/api/resend/webhook': typeof ApiResendWebhookRoute
+  '/api/studio/montage-auto': typeof ApiStudioMontageAutoRoute
   '/api/studio/test': typeof ApiStudioTestRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
@@ -303,6 +311,7 @@ export interface FileRoutesById {
   '/api/meta/reglages': typeof ApiMetaReglagesRoute
   '/api/meta/retour': typeof ApiMetaRetourRoute
   '/api/resend/webhook': typeof ApiResendWebhookRoute
+  '/api/studio/montage-auto': typeof ApiStudioMontageAutoRoute
   '/api/studio/test': typeof ApiStudioTestRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
 }
@@ -339,6 +348,7 @@ export interface FileRouteTypes {
     | '/api/meta/reglages'
     | '/api/meta/retour'
     | '/api/resend/webhook'
+    | '/api/studio/montage-auto'
     | '/api/studio/test'
     | '/api/visuels/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -373,6 +383,7 @@ export interface FileRouteTypes {
     | '/api/meta/reglages'
     | '/api/meta/retour'
     | '/api/resend/webhook'
+    | '/api/studio/montage-auto'
     | '/api/studio/test'
     | '/api/visuels/$id'
   id:
@@ -407,6 +418,7 @@ export interface FileRouteTypes {
     | '/api/meta/reglages'
     | '/api/meta/retour'
     | '/api/resend/webhook'
+    | '/api/studio/montage-auto'
     | '/api/studio/test'
     | '/api/visuels/$id'
   fileRoutesById: FileRoutesById
@@ -442,6 +454,7 @@ export interface RootRouteChildren {
   ApiMetaReglagesRoute: typeof ApiMetaReglagesRoute
   ApiMetaRetourRoute: typeof ApiMetaRetourRoute
   ApiResendWebhookRoute: typeof ApiResendWebhookRoute
+  ApiStudioMontageAutoRoute: typeof ApiStudioMontageAutoRoute
   ApiStudioTestRoute: typeof ApiStudioTestRoute
   ApiVisuelsIdRoute: typeof ApiVisuelsIdRoute
 }
@@ -658,6 +671,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiResendWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/studio/montage-auto': {
+      id: '/api/studio/montage-auto'
+      path: '/api/studio/montage-auto'
+      fullPath: '/api/studio/montage-auto'
+      preLoaderRoute: typeof ApiStudioMontageAutoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/studio/test': {
       id: '/api/studio/test'
       path: '/api/studio/test'
@@ -706,6 +726,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMetaReglagesRoute: ApiMetaReglagesRoute,
   ApiMetaRetourRoute: ApiMetaRetourRoute,
   ApiResendWebhookRoute: ApiResendWebhookRoute,
+  ApiStudioMontageAutoRoute: ApiStudioMontageAutoRoute,
   ApiStudioTestRoute: ApiStudioTestRoute,
   ApiVisuelsIdRoute: ApiVisuelsIdRoute,
 }
