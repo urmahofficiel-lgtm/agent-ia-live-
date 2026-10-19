@@ -1,6 +1,6 @@
 import { useEffect, useRef, type CSSProperties } from "react";
 import { Pause, Play, RotateCcw } from "lucide-react";
-import { FILTRE_CSS, PARAMS_SOUS_TITRES, estMotFort, etatApercu, type PlanMontage, type SceneMontage } from "@/lib/montage";
+import { FILTRE_CSS, PARAMS_SOUS_TITRES, estMotFort, etatApercu, margeCta, type PlanMontage, type SceneMontage } from "@/lib/montage";
 
 // Aperçu en direct du montage, sans rendu : média de la scène, effet, filtre
 // couleur, sous-titres mot à mot dans le style choisi, emoji, accroche et
@@ -124,7 +124,7 @@ export function ApercuDirect({
         )}
 
         {e.cta && (
-          <Bandeau bas={230} taille={54} fond="#FFD700" couleur="#111">
+          <Bandeau bas={margeCta(st)} taille={54} fond="#FFD700" couleur="#111">
             {plan.cta}
           </Bandeau>
         )}

@@ -262,6 +262,9 @@ export function motsMinutes(phrase: string, debut: number, duree: number) {
   });
 }
 
+// Appel à l'action en bas de l'écran, au-dessus des sous-titres quand ils sont en bas.
+export const margeCta = (st: Pick<ParamsSousTitres, "alignement" | "margeV">) => (st.alignement === 2 ? st.margeV + 170 : 230);
+
 // Longueur d'une ligne de sous-titres selon le nombre de mots du style.
 const maxCaracteres = (maxMots: number) => (maxMots >= 4 ? 28 : maxMots === 2 ? 14 : 16);
 
@@ -332,7 +335,7 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 Style: Mots,DejaVu Sans,${st.taille},&H00FFFFFF,&H00FFFFFF,${st.contourAss},${st.fondAss},-1,0,0,0,100,100,0,0,${st.bordure},${st.contour},${st.ombre},${st.alignement},50,50,${st.margeV},1
 Style: Titre,DejaVu Sans,44,&H00111111,&H00111111,&H00FFFFFF,&H00000000,-1,0,0,0,100,100,0,0,3,14,0,8,60,60,150,1
 Style: Accroche,DejaVu Sans,52,&H00FFFFFF,&H00FFFFFF,&H000000E0,&H00000000,-1,0,0,0,100,100,0,0,3,18,0,8,50,50,140,1
-Style: Cta,DejaVu Sans,54,&H00111111,&H00111111,&H0000D7FF,&H00000000,-1,0,0,0,100,100,0,0,3,18,0,2,60,60,230,1
+Style: Cta,DejaVu Sans,54,&H00111111,&H00111111,&H0000D7FF,&H00000000,-1,0,0,0,100,100,0,0,3,18,0,2,60,60,${margeCta(st)},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

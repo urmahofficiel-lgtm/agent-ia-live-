@@ -134,3 +134,11 @@ describe("aperçu en direct", () => {
     expect(estMotFort(p.scenes[0], "deux")).toBe(false);
   });
 });
+
+describe("appel à l'action", () => {
+  it("passe au-dessus des sous-titres placés en bas", () => {
+    const p = lirePlan({ sous_titres: "sobre", cta: "Essai", scenes: [scene(), scene()] })!;
+    expect(sousTitresMontage(p, [3, 3])).toContain(",60,60,420,1");
+    expect(sousTitresMontage({ ...p, sous_titres: "viral" }, [3, 3])).toContain(",60,60,230,1");
+  });
+});
