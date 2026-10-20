@@ -418,6 +418,15 @@ export function appliquerModele(plan: PlanMontage, modele: Modele): PlanMontage 
   return { ...plan, sous_titres: r.sous_titres, filtre: r.filtre, mix: r.mix, scenes: plan.scenes.map((s, i) => ({ ...s, ...r.scene(s, i) })) };
 }
 
+// Modèle des vidéos automatiques selon le réseau : TikTok, Instagram et les
+// Shorts récompensent le rythme viral ; Facebook, un montage plus posé ;
+// LinkedIn, le style pro.
+export function modelePour(plateforme: string | null | undefined): Modele {
+  if (plateforme === "facebook") return "dynamique";
+  if (plateforme === "linkedin") return "pro";
+  return "viral";
+}
+
 // Durée estimée de chaque scène pour l'aperçu en direct (avant la vraie voix
 // off) : environ 2,6 mots par seconde, au moins 1,5 s.
 export const dureesEstimees = (scenes: { phrase: string }[]) =>

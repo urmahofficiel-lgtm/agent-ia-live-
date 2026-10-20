@@ -31,6 +31,7 @@ import { Route as ApiAgentCoordonneesRouteImport } from './routes/api/agent/coor
 import { Route as ApiAgentEmailsRouteImport } from './routes/api/agent/emails'
 import { Route as ApiAgentStatsRouteImport } from './routes/api/agent/stats'
 import { Route as ApiAgentTickRouteImport } from './routes/api/agent/tick'
+import { Route as ApiAgentVeilleRouteImport } from './routes/api/agent/veille'
 import { Route as ApiAnimationsWebhookRouteImport } from './routes/api/animations/webhook'
 import { Route as ApiIaDiagnosticRouteImport } from './routes/api/ia/diagnostic'
 import { Route as ApiInstagramRetourRouteImport } from './routes/api/instagram/retour'
@@ -153,6 +154,11 @@ const ApiAgentTickRoute = ApiAgentTickRouteImport.update({
   path: '/api/agent/tick',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentVeilleRoute = ApiAgentVeilleRouteImport.update({
+  id: '/api/agent/veille',
+  path: '/api/agent/veille',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAnimationsWebhookRoute = ApiAnimationsWebhookRouteImport.update({
   id: '/api/animations/webhook',
   path: '/api/animations/webhook',
@@ -232,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/api/agent/emails': typeof ApiAgentEmailsRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
+  '/api/agent/veille': typeof ApiAgentVeilleRoute
   '/api/animations/webhook': typeof ApiAnimationsWebhookRoute
   '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
@@ -267,6 +274,7 @@ export interface FileRoutesByTo {
   '/api/agent/emails': typeof ApiAgentEmailsRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
+  '/api/agent/veille': typeof ApiAgentVeilleRoute
   '/api/animations/webhook': typeof ApiAnimationsWebhookRoute
   '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
@@ -303,6 +311,7 @@ export interface FileRoutesById {
   '/api/agent/emails': typeof ApiAgentEmailsRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
+  '/api/agent/veille': typeof ApiAgentVeilleRoute
   '/api/animations/webhook': typeof ApiAnimationsWebhookRoute
   '/api/ia/diagnostic': typeof ApiIaDiagnosticRoute
   '/api/instagram/retour': typeof ApiInstagramRetourRoute
@@ -340,6 +349,7 @@ export interface FileRouteTypes {
     | '/api/agent/emails'
     | '/api/agent/stats'
     | '/api/agent/tick'
+    | '/api/agent/veille'
     | '/api/animations/webhook'
     | '/api/ia/diagnostic'
     | '/api/instagram/retour'
@@ -375,6 +385,7 @@ export interface FileRouteTypes {
     | '/api/agent/emails'
     | '/api/agent/stats'
     | '/api/agent/tick'
+    | '/api/agent/veille'
     | '/api/animations/webhook'
     | '/api/ia/diagnostic'
     | '/api/instagram/retour'
@@ -410,6 +421,7 @@ export interface FileRouteTypes {
     | '/api/agent/emails'
     | '/api/agent/stats'
     | '/api/agent/tick'
+    | '/api/agent/veille'
     | '/api/animations/webhook'
     | '/api/ia/diagnostic'
     | '/api/instagram/retour'
@@ -446,6 +458,7 @@ export interface RootRouteChildren {
   ApiAgentEmailsRoute: typeof ApiAgentEmailsRoute
   ApiAgentStatsRoute: typeof ApiAgentStatsRoute
   ApiAgentTickRoute: typeof ApiAgentTickRoute
+  ApiAgentVeilleRoute: typeof ApiAgentVeilleRoute
   ApiAnimationsWebhookRoute: typeof ApiAnimationsWebhookRoute
   ApiIaDiagnosticRoute: typeof ApiIaDiagnosticRoute
   ApiInstagramRetourRoute: typeof ApiInstagramRetourRoute
@@ -615,6 +628,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/veille': {
+      id: '/api/agent/veille'
+      path: '/api/agent/veille'
+      fullPath: '/api/agent/veille'
+      preLoaderRoute: typeof ApiAgentVeilleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/animations/webhook': {
       id: '/api/animations/webhook'
       path: '/api/animations/webhook'
@@ -718,6 +738,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAgentEmailsRoute: ApiAgentEmailsRoute,
   ApiAgentStatsRoute: ApiAgentStatsRoute,
   ApiAgentTickRoute: ApiAgentTickRoute,
+  ApiAgentVeilleRoute: ApiAgentVeilleRoute,
   ApiAnimationsWebhookRoute: ApiAnimationsWebhookRoute,
   ApiIaDiagnosticRoute: ApiIaDiagnosticRoute,
   ApiInstagramRetourRoute: ApiInstagramRetourRoute,

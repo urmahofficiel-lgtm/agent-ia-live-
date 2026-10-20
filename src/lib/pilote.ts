@@ -298,6 +298,8 @@ export function consigneSujets(p: {
   apprentissage?: string | null;
   jour: string;
   ferie?: string | null;
+  // Veille du jour (sujets d'actualité de la clientèle, mots, hashtags).
+  tendances?: string | null;
 }) {
   const lignes = p.categories
     .map(
@@ -318,7 +320,11 @@ ${recents ? `\nSujets déjà traités ces 30 derniers jours (ne les répète pas
     p.apprentissage
       ? `\nCe qui marche le mieux d'après les résultats passés (inspire-t'en) :\n${p.apprentissage.slice(0, 1500)}\n`
       : ""
-  }${p.ferie ? `\nCalendrier : ${p.ferie}. Tu peux t'en servir pour un sujet de saison, sans obligation.\n` : ""}
+  }${p.ferie ? `\nCalendrier : ${p.ferie}. Tu peux t'en servir pour un sujet de saison, sans obligation.\n` : ""}${
+    p.tendances
+      ? `\nTendances de la semaine dans le domaine (veille web) :\n${p.tendances.slice(0, 2000)}\nAu moins un sujet sur deux part de l'une de ces tendances : relie-la à une vraie fonctionnalité de la marque, avec les mots de la cible, sans inventer de chiffre.\n`
+      : ""
+  }
 Les ${p.categories.length} sujets doivent être tous différents, concrets et propres à cette marque (ses vraies fonctionnalités, sa vraie clientèle).
 ${REGLES_PILOTE}
 Réponds UNIQUEMENT par un objet JSON valide, sans texte autour :

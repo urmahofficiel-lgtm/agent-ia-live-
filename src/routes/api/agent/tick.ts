@@ -9,6 +9,7 @@ import { lireStyleImage, lireStyleVideo, styleVideoPour } from "@/lib/styles";
 import { planifierJournees } from "@/lib/pilote.server";
 import { estEtranger, marcheDe } from "@/lib/marches";
 import { controlerPublication, type DejaPubliee } from "@/lib/controle-qualite";
+import { nettoyerHashtags } from "@/lib/tendances";
 
 // Moteur de l'agent : appelé toutes les 5 minutes par pg_cron (Supabase).
 // 1. Publie les tâches validées dont l'heure est venue (texte + visuel).
@@ -137,6 +138,9 @@ async function tick(secret: string) {
         avecVeille(t.contexte),
         ecrivainMoteur(t.tache_id),
       );
+      // Hashtags : inventés retirés, nombre limité selon le réseau (y compris
+      // pour les brouillons écrits avant cette règle).
+      if (pret.brouillon) pret.brouillon = nettoyerHashtags(pret.brouillon, t.plateforme);
       // Contrôle qualité : langue, texte, doublon. En cas de doute, la
       // publication attend une relecture au lieu de partir.
       const raisons = relues.has(t.tache_id) ? [] : controlerPublication({ plateforme: t.plateforme, titre: t.titre, marche: t.marche, texte: pret.brouillon }, await publieesRecemment(t.user_id));

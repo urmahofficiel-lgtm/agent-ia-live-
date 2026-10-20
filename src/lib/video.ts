@@ -81,7 +81,7 @@ export function consigneScript(
 ) {
   // Marché étranger : script, textes à l'écran et légende dans sa langue.
   const langue = reglesMarche(marche) ? `\n${reglesMarche(marche)}\n- Champs « visuel » et « recherche_stock » (en anglais) : ${decorMarche(marche)}` : "";
-  if (style !== "classique" && style !== "conversation") return consigneScriptStyle(t, contexte, plateforme, avecCaptures, style, marche) + langue;
+  if (style !== "classique" && style !== "conversation" && style !== "studio") return consigneScriptStyle(t, contexte, plateforme, avecCaptures, style, marche) + langue;
   return `Écris le script d'une vidéo verticale de 30 à 45 secondes pour ${plateforme}, en ${marcheDe(marche).langue}.
 Sujet : ${t.titre}
 ${t.consigne ? `Consigne : ${t.consigne}\n` : ""}${contexte ? `\nFiche de la marque (source de vérité, n'invente aucun fait, chiffre ni témoignage) :\n${contexte}\n` : ""}
@@ -163,7 +163,7 @@ export function sousTitresAss(scenes: { texte_ecran: string }[], d: number[], la
 
 // --- Styles de vidéo ------------------------------------------------------------
 
-type StyleAvecConsigne = Exclude<StyleVideo, "classique" | "conversation">;
+type StyleAvecConsigne = Exclude<StyleVideo, "classique" | "conversation" | "studio">;
 
 const FORMATS_SCRIPT: Record<StyleAvecConsigne, { duree: string; structure: string; images: string; scenes: string }> = {
   ugc: {

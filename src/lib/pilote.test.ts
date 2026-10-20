@@ -332,11 +332,11 @@ describe("lecture de la réponse de l'IA", () => {
   });
 });
 
-describe("style vidéo TikTok", () => {
-  it("classique devient UGC sur TikTok seulement", () => {
-    expect(styleVideoPour("tiktok", "classique")).toBe("ugc");
+describe("style des vidéos automatiques", () => {
+  it("classique devient le montage Studio, un style choisi est gardé", () => {
+    expect(styleVideoPour("tiktok", "classique")).toBe("studio");
     expect(styleVideoPour("tiktok", "top3")).toBe("top3");
-    expect(styleVideoPour("instagram", "classique")).toBe("classique");
+    expect(styleVideoPour("instagram", "classique")).toBe("studio");
   });
 });
 

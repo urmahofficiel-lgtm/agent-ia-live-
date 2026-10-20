@@ -10,6 +10,7 @@ import { couleurDuSite, visuelsDuSite } from "./site.server";
 import { nomStyleVideo, type StyleVideo } from "./styles";
 import { conversationDeSecours, consigneConversation, lireConversation, minutage, scenarioPour } from "./conversation-video";
 import { monterConversation } from "./conversation-video.server";
+import { fabriquerStudio } from "./studio-auto.server";
 
 // Fabrication d'une vidéo verticale (script IA, captures de l'appli ou du
 // site, séquences Pexels, voix off, montage). Utilisée par le bouton « Créer
@@ -54,6 +55,15 @@ export async function fabriquerVideo(
   style: StyleVideo = "classique",
 ) {
   if (estJournee(t.consigne)) style = "journee";
+  if (style === "studio") {
+    try {
+      return await fabriquerStudio(t, contexte, { journal, etat, deposer, captures: liensCaptures });
+    } catch (err) {
+      // Montage Studio impossible : la vidéo classique prend le relais.
+      await journal("erreur", `Vidéo Studio impossible (${err instanceof Error ? err.message.slice(0, 120) : "erreur"}) : vidéo classique à la place.`);
+      style = t.plateforme === "tiktok" ? "ugc" : "classique";
+    }
+  }
   if (style === "conversation") {
     try {
       return await fabriquerConversation(t, contexte, siteMarque, { journal, etat, deposer });

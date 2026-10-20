@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appliquerModele, debutsScenes, dureesEstimees, estMotFort, etatApercu, dureesScenes, fichierEmoji, groupes, lirePlan, motsMinutes, planValide, premierEmoji, sceneVide, sousTitresMontage } from "./montage";
+import { appliquerModele, modelePour, debutsScenes, dureesEstimees, estMotFort, etatApercu, dureesScenes, fichierEmoji, groupes, lirePlan, motsMinutes, planValide, premierEmoji, sceneVide, sousTitresMontage } from "./montage";
 
 const scene = (o: object = {}) => ({ phrase: "Le soir vous faites encore vos devis à la main ?", texte: "Devis à 22 h", mots_forts: ["devis"], emoji: "😤", effet: "secousse", transition: "coupe", son: "whoosh", source: "video", recherche: "worker night desk", prompt: "", ...o });
 
@@ -140,5 +140,14 @@ describe("appel à l'action", () => {
     const p = lirePlan({ sous_titres: "sobre", cta: "Essai", scenes: [scene(), scene()] })!;
     expect(sousTitresMontage(p, [3, 3])).toContain(",60,60,420,1");
     expect(sousTitresMontage({ ...p, sous_titres: "viral" }, [3, 3])).toContain(",60,60,230,1");
+  });
+});
+
+describe("vidéos automatiques", () => {
+  it("modèle adapté au réseau", () => {
+    expect(modelePour("tiktok")).toBe("viral");
+    expect(modelePour("instagram")).toBe("viral");
+    expect(modelePour("facebook")).toBe("dynamique");
+    expect(modelePour("linkedin")).toBe("pro");
   });
 });

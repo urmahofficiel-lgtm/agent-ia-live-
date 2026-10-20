@@ -107,16 +107,14 @@ describe("nom du contact", () => {
 });
 
 describe("choix du style des vidéos automatiques", () => {
-  it("une vidéo sur deux devient une conversation, selon la publication", () => {
-    const styles = Array.from({ length: 40 }, (_, i) => styleVideoPour("tiktok", "classique", `tache-${i}`));
-    const conv = styles.filter((s) => s === "conversation").length;
-    expect(conv).toBeGreaterThan(10);
-    expect(conv).toBeLessThan(30);
-    expect(styles.every((s) => s === "conversation" || s === "ugc")).toBe(true);
+  it("les vidéos automatiques sont montées par le Studio, sur tous les réseaux", () => {
+    const styles = Array.from({ length: 20 }, (_, i) => styleVideoPour(i % 2 ? "tiktok" : "instagram", "classique", `tache-${i}`));
+    expect(styles.every((s) => s === "studio")).toBe(true);
+    expect(styleVideoPour("facebook", "ugc")).toBe("studio");
   });
   it("respecte un style choisi par l'utilisateur et la série « journée »", () => {
     expect(styleVideoPour("tiktok", "top3", "x")).toBe("top3");
     expect(styleVideoPour("instagram", "journee", "x")).toBe("journee");
-    expect(styleVideoPour("tiktok", "classique")).toBe("ugc");
+    expect(styleVideoPour("tiktok", "conversation")).toBe("conversation");
   });
 });

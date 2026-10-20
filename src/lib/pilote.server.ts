@@ -1,4 +1,5 @@
 import { avecVeille } from "./veille";
+import { veilleDuJour } from "./tendances.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { demanderIA } from "./ia.server";
 import { lireCanaux } from "./marches";
@@ -68,10 +69,16 @@ export async function planifierJournees(
       if (plan.creneaux.length) {
         const titres = u.titres_recents ?? [];
         const categories = melangeDuJour(u.jour, plan.heures.length);
-        const ferie = await ferieDuJour(u.jour);
+        // Veille des tendances du domaine (une fois par jour) : les sujets
+        // du jour peuvent coller à l'actualité de la clientèle.
+        const [ferie, tendances] = await Promise.all([
+          ferieDuJour(u.jour),
+          veilleDuJour(sb, secret, u.user_id, u.contexte, u.jour, echeance).catch(() => null),
+        ]);
         const reponse = await demanderIA(
           consigneSujets({
             contexte: avecVeille(u.contexte),
+            tendances,
             categories,
             titresRecents: titres,
             apprentissage: u.apprentissage,

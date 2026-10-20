@@ -1,4 +1,5 @@
 import { nettoyerPost, reglesReseau, sansHashtagsSiGroupe, sansLienSiReseau } from "./texte";
+import { nettoyerHashtags } from "./tendances";
 import { nomPlateforme } from "./plateformes";
 import { decorMarche, marcheDe, reglesMarche, systemeMarche } from "./marches";
 
@@ -244,7 +245,8 @@ const REGLES_MARQUE = `Règles impératives :
 - Ne cite jamais un concurrent, même pour comparer.
 - Première phrase = accroche concrète (une situation de chantier, une question, un POV), jamais le nom du site ni de la marque seul.
 - Le post est un texte accompagné d'une image : si la consigne parle de vidéo, live, PDF ou infographie, transforme-la en post texte sur le même sujet.
-- Hashtags : 3 à 5 maximum, pris dans la liste conseillée quand elle existe.
+- Première ligne = le titre que verra le public : précise et concrète, avec les mots de la clientèle (métier, problème de chantier), moins de 80 caractères, sans majuscules partout. Pas de formule creuse (« Découvrez… », « Révolutionnez… »).
+- Hashtags : peu, mais choisis. Pris dans la liste conseillée (ceux que la cible emploie vraiment), selon le sujet du post : un hashtag de métier ou de public, un du problème traité, éventuellement un de lieu. Jamais de hashtag inventé, en anglais, avec une année ou au nom d'une fonctionnalité (pas de #DevisIA, #BTP2026, #ConstructionTech). Le nombre exact est donné par la règle du réseau.
 - Texte brut prêt à publier : pas de markdown (ni astérisques, ni titres avec #), et ne recopie pas le titre interne en tête du post.`;
 
 export async function rediger(t: Consigne, contexte?: string | null): Promise<string> {
@@ -262,7 +264,7 @@ export async function rediger(t: Consigne, contexte?: string | null): Promise<st
       .join("\n"),
     { systeme: systemeMarche(t.marche) },
   );
-  return sansHashtagsSiGroupe(sansLienSiReseau(nettoyerPost(texte, t.titre), t.plateforme), t.plateforme);
+  return sansHashtagsSiGroupe(nettoyerHashtags(sansLienSiReseau(nettoyerPost(texte, t.titre), t.plateforme), t.plateforme), t.plateforme);
 }
 
 // --- Images -------------------------------------------------------------------
