@@ -104,13 +104,18 @@ export async function listerGemini(cle: string) {
 // `images` : captures d'écran jointes à la demande (Gemini seulement).
 export type ImageJointe = { mime: string; donnees: string };
 
+// Modèles Gemini à court de quota (429) : écartés 10 min, les suivants de la
+// liste répondent (la version la plus récente sature souvent la première).
+const quotaEpuise = new Map<string, number>();
+
 async function demanderGemini(cle: string, systeme: string, demande: string, echeance: number, images: ImageJointe[] = []) {
   let derniere = "Gemini n'a pas répondu.";
-  const modeles = await listerGemini(cle);
-  // Surcharge (503) ou quota (429) : un second essai sur le premier modèle,
-  // après une courte pause, avant de passer aux suivants.
+  const modeles = (await listerGemini(cle)).filter((m) => (quotaEpuise.get(m) ?? 0) < Date.now());
+  // Surcharge (503) : un second essai sur le premier modèle, après une courte
+  // pause, avant de passer aux suivants.
   const essais = modeles.length ? [modeles[0], ...modeles] : [];
   for (const [i, modele] of essais.entries()) {
+    if ((quotaEpuise.get(modele) ?? 0) >= Date.now()) continue;
     if (i === 1) await new Promise((r) => setTimeout(r, 2500));
     const reste = echeance - Date.now();
     if (reste < 5_000) break;
@@ -118,7 +123,9 @@ async function demanderGemini(cle: string, systeme: string, demande: string, ech
     try {
       const r = await fetch(`${GEMINI}/${modele}:generateContent`, {
         method: "POST",
-        signal: AbortSignal.timeout(Math.min(60_000, reste)),
+        // Un modèle qui ne répond pas ne doit pas prendre tout le temps des
+        // suivants (≈ 7 s d'habitude, 30 s pour une longue réponse).
+        signal: AbortSignal.timeout(Math.min(40_000, Math.max(20_000, reste / 2), reste)),
         headers: { "x-goog-api-key": cle, "Content-Type": "application/json" },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systeme }] },
@@ -129,6 +136,7 @@ async function demanderGemini(cle: string, systeme: string, demande: string, ech
       console.info("Gemini", modele, r.status, Date.now() - debut, "ms");
       if (!r.ok) {
         derniere = `Gemini a refusé la demande (${r.status}).`;
+        if (r.status === 429) quotaEpuise.set(modele, Date.now() + 10 * 60_000);
         continue;
       }
       const json = (await r.json()) as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[] };

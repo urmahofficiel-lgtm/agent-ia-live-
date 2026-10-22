@@ -211,7 +211,7 @@ export function reglesCroissance(plateforme: string | null | undefined, sansPub:
     sansPub
       ? "- Post sans publicité : ne nomme PAS la marque, ne parle d'aucun produit ni outil, aucun appel à l'essai, aucun « lien en bio »."
       : "- La marque n'arrive qu'après le problème, en une seule phrase concrète.",
-    "- Première ligne = accroche de 8 mots au plus, sans nom de marque : un chiffre tiré de la fiche ou de la veille, une erreur, une question ou « POV : … », avec les mots de la clientèle.",
+    "- Première ligne = l'accroche : reprends le titre du sujet (tu peux le rendre plus percutant), 8 mots au plus, sans nom de marque, en français correct et naturel ; un chiffre, une erreur, une question ou « POV : … », avec les mots de la clientèle.",
     `- Dernière phrase = appel à l'engagement : ${engagement[plateforme ?? ""] ?? "pose une question simple qui donne envie de commenter"}.`,
     `- Jamais de jargon technique (${JARGON.slice(0, 8).join(", ")}…) : les mots du terrain.`,
     "- Phrases courtes, une idée par ligne, emojis rares (2 au plus).",
