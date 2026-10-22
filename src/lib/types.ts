@@ -26,7 +26,8 @@ export type Tache = {
     brouillon?: string;
     visuel_url?: string;
     video_url?: string;
-    video_etat?: "en_cours" | "prete" | "echec";
+    // « carrousel » : la publication part en carrousel, sans vidéo.
+    video_etat?: "en_cours" | "prete" | "echec" | "carrousel";
     video_erreur?: string | null;
     video_debut?: string;
     video_style?: string;
@@ -37,6 +38,13 @@ export type Tache = {
     visuel_style?: string;
     post_id?: string;
     publie_le?: string;
+    // Mode croissance : pilier du sujet, carrousel (diapositives déposées),
+    // Trial Reel Instagram, premier commentaire publié.
+    pilier?: string;
+    format?: "carrousel" | null;
+    carrousel?: { images: string[]; pdf_url: string | null; titre: string };
+    essai_reel?: boolean;
+    premier_commentaire?: string;
     // Relu toutes les heures (/api/agent/stats).
     stats?: Partial<Stats>;
   } | null;

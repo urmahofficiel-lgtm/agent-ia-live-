@@ -1,8 +1,22 @@
 import { PLATEFORMES } from "./plateformes";
 import { nettoyerPost } from "./texte";
 import { clientMoteur } from "./supabase-serveur";
-import { publierFacebook, publierInstagram, publierStoryInstagram } from "./meta.server";
-import { prolongerJetonInstagram, publierInstagramDirect, publierStoryInstagramDirect } from "./instagram.server";
+import {
+  commenterFacebook,
+  commenterInstagram,
+  publierCarrouselInstagram,
+  publierFacebook,
+  publierInstagram,
+  publierStoryInstagram,
+  type OptionsReel,
+} from "./meta.server";
+import {
+  commenterInstagramDirect,
+  prolongerJetonInstagram,
+  publierCarrouselInstagramDirect,
+  publierInstagramDirect,
+  publierStoryInstagramDirect,
+} from "./instagram.server";
 import { publierBluesky, type IdentifiantsBluesky } from "./bluesky.server";
 import { publierTelegram, type IdentifiantsTelegram } from "./telegram.server";
 import { publierLinkedin, type IdentifiantsLinkedin } from "./linkedin.server";
@@ -36,9 +50,23 @@ async function suivreLiens(texte: string, plateforme: string, userId: string, ta
   }
 }
 
+// Ce qui accompagne le post (mode croissance) : diapositives d'un carrousel,
+// document PDF (LinkedIn), Trial Reel et couverture (Instagram), premier
+// commentaire.
+export type ExtrasPublication = {
+  images?: string[];
+  document?: { url: string; titre: string } | null;
+  reel?: OptionsReel;
+  premierCommentaire?: string | null;
+};
+
+const avertir = (quoi: string) => (e: unknown) => console.warn(quoi, e instanceof Error ? e.message : e);
+
 // Publie par le bon canal : connexion directe (Meta ou Instagram) si elle
-// existe, sinon Zernio. Renvoie l'identifiant du post.
-export async function publierSur(
+// existe, sinon Zernio. Renvoie l'identifiant du post et la « suite » (Story,
+// premier commentaire) : le moteur enregistre le post comme publié AVANT la
+// suite, pour qu'un passage coupé en route ne le republie jamais.
+export async function publierAvecSuite(
   plateforme: string,
   userId: string,
   compte: CompteCible,
@@ -46,10 +74,14 @@ export async function publierSur(
   media: Media | null,
   image?: string | null,
   tacheId?: string,
-) {
+  extras: ExtrasPublication = {},
+): Promise<{ id: string; suite: () => Promise<void> }> {
+  const rien = async () => {};
   // Dernier filet de sécurité : jamais de markdown affiché tel quel sur un réseau.
   texte = nettoyerPost(texte);
   if (tacheId) texte = await suivreLiens(texte, plateforme, userId, tacheId);
+  const images = extras.images ?? [];
+  const commentaire = extras.premierCommentaire?.trim() || null;
   if (compte.fournisseur === "bluesky" || compte.fournisseur === "telegram" || compte.fournisseur === "linkedin") {
     const { data, error } = await clientMoteur().rpc("compte_jeton", {
       p_secret: process.env.AGENT_TICK_SECRET ?? "",
@@ -59,10 +91,13 @@ export async function publierSur(
     if (error || !data) throw new Error("Connexion introuvable : reconnectez le compte (page Comptes).");
     const identifiants = JSON.parse(data as string);
     // Bluesky et LinkedIn ne prennent pas la vidéo par cette voie : on y joint l'image.
-    if (compte.fournisseur === "linkedin") return publierLinkedin(identifiants as IdentifiantsLinkedin, texte, media, image);
-    return compte.fournisseur === "bluesky"
-      ? publierBluesky(identifiants as IdentifiantsBluesky, texte, media, image)
-      : publierTelegram(identifiants as IdentifiantsTelegram, texte, media);
+    const id =
+      compte.fournisseur === "linkedin"
+        ? await publierLinkedin(identifiants as IdentifiantsLinkedin, texte, media, image)
+        : compte.fournisseur === "bluesky"
+          ? await publierBluesky(identifiants as IdentifiantsBluesky, texte, media, image)
+          : await publierTelegram(identifiants as IdentifiantsTelegram, texte, media);
+    return { id, suite: rien };
   }
   if (compte.fournisseur === "meta" || compte.fournisseur === "instagram") {
     const secret = process.env.AGENT_TICK_SECRET ?? "";
@@ -70,6 +105,7 @@ export async function publierSur(
     const { data, error } = await sb.rpc("compte_jeton", { p_secret: secret, p_user: userId, p_externe: compte.compte_externe_id });
     if (error || !data) throw new Error("Connexion introuvable : reconnectez le compte (page Comptes).");
     let jeton = data as string;
+    const carrousel = images.length >= 2;
 
     if (compte.fournisseur === "instagram") {
       const neuf = await prolongerJetonInstagram(jeton);
@@ -77,20 +113,61 @@ export async function publierSur(
         jeton = neuf;
         await sb.rpc("compte_maj_jeton", { p_secret: secret, p_user: userId, p_externe: compte.compte_externe_id, p_jeton: neuf });
       }
-      const post = await publierInstagramDirect(compte.compte_externe_id, jeton, texte, media);
-      // La Story après le Reel : si elle échoue, le Reel reste publié.
-      await publierStoryInstagramDirect(compte.compte_externe_id, jeton, media).catch((e) => console.warn("Story Instagram non publiée", e));
-      return post.id;
+      const post = carrousel
+        ? await publierCarrouselInstagramDirect(compte.compte_externe_id, jeton, texte, images)
+        : await publierInstagramDirect(compte.compte_externe_id, jeton, texte, media, extras.reel);
+      return {
+        id: post.id,
+        suite: async () => {
+          if (commentaire) await commenterInstagramDirect(post.id, jeton, commentaire).catch(avertir("Premier commentaire Instagram non publié"));
+          // La Story après le Reel (pas pour un Trial Reel, réservé d'abord
+          // aux non-abonnés) : si elle échoue, le Reel reste publié.
+          if (!carrousel && !extras.reel?.essai) await publierStoryInstagramDirect(compte.compte_externe_id, jeton, media).catch(avertir("Story Instagram non publiée"));
+        },
+      };
     }
-    const post =
-      plateforme === "instagram"
-        ? await publierInstagram(compte.compte_externe_id, jeton, texte, media)
-        : await publierFacebook(compte.compte_externe_id, jeton, texte, media);
-    if (plateforme === "instagram") await publierStoryInstagram(compte.compte_externe_id, jeton, media).catch((e) => console.warn("Story Instagram non publiée", e));
-    return post.id;
+    if (plateforme === "instagram") {
+      const post = carrousel
+        ? await publierCarrouselInstagram(compte.compte_externe_id, jeton, texte, images)
+        : await publierInstagram(compte.compte_externe_id, jeton, texte, media, undefined, false, extras.reel);
+      return {
+        id: post.id,
+        suite: async () => {
+          if (commentaire) await commenterInstagram(post.id, jeton, commentaire).catch(avertir("Premier commentaire Instagram non publié"));
+          if (!carrousel && !extras.reel?.essai) await publierStoryInstagram(compte.compte_externe_id, jeton, media).catch(avertir("Story Instagram non publiée"));
+        },
+      };
+    }
+    const post = await publierFacebook(compte.compte_externe_id, jeton, texte, media, images);
+    return {
+      id: post.id,
+      suite: async () => {
+        if (commentaire) await commenterFacebook(post.id, jeton, commentaire).catch(avertir("Premier commentaire Facebook non publié"));
+      },
+    };
   }
   const zernio = PLATEFORMES.find((p) => p.id === plateforme)?.zernio;
   if (!zernio) throw new Error("Cette plateforme ne peut pas encore publier.");
-  const post = await publier(zernio, compte.compte_externe_id, texte, media, compte.cible_urn);
-  return post._id;
+  // Zernio publie lui-même le premier commentaire (LinkedIn, Facebook…).
+  const post = await publier(zernio, compte.compte_externe_id, texte, media, compte.cible_urn, {
+    images,
+    document: extras.document ?? null,
+    premierCommentaire: commentaire,
+  });
+  return { id: post._id, suite: rien };
+}
+
+// Publication complète (post puis sa suite), pour les envois depuis l'appli.
+export async function publierSur(
+  plateforme: string,
+  userId: string,
+  compte: CompteCible,
+  texte: string,
+  media: Media | null,
+  image?: string | null,
+  tacheId?: string,
+) {
+  const { id, suite } = await publierAvecSuite(plateforme, userId, compte, texte, media, image, tacheId);
+  await suite();
+  return id;
 }

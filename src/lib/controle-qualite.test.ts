@@ -71,3 +71,11 @@ describe("controlerPublication", () => {
     expect(controlerPublication(base, recentes, maintenant)).toEqual([]);
   });
 });
+
+describe("controlerPublication — mode croissance", () => {
+  it("bloque les promesses intenables seulement en mode croissance", () => {
+    const p = { plateforme: "instagram", titre: "Factures", marche: "fr-FR", texte: "Vos factures 100 % conformes, sans aucun risque pour votre entreprise et vos clients." };
+    expect(controlerPublication({ ...p, croissance: true }, [])).toEqual(["promesse impossible à tenir (promesse « 100 % », « sans risque »)"]);
+    expect(controlerPublication(p, [])).toEqual([]);
+  });
+});

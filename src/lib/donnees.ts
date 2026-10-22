@@ -85,14 +85,15 @@ export function useStylesParDefaut() {
 
 // Pilote automatique (Réglages), lu à part comme les styles : `etat` vaut
 // « absent » tant que la migration qui ajoute ces colonnes n'est pas appliquée.
-export type ReglagesPilote = { autopilote: boolean; rythme: Record<string, number>; creneaux: string[] };
+// `croissance_depuis` : mode croissance actif à partir de ce jour (null : coupé).
+export type ReglagesPilote = { autopilote: boolean; rythme: Record<string, number>; creneaux: string[]; croissance_depuis: string | null };
 
 const RYTHME_VIDE: Record<string, number> = {};
 
 export function usePilote() {
   const userId = useUserId();
-  const req = useRequete<{ autopilote: boolean | null; rythme: Record<string, number> | null; creneaux: string[] | null }>(
-    () => supabase().from("reglages_agent").select("autopilote, rythme, creneaux").maybeSingle(),
+  const req = useRequete<{ autopilote: boolean | null; rythme: Record<string, number> | null; creneaux: string[] | null; croissance_depuis: string | null }>(
+    () => supabase().from("reglages_agent").select("autopilote, rythme, creneaux, croissance_depuis").maybeSingle(),
     [userId],
   );
 
@@ -110,6 +111,7 @@ export function usePilote() {
       autopilote: req.data?.autopilote ?? false,
       rythme: req.data?.rythme ?? RYTHME_VIDE,
       creneaux: req.data?.creneaux ?? null,
+      croissance_depuis: req.data?.croissance_depuis ?? null,
     },
     etat: req.erreur ? "absent" : req.chargement ? "chargement" : "ok",
     enregistrer,

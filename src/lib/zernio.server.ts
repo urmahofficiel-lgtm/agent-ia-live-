@@ -67,28 +67,71 @@ export async function listerComptes(profileId: string) {
 
 export type Media = { type: "image" | "video"; url: string };
 
+// Mode croissance : diapositives d'un carrousel (TikTok en photos avec une
+// musique en tendance ajoutée par TikTok), document PDF à feuilleter
+// (LinkedIn), premier commentaire publié par Zernio.
+export type ExtrasZernio = {
+  images?: string[];
+  document?: { url: string; titre: string } | null;
+  premierCommentaire?: string | null;
+};
+
+// Corps de la requête « publier maintenant » (POST /v1/posts).
+export function corpsPost(
+  plateforme: string,
+  accountId: string,
+  contenu: string,
+  media?: Media | null,
+  organisationUrn?: string | null,
+  extras: ExtrasZernio = {},
+) {
+  const specifique: Record<string, unknown> = {};
+  // LinkedIn : publier au nom d'une page entreprise.
+  if (organisationUrn) specifique.organizationUrn = organisationUrn;
+  if (extras.premierCommentaire && plateforme !== "tiktok") specifique.firstComment = extras.premierCommentaire;
+  let mediaItems: { type: string; url: string; title?: string }[] | undefined = media ? [{ type: media.type, url: media.url }] : undefined;
+  let content = contenu;
+  const images = extras.images ?? [];
+  if (plateforme === "linkedin" && extras.document) {
+    mediaItems = [{ type: "document", url: extras.document.url, title: extras.document.titre }];
+    specifique.documentTitle = extras.document.titre.slice(0, 100);
+  } else if (images.length >= 2) {
+    mediaItems = images.slice(0, plateforme === "tiktok" ? 35 : 10).map((url) => ({ type: "image", url }));
+    if (plateforme === "tiktok") {
+      // Post photo : titre court (première ligne), texte complet en
+      // description ; réglages obligatoires de l'API TikTok.
+      content = (contenu.split("\n").find((l) => l.trim()) ?? contenu).slice(0, 90);
+      specifique.tiktokSettings = {
+        privacy_level: "PUBLIC_TO_EVERYONE",
+        allow_comment: true,
+        content_preview_confirmed: true,
+        express_consent_given: true,
+        media_type: "photo",
+        photo_cover_index: 0,
+        auto_add_music: true,
+        description: contenu.slice(0, 4000),
+      };
+    }
+  }
+  return {
+    content,
+    publishNow: true,
+    platforms: [{ platform: plateforme, accountId, ...(Object.keys(specifique).length ? { platformSpecificData: specifique } : {}) }],
+    ...(mediaItems ? { mediaItems } : {}),
+  };
+}
+
 export async function publier(
   plateforme: string,
   accountId: string,
   contenu: string,
   media?: Media | null,
   organisationUrn?: string | null,
+  extras: ExtrasZernio = {},
 ) {
   const r = await appel<{ post: { _id: string; status: string } }>("/posts", {
     method: "POST",
-    body: JSON.stringify({
-      content: contenu,
-      publishNow: true,
-      platforms: [
-        {
-          platform: plateforme,
-          accountId,
-          // LinkedIn : publier au nom d'une page entreprise.
-          ...(organisationUrn ? { platformSpecificData: { organizationUrn: organisationUrn } } : {}),
-        },
-      ],
-      ...(media ? { mediaItems: [{ type: media.type, url: media.url }] } : {}),
-    }),
+    body: JSON.stringify(corpsPost(plateforme, accountId, contenu, media, organisationUrn, extras)),
   });
   return r.post;
 }

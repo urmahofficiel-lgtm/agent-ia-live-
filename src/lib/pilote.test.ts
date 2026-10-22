@@ -14,6 +14,7 @@ import {
   normaliserCreneaux,
   planDuJour,
   postsParJour,
+  rythmeCroissance,
   tachesDuJour,
 } from "./pilote";
 import { styleVideoPour } from "./styles";
@@ -364,5 +365,51 @@ describe("jours fériés", () => {
       ferie: "aujourd'hui, c'est Toussaint (jour férié)",
     });
     expect(c).toContain("Calendrier : aujourd'hui, c'est Toussaint");
+  });
+});
+
+describe("mode croissance", () => {
+  it("plafonne le rythme réseau par réseau", () => {
+    expect(rythmeCroissance({ instagram: 5, tiktok: 3, linkedin: 2, facebook: 1 }, ["instagram", "tiktok", "linkedin", "facebook"])).toEqual({
+      instagram: 2,
+      tiktok: 3,
+      linkedin: 1,
+      facebook: 1,
+    });
+    // Un rythme plus bas que le plafond est gardé.
+    expect(rythmeCroissance({ tiktok: 1 }, ["tiktok"])).toEqual({ tiktok: 1 });
+  });
+
+  it("consigne : quotidien de la clientèle, accroche courte, sans jargon", () => {
+    const c = consigneSujets({ contexte: null, categories: ["erreur", "astuce"], titresRecents: [], jour: "2026-10-24", croissance: true });
+    expect(c).toContain("Erreur qui coûte cher");
+    expect(c).toContain("pas du logiciel");
+    expect(c).toContain("8 mots au plus");
+  });
+
+  it("écarte les titres en jargon", () => {
+    const r = JSON.stringify({
+      sujets: [
+        { titre: "Le chiffrement AES-256 expliqué", consigne: "a" },
+        { titre: "3 erreurs qui ruinent un devis", consigne: "b" },
+        { titre: "POV : le client qui négocie tout", consigne: "c" },
+      ],
+    });
+    expect(lireSujets(r, 2, [], true)?.map((s) => s.titre)).toEqual(["3 erreurs qui ruinent un devis", "POV : le client qui négocie tout"]);
+    expect(lireSujets(r, 3, [], true)).toBeNull();
+    expect(lireSujets(r, 3, [])).toHaveLength(3);
+  });
+
+  it("tâches : repère, pilier, carrousel et Trial Reel", () => {
+    const creneaux = [
+      { plateforme: "instagram", marche: "fr-FR", heure: "12:30", quand: "2026-10-24T10:30:00.000Z", sujet: 0 },
+      { plateforme: "tiktok", marche: "fr-FR", heure: "18:30", quand: "2026-10-24T16:30:00.000Z", sujet: 1 },
+    ];
+    const t = tachesDuJour(creneaux, [{ titre: "Check-list avant devis", consigne: "x" }, { titre: "POV : le client", consigne: "y" }], ["astuce", "pov"], true);
+    expect(t[0].consigne).toContain("Mode croissance :");
+    expect(t[0].resultat).toEqual({ pilier: "astuce", format: "carrousel", video_etat: "carrousel" });
+    expect(t[1].resultat).toEqual({ pilier: "pov" });
+    // Sans le mode : rien ne change.
+    expect(tachesDuJour(creneaux, [{ titre: "a", consigne: "x" }, { titre: "b", consigne: "y" }], ["conseil", "demo"])[0]).not.toHaveProperty("resultat");
   });
 });

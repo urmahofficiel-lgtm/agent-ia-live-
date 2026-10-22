@@ -237,6 +237,8 @@ function etatVideo(t: Tache): "en_cours" | "echec" | "prete" | null {
     const depuis = Date.now() - new Date(r.video_debut ?? 0).getTime();
     return depuis > 6 * 60_000 ? "echec" : "en_cours";
   }
+  // Carrousel : pas de vidéo à attendre.
+  if (r?.video_etat === "carrousel") return r.video_url ? "prete" : null;
   return r?.video_etat ?? (r?.video_url ? "prete" : null);
 }
 
@@ -296,6 +298,8 @@ function CartePublication({ tache: t, actions: a }: { tache: Tache; actions: Act
           {t.plateforme && <LogoPlateforme id={t.plateforme} taille={22} />}
           <h3 className="font-semibold">{t.titre}</h3>
           <Pastille ton={STATUTS[t.statut].ton}>{STATUTS[t.statut].libelle}</Pastille>
+          {t.resultat?.carrousel && <Pastille ton="plan">Carrousel · {t.resultat.carrousel.images.length} diapositives</Pastille>}
+          {t.resultat?.essai_reel && t.plateforme === "instagram" && <Pastille ton="plan">Trial Reel</Pastille>}
           {video && video_etat !== "en_cours" && (
             <Pastille ton="plan">
               {t.resultat?.video_perso ? "Votre vidéo" : `Vidéo${styleVideo && styleVideo !== "classique" ? ` · ${nomStyleVideo(styleVideo)}` : ""}`}

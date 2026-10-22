@@ -106,7 +106,23 @@ async function publierReelFacebook(pageId: string, jeton: string, texte: string,
   return { id: video_id };
 }
 
-export async function publierFacebook(pageId: string, jeton: string, texte: string, media: Media | null) {
+// Post Facebook à plusieurs photos (carrousel) : les photos sont envoyées sans
+// être publiées, puis jointes à un seul post.
+async function publierPhotosFacebook(pageId: string, jeton: string, texte: string, images: string[]) {
+  const ids: string[] = [];
+  for (const url of images.slice(0, 10)) {
+    const p = await graph<{ id: string }>(`/${pageId}/photos`, { access_token: jeton, url, published: "false" }, "POST");
+    ids.push(p.id);
+  }
+  return graph<{ id: string }>(
+    `/${pageId}/feed`,
+    { access_token: jeton, message: texte, attached_media: JSON.stringify(ids.map((media_fbid) => ({ media_fbid }))) },
+    "POST",
+  );
+}
+
+export async function publierFacebook(pageId: string, jeton: string, texte: string, media: Media | null, images: string[] = []) {
+  if (images.length >= 2) return publierPhotosFacebook(pageId, jeton, texte, images);
   if (media?.type === "video") {
     try {
       return await publierReelFacebook(pageId, jeton, texte, media.url);
@@ -124,30 +140,91 @@ export async function publierFacebook(pageId: string, jeton: string, texte: stri
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// Instagram : on crée un « conteneur », on attend que Meta ait récupéré le
-// média, puis on le publie.
-// `base` : graph.facebook.com (compte relié à une page) ou graph.instagram.com
-// (connexion Instagram directe) ; les appels sont identiques.
-export async function publierInstagram(igId: string, jeton: string, texte: string, media: Media | null, base = GRAPH, story = false) {
-  if (!media) throw new Error("Instagram exige une image ou une vidéo : créez d'abord le visuel.");
-  // Story : même visuel, sans légende ; sinon Reel ou photo du fil.
-  const conteneur = await graph<{ id: string }>(
-    `/${igId}/media`,
-    media.type === "video"
-      ? { access_token: jeton, media_type: story ? "STORIES" : "REELS", video_url: media.url, ...(story ? {} : { caption: texte, share_to_feed: "true" }) }
-      : { access_token: jeton, ...(story ? { media_type: "STORIES" } : {}), image_url: media.url, ...(story ? {} : { caption: texte }) },
-    "POST",
-    base,
-  );
-  const limite = Date.now() + (media.type === "video" ? 180_000 : 60_000);
+// Attend que Meta ait récupéré et traité le média d'un conteneur Instagram.
+async function attendreConteneur(id: string, jeton: string, base: string, delai: number) {
+  const limite = Date.now() + delai;
   for (;;) {
-    const { status_code } = await graph<{ status_code?: string }>(`/${conteneur.id}`, { access_token: jeton, fields: "status_code" }, "GET", base);
-    if (status_code === "FINISHED" || !status_code) break;
+    const { status_code } = await graph<{ status_code?: string }>(`/${id}`, { access_token: jeton, fields: "status_code" }, "GET", base);
+    if (status_code === "FINISHED" || !status_code) return;
     if (status_code === "ERROR" || status_code === "EXPIRED") throw new Error("Meta : Instagram a refusé le média (format ou taille).");
     if (Date.now() > limite) throw new Error("Meta : Instagram met trop de temps à traiter le média. Réessayez.");
     await pause(4000);
   }
+}
+
+// Options d'un Reel (mode croissance) : `essai` = Trial Reel, montré d'abord
+// aux non-abonnés et publié sur le profil s'il marche ; `couvertureMs` =
+// image de couverture prise à ce moment de la vidéo (l'accroche) ; `nomAudio`
+// remplace « Audio original » par un nom qu'on peut chercher.
+export type OptionsReel = { essai?: boolean; couvertureMs?: number; nomAudio?: string };
+
+// Instagram : on crée un « conteneur », on attend que Meta ait récupéré le
+// média, puis on le publie.
+// `base` : graph.facebook.com (compte relié à une page) ou graph.instagram.com
+// (connexion Instagram directe) ; les appels sont identiques.
+export async function publierInstagram(
+  igId: string,
+  jeton: string,
+  texte: string,
+  media: Media | null,
+  base = GRAPH,
+  story = false,
+  options: OptionsReel = {},
+) {
+  if (!media) throw new Error("Instagram exige une image ou une vidéo : créez d'abord le visuel.");
+  const extras: Record<string, string> =
+    media.type === "video" && !story
+      ? {
+          ...(options.essai ? { trial_params: JSON.stringify({ graduation_strategy: "SS_PERFORMANCE" }) } : {}),
+          ...(options.couvertureMs !== undefined ? { thumb_offset: String(Math.round(options.couvertureMs)) } : {}),
+          ...(options.nomAudio ? { audio_name: options.nomAudio.slice(0, 50) } : {}),
+        }
+      : {};
+  // Story : même visuel, sans légende ; sinon Reel ou photo du fil.
+  const params =
+    media.type === "video"
+      ? { access_token: jeton, media_type: story ? "STORIES" : "REELS", video_url: media.url, ...(story ? {} : { caption: texte, share_to_feed: "true" }) }
+      : { access_token: jeton, ...(story ? { media_type: "STORIES" } : {}), image_url: media.url, ...(story ? {} : { caption: texte }) };
+  let conteneur: { id: string };
+  try {
+    conteneur = await graph<{ id: string }>(`/${igId}/media`, { ...params, ...extras }, "POST", base);
+  } catch (e) {
+    // Option refusée par ce compte (Trial Reels pas encore ouverts…) : le
+    // Reel part sans elle plutôt que pas du tout.
+    if (!Object.keys(extras).length) throw e;
+    console.warn("Options du Reel refusées, Reel classique", e instanceof Error ? e.message : e);
+    conteneur = await graph<{ id: string }>(`/${igId}/media`, params, "POST", base);
+  }
+  await attendreConteneur(conteneur.id, jeton, base, media.type === "video" ? 180_000 : 60_000);
   return graph<{ id: string }>(`/${igId}/media_publish`, { access_token: jeton, creation_id: conteneur.id }, "POST", base);
+}
+
+// Carrousel Instagram (2 à 10 images JPEG) : un conteneur par image, puis
+// celui du carrousel, publié comme un post du fil.
+export async function publierCarrouselInstagram(igId: string, jeton: string, texte: string, images: string[], base = GRAPH) {
+  const enfants: string[] = [];
+  for (const url of images.slice(0, 10)) {
+    const c = await graph<{ id: string }>(`/${igId}/media`, { access_token: jeton, image_url: url, is_carousel_item: "true" }, "POST", base);
+    enfants.push(c.id);
+  }
+  const conteneur = await graph<{ id: string }>(
+    `/${igId}/media`,
+    { access_token: jeton, media_type: "CAROUSEL", children: enfants.join(","), caption: texte },
+    "POST",
+    base,
+  );
+  await attendreConteneur(conteneur.id, jeton, base, 90_000);
+  return graph<{ id: string }>(`/${igId}/media_publish`, { access_token: jeton, creation_id: conteneur.id }, "POST", base);
+}
+
+// Premier commentaire (question qui lance la discussion), juste après la
+// publication.
+export function commenterInstagram(mediaId: string, jeton: string, texte: string, base = GRAPH) {
+  return graph<{ id: string }>(`/${mediaId}/comments`, { access_token: jeton, message: texte }, "POST", base);
+}
+
+export function commenterFacebook(objetId: string, jeton: string, texte: string) {
+  return graph<{ id: string }>(`/${objetId}/comments`, { access_token: jeton, message: texte }, "POST");
 }
 
 // Story Instagram (affichée 24 h) : même média que le Reel, sans légende.

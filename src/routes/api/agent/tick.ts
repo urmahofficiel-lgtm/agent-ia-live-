@@ -1,7 +1,9 @@
 import { avecVeille } from "@/lib/veille";
 import { createFileRoute } from "@tanstack/react-router";
 import { PLATEFORMES, estManuel } from "@/lib/plateformes";
-import { publierSur } from "@/lib/publication.server";
+import { publierAvecSuite } from "@/lib/publication.server";
+import { fabriquerCarrousel } from "@/lib/carrousel.server";
+import { estCroissance, extrairePremierCommentaire } from "@/lib/croissance";
 import { preparer, type Ecrivain } from "@/lib/preparation.server";
 import { fabriquerVideo } from "@/lib/fabrication-video.server";
 import { clientMoteur } from "@/lib/supabase-serveur";
@@ -32,7 +34,19 @@ type Due = {
   contexte: string | null;
   // Langue et pays du compte visé (« it-IT »…) : texte, visuel et vidéo dans sa langue.
   marche: string;
+  // Résultat complet (carrousel, Trial Reel…) ; absent avec l'ancienne file.
+  resultat?: Record<string, unknown> | null;
 };
+
+type ACarrousel = { tache_id: string; user_id: string; plateforme: string; titre: string; consigne: string; brouillon: string; contexte: string | null; essais: number; marche: string };
+
+// Carrousel prêt enregistré avec la tâche (diapositives déposées).
+function lireCarrouselPret(resultat: Record<string, unknown> | null | undefined) {
+  const c = resultat?.carrousel as { images?: unknown; pdf_url?: unknown; titre?: unknown } | null | undefined;
+  const images = Array.isArray(c?.images) ? c.images.filter((x): x is string => typeof x === "string") : [];
+  if (images.length < 2) return null;
+  return { images, pdf_url: typeof c?.pdf_url === "string" ? c.pdf_url : null, titre: typeof c?.titre === "string" ? c.titre : "Carrousel" };
+}
 
 type AFilmer = { tache_id: string; user_id: string; plateforme: string; titre: string; consigne: string; brouillon: string; contexte: string | null; site: string | null; essais: number; marche: string };
 
@@ -72,6 +86,9 @@ async function tick(secret: string) {
 
   // 0. Publications restées en attente 12 h après leur heure : en échec.
   await sb.rpc("agent_echouer_perimees", { p_secret: secret });
+  // Publications restées « en cours » (passage coupé en route : délai Vercel
+  // dépassé, IA bloquée) : remises en file une fois, puis en échec.
+  await sb.rpc("agent_reprendre_bloquees", { p_secret: secret });
 
   // Sujets publiés ces derniers jours, par utilisateur (contrôle des doublons).
   const recentes = new Map<string, DejaPubliee[]>();
@@ -83,8 +100,10 @@ async function tick(secret: string) {
     return recentes.get(userId)!;
   };
 
-  // 1. Publications à l'heure.
-  const { data, error } = await sb.rpc("agent_publications_dues", { p_secret: secret });
+  // 1. Publications à l'heure, réservées dès qu'elles sont prises (ancienne
+  // file si la migration n'est pas encore appliquée).
+  let { data, error } = await sb.rpc("agent_publications_a_envoyer", { p_secret: secret });
+  if (error) ({ data, error } = await sb.rpc("agent_publications_dues", { p_secret: secret }));
   if (error) throw new Error(error.message);
   const dues = (data ?? []) as Due[];
   // Déjà mises de côté par le contrôle qualité puis revalidées : relues, elles partent.
@@ -138,29 +157,62 @@ async function tick(secret: string) {
         avecVeille(t.contexte),
         ecrivainMoteur(t.tache_id),
       );
+      // Mode croissance : le « Premier commentaire : … » écrit à la fin du
+      // post part en commentaire, pas dans le texte.
+      const croissance = estCroissance(t.consigne);
+      const { texte: sansCommentaire, commentaire } = extrairePremierCommentaire(pret.brouillon ?? "");
+      if (pret.brouillon) pret.brouillon = sansCommentaire;
       // Hashtags : inventés retirés, nombre limité selon le réseau (y compris
       // pour les brouillons écrits avant cette règle).
       if (pret.brouillon) pret.brouillon = nettoyerHashtags(pret.brouillon, t.plateforme);
       // Contrôle qualité : langue, texte, doublon. En cas de doute, la
       // publication attend une relecture au lieu de partir.
-      const raisons = relues.has(t.tache_id) ? [] : controlerPublication({ plateforme: t.plateforme, titre: t.titre, marche: t.marche, texte: pret.brouillon }, await publieesRecemment(t.user_id));
+      const raisons = relues.has(t.tache_id) ? [] : controlerPublication({ plateforme: t.plateforme, titre: t.titre, marche: t.marche, texte: pret.brouillon, croissance }, await publieesRecemment(t.user_id));
       if (raisons.length) {
         await maj(t.tache_id, "a_valider", { controle_raisons: raisons }, "erreur", `🛑 « ${t.titre} » mise de côté par le contrôle qualité (${raisons.join(" ; ")}). À relire dans Publications → À valider.`);
         continue;
       }
+      const carrousel = lireCarrouselPret(t.resultat);
       // TikTok : la publication a attendu sa vidéo (45 min au plus) ; sans
       // elle, on publie ce qu'on a et on le dit.
-      if (t.plateforme === "tiktok" && !t.video_url) {
+      if (t.plateforme === "tiktok" && !t.video_url && !carrousel) {
         await maj(t.tache_id, null, null, "info", `⏱️ Vidéo TikTok pas prête à temps pour « ${t.titre} » : publication ${pret.visuel_url ? "avec l'image" : "sans visuel"}.`);
       }
-      await maj(t.tache_id, null, null, "action", `🚀 Publication sur ${PLATEFORMES.find((p) => p.id === t.plateforme)?.nom}…`);
-      const media = t.video_url
-        ? ({ type: "video", url: t.video_url } as const)
-        : pret.visuel_url
-          ? ({ type: "image", url: pret.visuel_url } as const)
-          : null;
-      const postId = await publierSur(t.plateforme, t.user_id, { fournisseur: t.fournisseur, compte_externe_id: t.compte_externe_id, cible_urn: t.cible_urn }, pret.brouillon, media, pret.visuel_url, t.tache_id);
-      await maj(t.tache_id, "terminee", { post_id: postId, publie_le: new Date().toISOString() }, "info", `✅ Publié : « ${t.titre} »`);
+      await maj(t.tache_id, null, null, "action", `🚀 Publication sur ${PLATEFORMES.find((p) => p.id === t.plateforme)?.nom}${carrousel ? ` (carrousel de ${carrousel.images.length} diapositives)` : ""}…`);
+      const media = carrousel
+        ? ({ type: "image", url: carrousel.images[0] } as const)
+        : t.video_url
+          ? ({ type: "video", url: t.video_url } as const)
+          : pret.visuel_url
+            ? ({ type: "image", url: pret.visuel_url } as const)
+            : null;
+      const { id: postId, suite } = await publierAvecSuite(
+        t.plateforme,
+        t.user_id,
+        { fournisseur: t.fournisseur, compte_externe_id: t.compte_externe_id, cible_urn: t.cible_urn },
+        pret.brouillon,
+        media,
+        pret.visuel_url,
+        t.tache_id,
+        {
+          images: carrousel?.images,
+          document: carrousel?.pdf_url ? { url: carrousel.pdf_url, titre: carrousel.titre } : null,
+          // Reel : couverture prise sur l'accroche, audio nommé d'après le
+          // sujet ; Trial Reel si le pilier s'y prête.
+          reel: croissance && t.video_url ? { essai: t.resultat?.essai_reel === true, couvertureMs: 600, nomAudio: t.titre } : undefined,
+          premierCommentaire: commentaire,
+        },
+      );
+      // Enregistré comme publié AVANT la suite (Story, premier commentaire) :
+      // un passage coupé en route ne republiera jamais ce post.
+      await maj(
+        t.tache_id,
+        "terminee",
+        { post_id: postId, publie_le: new Date().toISOString(), ...(commentaire ? { premier_commentaire: commentaire } : {}) },
+        "info",
+        `✅ Publié : « ${t.titre} »${t.resultat?.essai_reel === true && t.video_url && t.plateforme === "instagram" ? " (Trial Reel : montré d'abord aux non-abonnés)" : ""}`,
+      );
+      await suite().catch((e) => console.warn("Suite de la publication", e instanceof Error ? e.message : e));
       traitees++;
     } catch (e) {
       await maj(t.tache_id, "echouee", null, "erreur", `Échec sur « ${t.titre} » : ${e instanceof Error ? e.message : "erreur"}`);
@@ -175,6 +227,44 @@ async function tick(secret: string) {
       if (n) console.info(`Pilote automatique : ${n} publication(s) planifiée(s).`);
     } catch (e) {
       console.warn("Pilote automatique", e instanceof Error ? e.message : e);
+    }
+  }
+
+  // 2 bis. Carrousels (mode croissance) : diapositives écrites à partir du
+  // texte, dessinées, déposées (une par passage).
+  if (Date.now() - debut < 90_000) {
+    const { data: aDessiner } = await sb.rpc("agent_carrousels_a_faire", { p_secret: secret });
+    for (const c of (aDessiner ?? []) as ACarrousel[]) {
+      try {
+        await maj(c.tache_id, null, { essais_carrousel: c.essais + 1 }, "info", null);
+        await fabriquerCarrousel({ id: c.tache_id, plateforme: c.plateforme, titre: c.titre, consigne: c.consigne, brouillon: c.brouillon, marche: c.marche }, avecVeille(c.contexte), {
+          journal: (niveau, msg) => maj(c.tache_id, null, null, niveau, msg),
+          etat: (champs) => maj(c.tache_id, null, champs, "info", null),
+          deposer: async (fichier, type, nom) => {
+            // Même ticket de dépôt que les vidéos : pas d'accès libre au stockage.
+            const { data: ticket, error } = await sb.rpc("agent_depot_video", { p_secret: secret, p_user: c.user_id });
+            if (error || !ticket) throw new Error("Dépôt du carrousel refusé.");
+            const seau = type === "application/pdf" ? "documents" : "studio";
+            const chemin = `${c.user_id}/auto-${ticket as string}/${nom}`;
+            const { error: errDepot } = await sb.storage.from(seau).upload(chemin, fichier, { contentType: type });
+            if (errDepot) throw new Error(`Enregistrement du carrousel impossible : ${errDepot.message}`);
+            return sb.storage.from(seau).getPublicUrl(chemin).data.publicUrl;
+          },
+        });
+        traitees++;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "erreur";
+        // Deuxième échec : la publication repart sur son format habituel
+        // (vidéo ou image) plutôt que de rester bloquée.
+        const abandon = c.essais + 1 >= 2;
+        await maj(
+          c.tache_id,
+          null,
+          abandon ? { carrousel_etat: "echec", format: null, video_etat: null } : { carrousel_etat: null },
+          "erreur",
+          `Carrousel non créé pour « ${c.titre} » : ${msg}${abandon ? " — publication au format habituel." : " — nouvel essai au prochain passage."}`,
+        );
+      }
     }
   }
 

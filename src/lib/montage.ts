@@ -198,17 +198,30 @@ export function lirePlan(reponse: string | unknown): PlanMontage | null {
   return { ...r.data, accroche: r.data.accroche || r.data.titre, cta: r.data.cta || "Lien en bio" };
 }
 
+// `croissance` : vidéo du mode croissance (courte, accroche sans marque ni
+// salutation ; sans publicité, la fin demande d'enregistrer ou de commenter
+// au lieu de vendre).
 export function consignePlan(
   source: { lien?: string; sujet?: string; extrait?: string },
   contexte: string | null,
   duree: number,
   marche?: string | null,
+  croissance?: { sansPub: boolean } | null,
 ) {
+  const deroule = croissance
+    ? `- Scène 1 = accroche qui arrête le défilement dans la 1re seconde : 7 mots au plus, sans nom de marque, sans salutation ni logo (erreur, chiffre tiré de la source, « POV : … », question qui pique). Puis le cœur du sujet, une idée par scène, sans temps mort.
+- Dernière scène = ${
+        croissance.sansPub
+          ? "appel à l'engagement SANS nom de marque ni produit (« Enregistre-la pour ton prochain chantier », « Et toi, tu fais comment ? »)"
+          : "appel à l'action avec le nom de la marque, en une phrase"
+      }.
+- Une phrase parlée par scène (6 à 14 mots), langage oral, phrases courtes. 4 à 6 scènes au total : la vidéo doit être regardée jusqu'au bout.`
+    : `- Scène 1 = accroche qui arrête le défilement dans la 1re seconde (question choc, chiffre fort tiré de la source, « POV : … », situation vécue). Puis le problème, la solution concrète, la preuve, et la dernière scène = appel à l'action avec le nom de la marque.
+- Une phrase parlée par scène (8 à 18 mots), langage oral, phrases courtes. 5 à 8 scènes au total.`;
   return `Tu es un monteur vidéo expert de TikTok, Reels et Shorts (niveau CapCut pro). Prépare le plan de montage d'une vidéo verticale de ${duree} secondes environ, en ${marcheDe(marche).langue}.
 ${source.lien ? `Lien à mettre en avant : ${source.lien}\n` : ""}${source.sujet ? `Sujet : ${source.sujet}\n` : ""}${source.extrait ? `\nCe que dit la page (source de vérité) :\n${source.extrait}\n` : ""}${contexte ? `\nFiche de la marque (source de vérité, n'invente aucun chiffre, prix, client ou témoignage) :\n${contexte}\n` : ""}
 Règles de montage :
-- Scène 1 = accroche qui arrête le défilement dans la 1re seconde (question choc, chiffre fort tiré de la source, « POV : … », situation vécue). Puis le problème, la solution concrète, la preuve, et la dernière scène = appel à l'action avec le nom de la marque.
-- Une phrase parlée par scène (8 à 18 mots), langage oral, phrases courtes. 5 à 8 scènes au total.
+${deroule}
 - « texte » : 2 à 5 mots forts affichés en gros (pas une copie de la phrase).
 - « mots_forts » : 1 à 2 mots de la phrase à faire ressortir en couleur.
 - « emoji » : un seul emoji qui renforce l'émotion de la scène, ou "" si aucun ne colle (pas plus d'une scène sur deux).
@@ -219,7 +232,7 @@ Règles de montage :
 - « mouvement » (pour ia_video) : en anglais, ce qui bouge dans la scène et le mouvement de caméra (ex. "the worker looks up surprised at his phone, slow camera push in").
 - « recherche » : 2 à 4 mots-clés anglais pour trouver une vraie vidéo de stock de CE moment précis (ex. "construction worker phone site"). « prompt » : description anglaise d'une photo réaliste verticale, sans texte.
 Réponds UNIQUEMENT par un objet JSON valide :
-{"titre": "titre court", "accroche": "accroche affichée en haut au début, 4 à 8 mots", "cta": "appel à l'action affiché à la fin, 2 à 6 mots", "voix": "Charon", "scenes": [{"phrase": "...", "texte": "...", "mots_forts": ["..."], "emoji": "🔥", "effet": "zoom_avant", "transition": "coupe", "son": "whoosh", "source": "video", "recherche": "...", "prompt": "...", "mouvement": ""}], "legende": "texte du post : accroche, 2 phrases, appel à l'action avec le lien, 3 à 5 hashtags"}${reglesMarche(marche) ? `\n${reglesMarche(marche)}` : ""}`;
+{"titre": "titre court", "accroche": "accroche affichée en haut au début, ${croissance ? "3 à 7" : "4 à 8"} mots", "cta": "${croissance?.sansPub ? "appel à l'engagement affiché à la fin, 2 à 6 mots, sans marque" : "appel à l'action affiché à la fin, 2 à 6 mots"}", "voix": "Charon", "scenes": [{"phrase": "...", "texte": "...", "mots_forts": ["..."], "emoji": "🔥", "effet": "zoom_avant", "transition": "coupe", "son": "whoosh", "source": "video", "recherche": "...", "prompt": "...", "mouvement": ""}], "legende": "texte du post : accroche, 2 phrases, appel à l'action avec le lien, 3 à 5 hashtags"}${reglesMarche(marche) ? `\n${reglesMarche(marche)}` : ""}`;
 }
 
 // --- Minutage --------------------------------------------------------------------

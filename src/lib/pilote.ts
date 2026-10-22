@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { PLATEFORMES } from "./plateformes";
 import { MARCHE_DEFAUT, langueDuJour, marcheDe, type Canal } from "./marches";
+import { MAX_PAR_JOUR_CROISSANCE, PILIERS_CROISSANCE, consigneCroissance, jargonDans, resultatCroissance } from "./croissance";
 
 // Pilote automatique : chaque jour, l'agent planifie seul N publications par
 // réseau connecté, aux créneaux choisis (heure de Paris). Logique pure,
@@ -37,6 +38,14 @@ export function postsParJour(rythme: unknown, plateforme: string) {
   return Number.isFinite(n)
     ? Math.min(RYTHME_MAX, Math.max(1, n))
     : RYTHME_DEFAUT;
+}
+
+// Mode croissance : le rythme choisi, plafonné réseau par réseau (au-delà,
+// chaque post de plus fait baisser la portée des autres).
+export function rythmeCroissance(rythme: unknown, plateformes: string[]): Rythme {
+  return Object.fromEntries(
+    plateformes.map((p) => [p, Math.min(postsParJour(rythme, p), MAX_PAR_JOUR_CROISSANCE[p] ?? RYTHME_MAX)]),
+  );
 }
 
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -293,19 +302,19 @@ export const REGLES_PILOTE =
 
 export function consigneSujets(p: {
   contexte: string | null;
-  categories: CategorieSujet[];
+  // Catégories classiques, ou piliers du mode croissance.
+  categories: string[];
   titresRecents: string[];
   apprentissage?: string | null;
   jour: string;
   ferie?: string | null;
   // Veille du jour (sujets d'actualité de la clientèle, mots, hashtags).
   tendances?: string | null;
+  croissance?: boolean;
 }) {
+  const types: readonly { id: string; consigne: string }[] = p.croissance ? PILIERS_CROISSANCE : CATEGORIES_SUJET;
   const lignes = p.categories
-    .map(
-      (c, i) =>
-        `${i + 1}. ${CATEGORIES_SUJET.find((x) => x.id === c)?.consigne}`,
-    )
+    .map((c, i) => `${i + 1}. ${types.find((x) => x.id === c)?.consigne}`)
     .join("\n");
   const recents = p.titresRecents
     .slice(0, 80)
@@ -325,7 +334,12 @@ ${recents ? `\nSujets déjà traités ces 30 derniers jours (ne les répète pas
       ? `\nTendances de la semaine dans le domaine (veille web) :\n${p.tendances.slice(0, 2000)}\nAu moins un sujet sur deux part de l'une de ces tendances : relie-la à une vraie fonctionnalité de la marque, avec les mots de la cible, sans inventer de chiffre.\n`
       : ""
   }
-Les ${p.categories.length} sujets doivent être tous différents, concrets et propres à cette marque (ses vraies fonctionnalités, sa vraie clientèle).
+${
+  p.croissance
+    ? `Les ${p.categories.length} sujets doivent être tous différents et parler du quotidien de la clientèle de cette marque (ses chantiers, ses clients, son argent, ses papiers, son métier), pas du logiciel : seuls les sujets « Démonstration » et « Offre » parlent du produit. Objectif : des sujets que la clientèle a envie d'enregistrer, de partager à un collègue ou de commenter.
+Titre = l'accroche que verra le public : 8 mots au plus, sans nom de marque, avec un chiffre, une erreur, une question ou « POV : », dans les mots du terrain. Jamais de jargon technique (chiffrement, API, ERP, webhook, cloud, SaaS, Open Banking…).`
+    : `Les ${p.categories.length} sujets doivent être tous différents, concrets et propres à cette marque (ses vraies fonctionnalités, sa vraie clientèle).`
+}
 ${REGLES_PILOTE}
 Réponds UNIQUEMENT par un objet JSON valide, sans texte autour :
 {"sujets": [{"titre": "titre court (6 à 10 mots)", "consigne": "angle, accroche et appel à l'action en 1 à 3 phrases"}]}`;
@@ -369,11 +383,13 @@ const schemaSujets = z.object({
 export type Sujet = { titre: string; consigne: string };
 
 // Lit la réponse de l'IA : exactement k sujets distincts, jamais un titre des
-// 30 derniers jours. null si la réponse est inutilisable (réessai plus tard).
+// 30 derniers jours (ni, en mode croissance, un titre en jargon technique).
+// null si la réponse est inutilisable (réessai plus tard).
 export function lireSujets(
   reponse: string,
   k: number,
   titresRecents: string[] = [],
+  croissance = false,
 ): Sujet[] | null {
   const debut = reponse.indexOf("{");
   const fin = reponse.lastIndexOf("}");
@@ -397,6 +413,7 @@ export function lireSujets(
       .trim()
       .slice(0, 1200);
     if (!titre || vus.has(cle(titre))) continue;
+    if (croissance && jargonDans(titre).length) continue;
     vus.add(cle(titre));
     sujets.push({ titre, consigne: consigne || titre });
   }
@@ -405,15 +422,28 @@ export function lireSujets(
 
 // Tâches prêtes à enregistrer : un sujet par heure, décliné sur chaque réseau
 // et dans chaque marché (le titre reste en français, le texte sera écrit dans
-// la langue du marché).
+// la langue du marché). Mode croissance : le pilier de chaque sujet et ce qui
+// en découle (carrousel, Trial Reel) sont enregistrés avec la tâche.
 export function tachesDuJour(
   creneaux: Creneau[],
   sujets: Sujet[],
-  categories: CategorieSujet[],
+  categories: string[],
+  croissance = false,
 ) {
   return creneaux.map((c) => {
     const s = sujets[c.sujet];
-    const type = CATEGORIES_SUJET.find((x) => x.id === categories[c.sujet]);
+    const categorie = categories[c.sujet];
+    if (croissance) {
+      return {
+        plateforme: c.plateforme,
+        marche: c.marche,
+        titre: s.titre,
+        consigne: `${s.consigne}\n\n${consigneCroissance(categorie)}\n${REGLES_PILOTE}`,
+        planifiee_pour: c.quand,
+        resultat: resultatCroissance(categorie, c.plateforme),
+      };
+    }
+    const type = CATEGORIES_SUJET.find((x) => x.id === categorie);
     return {
       plateforme: c.plateforme,
       marche: c.marche,

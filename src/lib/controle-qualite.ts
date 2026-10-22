@@ -3,6 +3,7 @@
 // par le moteur (blocage) et la page Publications (avertissements).
 
 import { MARCHE_DEFAUT } from "./marches";
+import { promessesDans } from "./croissance";
 
 // Mots très fréquents propres à chaque langue : de quoi reconnaître la langue
 // d'un post sans service extérieur.
@@ -55,7 +56,8 @@ const normaliser = (s: string) =>
 export const DELAI_DOUBLON_H = 72;
 export const TEXTE_MINIMUM = 15;
 
-export type APublier = { plateforme: string | null; titre: string; marche?: string | null; texte: string | null };
+// `croissance` : publication du mode croissance (promesses intenables bloquées).
+export type APublier = { plateforme: string | null; titre: string; marche?: string | null; texte: string | null; croissance?: boolean };
 export type DejaPubliee = { plateforme: string | null; titre: string; publiee_le: string | null };
 
 // Publication prévue dans les prochaines 24 h (ou déjà due) : l'écran de
@@ -84,5 +86,9 @@ export function controlerPublication(p: APublier, recentes: DejaPubliee[], maint
       maintenant - new Date(r.publiee_le).getTime() < DELAI_DOUBLON_H * 3_600_000,
   );
   if (doublon) raisons.push(`même sujet déjà publié sur ce réseau il y a moins de ${DELAI_DOUBLON_H / 24} jours`);
+  if (p.croissance) {
+    const promesses = promessesDans(texte);
+    if (promesses.length) raisons.push(`promesse impossible à tenir (${promesses.join(", ")})`);
+  }
   return raisons;
 }

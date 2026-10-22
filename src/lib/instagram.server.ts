@@ -1,6 +1,6 @@
 import { URL_SITE } from "./preparation.server";
 import { lireJetonInstagram, urlDialogueInstagram, VERSION_GRAPH } from "./meta";
-import { creerEtat, graph, publierInstagram, publierStoryInstagram } from "./meta.server";
+import { commenterInstagram, creerEtat, graph, publierCarrouselInstagram, publierInstagram, publierStoryInstagram, type OptionsReel } from "./meta.server";
 import type { Media } from "./zernio.server";
 
 // Connexion Instagram directe (« API Instagram avec connexion Instagram ») :
@@ -64,8 +64,16 @@ export async function prolongerJetonInstagram(jeton: string) {
   }
 }
 
-export function publierInstagramDirect(igUserId: string, jeton: string, texte: string, media: Media | null) {
-  return publierInstagram(igUserId, jeton, texte, media, GRAPH_IG);
+export function publierInstagramDirect(igUserId: string, jeton: string, texte: string, media: Media | null, options: OptionsReel = {}) {
+  return publierInstagram(igUserId, jeton, texte, media, GRAPH_IG, false, options);
+}
+
+export function publierCarrouselInstagramDirect(igUserId: string, jeton: string, texte: string, images: string[]) {
+  return publierCarrouselInstagram(igUserId, jeton, texte, images, GRAPH_IG);
+}
+
+export function commenterInstagramDirect(mediaId: string, jeton: string, texte: string) {
+  return commenterInstagram(mediaId, jeton, texte, GRAPH_IG);
 }
 
 export function publierStoryInstagramDirect(igUserId: string, jeton: string, media: Media | null) {

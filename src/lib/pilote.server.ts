@@ -4,15 +4,22 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { demanderIA } from "./ia.server";
 import { lireCanaux } from "./marches";
 import { tachesJournee } from "./journee";
+import { melangeCroissance, sujetsDeSecours } from "./croissance";
 import {
   consigneSujets,
   ferieProche,
   lireSujets,
   melangeDuJour,
+  minutesParis,
   normaliserCreneaux,
   planDuJour,
+  rythmeCroissance,
   tachesDuJour,
 } from "./pilote";
+
+// Passé 6 h 30 (heure de Paris), si l'IA ne donne toujours pas de sujets, on
+// planifie des sujets de secours plutôt que de perdre la journée.
+const HEURE_SECOURS = 6 * 60 + 30;
 
 // Étape « planification du jour » du moteur (pilote automatique). Légère : au
 // plus 2 utilisateurs par passage, un seul appel à l'IA chacun. Une erreur
@@ -59,42 +66,58 @@ export async function planifierJournees(
     if (Date.now() > echeance - 30_000) break;
     try {
       const canaux = lireCanaux(u.canaux);
+      // Mode croissance (Réglages) : piliers « utiles d'abord », rythme plafonné.
+      const { data: croissance } = await sb.rpc("agent_croissance", { p_secret: secret, p_user: u.user_id, p_jour: u.jour });
+      const enCroissance = croissance === true;
       const plan = planDuJour(
         canaux,
-        u.rythme,
+        enCroissance ? rythmeCroissance(u.rythme, canaux.map((c) => c.plateforme)) : u.rythme,
         normaliserCreneaux(u.creneaux),
         u.jour,
       );
       let taches: ReturnType<typeof tachesDuJour> = [];
       if (plan.creneaux.length) {
         const titres = u.titres_recents ?? [];
-        const categories = melangeDuJour(u.jour, plan.heures.length);
+        const categories: string[] = enCroissance ? melangeCroissance(u.jour, plan.heures.length) : melangeDuJour(u.jour, plan.heures.length);
         // Veille des tendances du domaine (une fois par jour) : les sujets
         // du jour peuvent coller à l'actualité de la clientèle.
         const [ferie, tendances] = await Promise.all([
           ferieDuJour(u.jour),
           veilleDuJour(sb, secret, u.user_id, u.contexte, u.jour, echeance).catch(() => null),
         ]);
-        const reponse = await demanderIA(
-          consigneSujets({
-            contexte: avecVeille(u.contexte),
-            tendances,
-            categories,
-            titresRecents: titres,
-            apprentissage: u.apprentissage,
-            jour: u.jour,
-            ferie,
-          }),
-          {
-            systeme:
-              "Tu es responsable éditorial des réseaux sociaux d'une petite entreprise. Tu réponds uniquement en JSON valide.",
-            maxTokens: 1200,
-            delaiTotal: Math.min(60_000, echeance - Date.now() - 20_000),
-          },
-        );
-        const sujets = lireSujets(reponse, plan.heures.length, titres);
+        let sujets: ReturnType<typeof lireSujets> = null;
+        try {
+          // Réponse longue (un sujet par heure) : Gemini d'abord, avec de la
+          // place (les modèles « à raisonnement » de NVIDIA coupaient la
+          // réponse à 1200 jetons).
+          const reponse = await demanderIA(
+            consigneSujets({
+              contexte: avecVeille(u.contexte),
+              tendances,
+              categories,
+              titresRecents: titres,
+              apprentissage: u.apprentissage,
+              jour: u.jour,
+              ferie,
+              croissance: enCroissance,
+            }),
+            {
+              systeme:
+                "Tu es responsable éditorial des réseaux sociaux d'une petite entreprise. Tu réponds uniquement en JSON valide.",
+              maxTokens: 3000,
+              delaiTotal: Math.min(60_000, echeance - Date.now() - 20_000),
+            },
+          );
+          sujets = lireSujets(reponse, plan.heures.length, titres, enCroissance);
+        } catch (e) {
+          console.warn("Pilote automatique : IA indisponible", e instanceof Error ? e.message : e);
+        }
+        if (!sujets && minutesParis() >= HEURE_SECOURS) {
+          const secours = sujetsDeSecours(plan.heures.length, tendances, titres, u.jour);
+          if (secours.length >= plan.heures.length) sujets = secours;
+        }
         if (!sujets) throw new Error("réponse de l'IA inutilisable");
-        taches = tachesDuJour(plan.creneaux, sujets, categories);
+        taches = tachesDuJour(plan.creneaux, sujets, categories, enCroissance);
       }
       // Série « Une journée de… » (essai d'une semaine) : l'épisode du jour,
       // en plus des sujets choisis par l'IA.

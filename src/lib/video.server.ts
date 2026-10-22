@@ -15,7 +15,7 @@ const IMAGES_PAR_SECONDE = 30;
 
 export const cheminFfmpeg = () => ffmpeg as unknown as string;
 
-function executer(args: string[], dossier: string) {
+export function executer(args: string[], dossier: string) {
   return new Promise<void>((resolve, reject) => {
     const p = spawn(
       cheminFfmpeg(),

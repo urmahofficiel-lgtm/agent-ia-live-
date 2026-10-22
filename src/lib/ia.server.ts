@@ -1,5 +1,6 @@
 import { nettoyerPost, reglesReseau, sansHashtagsSiGroupe, sansLienSiReseau } from "./texte";
 import { nettoyerHashtags } from "./tendances";
+import { estCroissance, estSansPub, reglesCroissance } from "./croissance";
 import { nomPlateforme } from "./plateformes";
 import { decorMarche, marcheDe, reglesMarche, systemeMarche } from "./marches";
 
@@ -213,18 +214,22 @@ export async function demanderIA(
   const cleG = process.env.GEMINI_API_KEY ?? "";
   if (!cleN && !cleG) throw new Error("Aucune clé d'IA (NVIDIA ou Gemini) dans les variables Vercel.");
 
-  const nvidia = () => demanderNvidia(cleN, systeme, demande, maxTokens, echeance);
+  const nvidia = (fin: number) => demanderNvidia(cleN, systeme, demande, maxTokens, fin);
   const images = options.images ?? [];
-  const gemini = () => demanderGemini(cleG, systeme, demande, echeance, images);
+  const gemini = (fin: number) => demanderGemini(cleG, systeme, demande, fin, images);
   // Avec des captures d'écran, seul Gemini sait les lire.
   if (images.length && !cleG) throw new Error("La lecture des captures d'écran demande la clé Gemini (variable GEMINI_API_KEY).");
   const ordre = images.length ? [gemini] : (options.gemini ?? (maxTokens >= 1500 ? "d'abord" : "secours")) === "d'abord" ? [gemini, nvidia] : [nvidia, gemini];
   const essais = ordre.filter((f) => (f === gemini ? cleG : cleN));
 
   let erreur: unknown = null;
-  for (const essai of essais) {
+  for (const [i, essai] of essais.entries()) {
+    // Le premier fournisseur garde au plus 60 % du temps : s'il rame (NVIDIA
+    // saturé, tous ses modèles trop lents), le second doit encore avoir le
+    // temps de répondre, sinon la demande échoue à chaque passage.
+    const fin = i === 0 && essais.length > 1 ? Math.min(echeance, Date.now() + Math.max(20_000, (echeance - Date.now()) * 0.6)) : echeance;
     try {
-      return await essai();
+      return await essai(fin);
     } catch (e) {
       erreur = e;
       console.warn("IA : bascule vers l'autre fournisseur", e instanceof Error ? e.message : e);
@@ -250,9 +255,17 @@ const REGLES_MARQUE = `Règles impératives :
 - Texte brut prêt à publier : pas de markdown (ni astérisques, ni titres avec #), et ne recopie pas le titre interne en tête du post.`;
 
 export async function rediger(t: Consigne, contexte?: string | null): Promise<string> {
+  // Mode croissance : ses règles passent avant celles de la marque (contenu
+  // utile d'abord, accroche courte, appel à l'engagement, premier commentaire).
+  const enCroissance = estCroissance(t.consigne);
+  const croissance = enCroissance ? `${reglesCroissance(t.plateforme, estSansPub(t.consigne))}\n` : "";
+  // Sans publicité, plus de « promotion de l'offre » dans chaque post.
+  const regles = enCroissance
+    ? REGLES_MARQUE.replace(/- Tu écris pour cette marque précise[^\n]*\n- Chaque post met en avant[^\n]*\n/, "- Tu écris pour cette marque précise : sa clientèle, son ton, ses faits.\n")
+    : REGLES_MARQUE;
   const texte = await demanderIA(
     [
-      contexte ? `Fiche de la marque (source de vérité) :\n${contexte}\n\n${REGLES_MARQUE}\n${reglesReseau(t.plateforme, marcheDe(t.marche).langue)}\n` : "",
+      contexte ? `Fiche de la marque (source de vérité) :\n${contexte}\n\n${regles}\n${reglesReseau(t.plateforme, marcheDe(t.marche).langue)}\n${croissance}` : croissance,
       CONSIGNES_TYPE[t.type] ?? CONSIGNES_TYPE.autre,
       t.plateforme ? `Plateforme : ${nomPlateforme(t.plateforme)}.` : "",
       `Titre : ${t.titre}`,

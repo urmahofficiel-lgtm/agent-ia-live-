@@ -7,7 +7,8 @@ import { supabase } from "@/lib/supabase";
 import { usePilote, useReglages, useRequete, useStylesParDefaut, useUserId } from "@/lib/donnees";
 import { LogoPlateforme } from "@/components/LogoPlateforme";
 import { nomPlateforme } from "@/lib/plateformes";
-import { CRENEAUX_DEFAUT, CRENEAUX_MAX, RYTHME_MAX, estPilotable, normaliserCreneaux, postsParJour } from "@/lib/pilote";
+import { CRENEAUX_DEFAUT, CRENEAUX_MAX, RYTHME_MAX, estPilotable, jourParis, normaliserCreneaux, postsParJour } from "@/lib/pilote";
+import { MAX_PAR_JOUR_CROISSANCE } from "@/lib/croissance";
 import { ChoixStyle } from "@/components/StylesCreatifs";
 import { STYLES_IMAGE, STYLES_VIDEO, lireStyleImage, lireStyleVideo } from "@/lib/styles";
 import { ConnecteurIA } from "@/components/ConnecteurIA";
@@ -69,6 +70,7 @@ function PiloteAutomatique({ agentActif, validation }: { agentActif: boolean; va
   const [actif, setActif] = useState(false);
   const [rythme, setRythme] = useState<Record<string, number>>({});
   const [creneaux, setCreneaux] = useState<string[]>(CRENEAUX_DEFAUT);
+  const [croissance, setCroissance] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -76,7 +78,8 @@ function PiloteAutomatique({ agentActif, validation }: { agentActif: boolean; va
     setActif(pilote.autopilote);
     setRythme(pilote.rythme);
     setCreneaux(normaliserCreneaux(pilote.creneaux));
-  }, [pilote.autopilote, pilote.rythme, pilote.creneaux]);
+    setCroissance(Boolean(pilote.croissance_depuis));
+  }, [pilote.autopilote, pilote.rythme, pilote.creneaux, pilote.croissance_depuis]);
 
   // Réseaux connectés que le pilote alimente (ni messagerie, ni profil perso),
   // et ceux qui publient via Zernio (limite de l'offre gratuite).
@@ -88,7 +91,9 @@ function PiloteAutomatique({ agentActif, validation }: { agentActif: boolean; va
   async function sauver() {
     setMessage(null);
     const propres = normaliserCreneaux(creneaux.filter(Boolean));
-    const e = await enregistrer({ autopilote: actif, rythme, creneaux: propres });
+    // Mode croissance : actif dès la prochaine planification (date gardée s'il l'était déjà).
+    const croissance_depuis = croissance ? (pilote.croissance_depuis ?? jourParis()) : null;
+    const e = await enregistrer({ autopilote: actif, rythme, creneaux: propres, croissance_depuis });
     setErreur(e);
     if (!e) setMessage(actif ? "Pilote automatique enregistré : l'agent planifiera les prochains créneaux." : "Pilote automatique coupé.");
   }
@@ -124,6 +129,29 @@ function PiloteAutomatique({ agentActif, validation }: { agentActif: boolean; va
           L'agent est à l'arrêt : démarrez-le depuis l'accueil pour que le pilote agisse.
         </p>
       )}
+
+      <label className="mt-4 flex items-start gap-3 text-sm">
+        <input type="checkbox" className="mt-1" checked={croissance} disabled={desactive} onChange={(e) => setCroissance(e.target.checked)} />
+        <span>
+          <span className="font-medium">Mode croissance (recommandé pour gagner des vues et des abonnés)</span>
+          <span className="block text-doux">
+            Du contenu utile avant tout : 11 posts sur 14 sans publicité (erreurs à éviter, astuces, situations vécues, actualité du
+            métier, débats), des carrousels à enregistrer, des vidéos courtes, des Trial Reels Instagram montrés d'abord aux
+            non-abonnés et un premier commentaire qui lance la discussion. Rythme plafonné pour ne pas diluer la portée :{" "}
+            {Object.entries(MAX_PAR_JOUR_CROISSANCE)
+              .filter(([id]) => id !== "facebook_groupe")
+              .map(([id, n]) => `${nomPlateforme(id)} ${n}/jour`)
+              .join(", ")}
+            .
+          </span>
+          {pilote.croissance_depuis && (
+            <span className="block text-xs text-doux">
+              {pilote.croissance_depuis > jourParis() ? "Actif à partir du" : "Actif depuis le"}{" "}
+              {new Date(`${pilote.croissance_depuis}T12:00:00Z`).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}.
+            </span>
+          )}
+        </span>
+      </label>
 
       <fieldset className="mt-5" disabled={desactive}>
         <legend className="text-sm font-medium">Publications par jour</legend>

@@ -5,6 +5,7 @@ import { photo } from "./pexels.server";
 import { monterMontage, preparerMedias } from "./montage.server";
 import { genererClipIA, moteursDisponibles } from "./video-ia.server";
 import { MODELES, appliquerModele, consignePlan, dureesScenes, lirePlan, modelePour, type PlanMontage } from "./montage";
+import { estCroissance, estSansPub } from "./croissance";
 import type { AtelierVideo, SujetVideo } from "./fabrication-video.server";
 
 // Vidéos automatiques de l'agent, faites comme dans le Studio montage : plan
@@ -25,16 +26,19 @@ export async function fabriquerStudio(
   await journal("action", `🎬 Studio : plan de montage « ${nomModele} » pour « ${t.titre} »`);
 
   // 1. Plan : le sujet et le texte de la publication sur ce réseau (même message).
+  // Mode croissance : vidéo courte (regardée jusqu'au bout), fin sans pub.
+  const croissance = estCroissance(t.consigne) ? { sansPub: estSansPub(t.consigne) } : null;
   let plan: PlanMontage | null = null;
   for (let essai = 0; essai < 2 && !plan && Date.now() - debut < 70_000; essai++) {
     try {
       plan = lirePlan(
         await demanderIA(
           consignePlan(
-            { sujet: `${t.titre}. ${t.consigne}`.slice(0, 600), extrait: t.brouillon ? `Texte publié avec la vidéo (même message, ne le recopie pas) :\n${t.brouillon}` : undefined },
+            { sujet: `${t.titre}. ${t.consigne}`.slice(0, 900), extrait: t.brouillon ? `Texte publié avec la vidéo (même message, ne le recopie pas) :\n${t.brouillon}` : undefined },
             contexte,
-            25,
+            croissance ? 18 : 25,
             t.marche,
+            croissance,
           ),
           {
             systeme: "Tu es monteur vidéo expert des réseaux sociaux. Tu réponds uniquement en JSON valide.",
