@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { consigneCarrousel, couleurAss, couper, lireCarrousel, scriptCarrousel, titreDocument } from "./carrousel";
+import { consigneCarrousel, couleurAss, couper, lireCarrousel, sansAccents, scriptCarrousel, titreDocument } from "./carrousel";
 
 const diapos = (n: number) => Array.from({ length: n }, (_, i) => ({ titre: `Idée ${i + 1}`, texte: `Explication ${i + 1}` }));
 
@@ -31,6 +31,14 @@ describe("carrousel", () => {
       }),
     );
     expect(c?.diapos.map((d) => d.titre)).toEqual(["5 erreurs de devis", "Le bon timing", "L'accroche", "La valeur", "Le budget", "Et vous ?"]);
+  });
+
+  it("repère un texte français écrit sans accents", () => {
+    const sans = "Une methode simple pour obtenir une reponse rapide. Attendez 3 a 5 jours apres l'envoi pour reprendre contact avec votre client, parlez plutot de la date de demarrage.";
+    expect(sansAccents(sans, "fr-FR")).toBe(true);
+    expect(sansAccents(sans.replace("methode", "méthode"), "fr-FR")).toBe(false);
+    expect(sansAccents("Court texte sans accent", "fr-FR")).toBe(false);
+    expect(sansAccents(sans, "en-GB")).toBe(false);
   });
 
   it("coupe les lignes sur des mots entiers", () => {

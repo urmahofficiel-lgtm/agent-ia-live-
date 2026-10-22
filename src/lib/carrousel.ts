@@ -77,6 +77,13 @@ export function lireCarrousel(reponse: string): Carrousel | null {
   return diapos.length >= 5 ? { diapos: diapos.slice(0, 10) } : null;
 }
 
+// Texte français sans un seul accent (certains modèles de secours écrivent
+// « methode », « reponse ») : refusé, l'IA le réécrit.
+export function sansAccents(texte: string, marche?: string | null) {
+  if (!marcheDe(marche).id.startsWith("fr")) return false;
+  return texte.replace(/\s+/g, " ").length > 150 && !/[àâäéèêëîïôöùûüç]/i.test(texte);
+}
+
 // --- Dessin -------------------------------------------------------------------------
 
 // Coupe un texte en lignes de `max` caractères au plus (mots entiers).

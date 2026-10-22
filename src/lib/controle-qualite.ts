@@ -4,6 +4,7 @@
 
 import { MARCHE_DEFAUT } from "./marches";
 import { promessesDans } from "./croissance";
+import { sansAccents } from "./carrousel";
 
 // Mots très fréquents propres à chaque langue : de quoi reconnaître la langue
 // d'un post sans service extérieur.
@@ -89,6 +90,7 @@ export function controlerPublication(p: APublier, recentes: DejaPubliee[], maint
   if (p.croissance) {
     const promesses = promessesDans(texte);
     if (promesses.length) raisons.push(`promesse impossible à tenir (${promesses.join(", ")})`);
+    if (sansAccents(texte, p.marche)) raisons.push("texte français écrit sans accents");
   }
   return raisons;
 }

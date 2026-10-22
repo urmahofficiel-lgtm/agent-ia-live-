@@ -4,7 +4,7 @@ import path from "node:path";
 import { demanderIA } from "./ia.server";
 import { couleurDuSite } from "./site.server";
 import { dossierPolices, executer } from "./video.server";
-import { HAUTEUR_DIAPO, LARGEUR_DIAPO, consigneCarrousel, lireCarrousel, scriptCarrousel, titreDocument, type Carrousel } from "./carrousel";
+import { HAUTEUR_DIAPO, LARGEUR_DIAPO, consigneCarrousel, lireCarrousel, sansAccents, scriptCarrousel, titreDocument, type Carrousel } from "./carrousel";
 
 // Fabrication d'un carrousel par le moteur : diapositives écrites par l'IA à
 // partir du post, dessinées par ffmpeg (une image par diapositive, en une
@@ -104,6 +104,10 @@ export async function fabriquerCarrousel(t: SujetCarrousel, contexte: string | n
           delaiTotal: Math.max(20_000, 90_000 - (Date.now() - debut)),
         }),
       );
+      if (c && sansAccents(c.diapos.map((d) => `${d.titre} ${d.texte}`).join(" "), t.marche)) {
+        await journal("info", `Carrousel, essai ${essai + 1} : texte sans accents, réécriture.`);
+        c = null;
+      }
     } catch (e) {
       await journal("info", `Carrousel, essai ${essai + 1} : ${e instanceof Error ? e.message.slice(0, 120) : "IA indisponible"}`);
     }
