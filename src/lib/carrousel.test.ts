@@ -17,6 +17,22 @@ describe("carrousel", () => {
     expect(lireCarrousel("rien")).toBeNull();
   });
 
+  it("retire les numéros des titres du milieu, pas de la couverture", () => {
+    const c = lireCarrousel(
+      JSON.stringify({
+        diapos: [
+          { titre: "5 erreurs de devis", texte: "a" },
+          { titre: "1. Le bon timing", texte: "b" },
+          { titre: "Étape 2 : l'accroche", texte: "c" },
+          { titre: "3) La valeur", texte: "d" },
+          { titre: "Le budget", texte: "e" },
+          { titre: "Et vous ?", texte: "f" },
+        ],
+      }),
+    );
+    expect(c?.diapos.map((d) => d.titre)).toEqual(["5 erreurs de devis", "Le bon timing", "L'accroche", "La valeur", "Le budget", "Et vous ?"]);
+  });
+
   it("coupe les lignes sur des mots entiers", () => {
     expect(couper("Trajets, stationnement, allers-retours au dépôt", 20)).toEqual(["Trajets,", "stationnement,", "allers-retours au", "dépôt"]);
   });

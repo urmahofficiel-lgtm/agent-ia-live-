@@ -31,7 +31,9 @@ Règles :
 - 6 à 8 diapositives : la 1re est la couverture, la dernière l'appel à l'engagement.
 - Couverture : « titre » = accroche de 3 à 7 mots qui donne envie de glisser (un chiffre, une erreur, une promesse concrète), « texte » = sous-titre de 8 mots au plus.
 - Diapositives du milieu : UNE idée chacune. « titre » de 2 à 6 mots, « texte » de 1 à 2 phrases courtes (180 caractères au plus), concrètes, dans les mots du terrain.
-- Dernière diapositive : « titre » = l'appel à l'engagement (« Enregistre-le pour ton prochain chantier », « Et toi, tu fais comment ? »…), « texte » = une phrase.
+- Dernière diapositive : « titre » = l'appel à l'engagement (enregistrer le post pour plus tard, l'envoyer à un collègue, donner son avis en commentaire), « texte » = une phrase.
+- Même registre que le texte du post : s'il vouvoie, toutes les diapositives vouvoient ; s'il tutoie, elles tutoient.
+- Pas de numéro dans les titres des diapositives du milieu (il est ajouté au dessin).
 - Jamais de jargon technique (${JARGON.slice(0, 8).join(", ")}…), pas d'emoji, pas de hashtag, pas de lien.
 - Si la consigne dit « Post sans publicité », aucune diapositive ne nomme la marque ni un produit.
 Réponds UNIQUEMENT par un objet JSON valide :
@@ -50,6 +52,11 @@ const propre = (s: string, max: number) =>
     .trim()
     .slice(0, max);
 
+const sansNumero = (titre: string) => {
+  const t = titre.replace(/^\s*(?:(?:étape|point|n°)\s*)?\d+\s*[.)\-–:/]\s*/i, "").trim();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
+
 // Réponse de l'IA → diapositives (5 à 10), ou null si inutilisable.
 export function lireCarrousel(reponse: string): Carrousel | null {
   const json = reponse.match(/\{[\s\S]*\}/)?.[0];
@@ -60,10 +67,13 @@ export function lireCarrousel(reponse: string): Carrousel | null {
   } catch {
     return null;
   }
-  const diapos = schema
+  const lues = schema
     .parse(brut)
     .diapos.map((d) => ({ titre: propre(d.titre, 90), texte: propre(d.texte, 220) }))
     .filter((d) => d.titre);
+  // Le numéro des diapositives du milieu est dessiné en grand : on le retire
+  // du titre (« 1. Le bon timing » → « Le bon timing »).
+  const diapos = lues.map((d, i) => (i === 0 || i === lues.length - 1 ? d : { ...d, titre: sansNumero(d.titre) || d.titre }));
   return diapos.length >= 5 ? { diapos: diapos.slice(0, 10) } : null;
 }
 
