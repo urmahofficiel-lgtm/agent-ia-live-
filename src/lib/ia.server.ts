@@ -58,7 +58,9 @@ const SYSTEME =
 function appelNvidia(cle: string, modele: string, systeme: string, demande: string, maxTokens: number, delai: number) {
   return fetch(NVIDIA_URL, {
     method: "POST",
-    signal: AbortSignal.timeout(delai),
+    // Délai entier obligatoire : un délai à virgule (« reste / 2 ») fait
+    // échouer l'appel aussitôt (ERR_OUT_OF_RANGE).
+    signal: AbortSignal.timeout(Math.floor(delai)),
     headers: { Authorization: `Bearer ${cle}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: modele,
@@ -125,7 +127,7 @@ async function demanderGemini(cle: string, systeme: string, demande: string, ech
         method: "POST",
         // Un modèle qui ne répond pas ne doit pas prendre tout le temps des
         // suivants (≈ 7 s d'habitude, 30 s pour une longue réponse).
-        signal: AbortSignal.timeout(Math.min(40_000, Math.max(20_000, reste / 2), reste)),
+        signal: AbortSignal.timeout(Math.floor(Math.min(40_000, Math.max(20_000, reste / 2), reste))),
         headers: { "x-goog-api-key": cle, "Content-Type": "application/json" },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systeme }] },
