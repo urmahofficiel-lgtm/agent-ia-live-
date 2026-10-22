@@ -57,11 +57,15 @@ export function urlDialogue(p: { appId: string; retour: string; etat: string; co
 
 // --- Connexion Instagram directe (compte pro, sans page Facebook) -----------
 
+// `instagram_business_manage_insights` : vues, partages et enregistrements de
+// chaque post (sans lui, l'apprentissage ne voit que les likes). Pris en
+// compte à la prochaine connexion du compte.
 export const PERMISSIONS_INSTAGRAM = [
   "instagram_business_basic",
   "instagram_business_content_publish",
   "instagram_business_manage_comments",
   "instagram_business_manage_messages",
+  "instagram_business_manage_insights",
 ];
 
 export function urlDialogueInstagram(p: { appId: string; retour: string; etat: string }) {

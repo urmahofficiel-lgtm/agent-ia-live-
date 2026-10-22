@@ -199,6 +199,9 @@ async function demanderNvidia(cle: string, systeme: string, demande: string, max
   throw new Error(derniereErreur);
 }
 
+// Dernier échec de chaque fournisseur (durée de vie du serveur).
+const derniereEchec = { nvidia: 0, gemini: 0 };
+
 // Appel générique à l'IA : NVIDIA et Gemini, chacun en secours de l'autre.
 // Les réponses longues (≥ 1500 jetons) passent d'abord par Gemini, plus
 // rapide sur ce type de demande. `delaiTotal` borne l'ensemble des essais
@@ -219,7 +222,12 @@ export async function demanderIA(
   const gemini = (fin: number) => demanderGemini(cleG, systeme, demande, fin, images);
   // Avec des captures d'écran, seul Gemini sait les lire.
   if (images.length && !cleG) throw new Error("La lecture des captures d'écran demande la clé Gemini (variable GEMINI_API_KEY).");
-  const ordre = images.length ? [gemini] : (options.gemini ?? (maxTokens >= 1500 ? "d'abord" : "secours")) === "d'abord" ? [gemini, nvidia] : [nvidia, gemini];
+  // Un fournisseur qui vient d'échouer (NVIDIA saturé la nuit, Gemini en
+  // 503) passe en second pendant 15 min : inutile de perdre une minute à
+  // chaque demande.
+  const enPanne = (f: typeof gemini) => Date.now() - (f === gemini ? derniereEchec.gemini : derniereEchec.nvidia) < 15 * 60_000;
+  let ordre = images.length ? [gemini] : (options.gemini ?? (maxTokens >= 1500 ? "d'abord" : "secours")) === "d'abord" ? [gemini, nvidia] : [nvidia, gemini];
+  if (ordre.length === 2 && enPanne(ordre[0]) && !enPanne(ordre[1])) ordre = [ordre[1], ordre[0]];
   const essais = ordre.filter((f) => (f === gemini ? cleG : cleN));
 
   let erreur: unknown = null;
@@ -232,6 +240,8 @@ export async function demanderIA(
       return await essai(fin);
     } catch (e) {
       erreur = e;
+      if (essai === gemini) derniereEchec.gemini = Date.now();
+      else derniereEchec.nvidia = Date.now();
       console.warn("IA : bascule vers l'autre fournisseur", e instanceof Error ? e.message : e);
     }
   }

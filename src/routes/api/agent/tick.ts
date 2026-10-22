@@ -271,12 +271,18 @@ async function tick(secret: string) {
   // 3. Brouillons à préparer (tâches créées par une commande ou la stratégie).
   const { data: aRediger } = await sb.rpc("agent_redactions_a_faire", { p_secret: secret });
   for (const t of (aRediger ?? []) as ARediger[]) {
+    // IA lente : la seconde rédaction attend le passage suivant plutôt que de
+    // faire dépasser la limite des 5 minutes.
+    if (Date.now() - debut > 150_000) break;
     try {
       const style_visuel = t.type === "publication" ? await styleImage(t.tache_id, null) : undefined;
       await preparer({ type: t.type, plateforme: t.plateforme, titre: t.titre, consigne: t.consigne, marche: t.marche, brouillon: t.brouillon, style_visuel }, avecVeille(t.contexte), ecrivainMoteur(t.tache_id));
       await maj(t.tache_id, null, null, "info", `Prêt à valider : « ${t.titre} »`);
     } catch (e) {
-      await maj(t.tache_id, null, { essais_brouillon: 3 }, "erreur", `Rédaction impossible pour « ${t.titre} » : ${e instanceof Error ? e.message : "erreur"}`);
+      const message = `Rédaction impossible pour « ${t.titre} » : ${e instanceof Error ? e.message : "erreur"}`;
+      // Un essai de plus (3 au plus) ; ancienne règle si la migration manque.
+      const { error } = await sb.rpc("agent_echec_redaction", { p_secret: secret, p_tache_id: t.tache_id, p_message: message });
+      if (error) await maj(t.tache_id, null, { essais_brouillon: 3 }, "erreur", message);
     }
   }
 
