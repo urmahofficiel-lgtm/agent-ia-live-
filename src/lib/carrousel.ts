@@ -44,13 +44,17 @@ const schema = z.object({
   diapos: z.array(z.object({ titre: z.string().catch(""), texte: z.string().catch("") }).catch({ titre: "", texte: "" })).catch([]),
 });
 
+// Apostrophe d'élision oubliée par l'IA (« c est », « l envoi », « qu il »).
+export const apostrophes = (s: string) => s.replace(/\b(qu|[cdjlns]) (?=[aeiouyhàâéèêëîïôûœ])/gi, "$1'");
+
 const propre = (s: string, max: number) =>
-  s
-    .replace(/[*_#`]/g, "")
-    .replace(/https?:\/\/\S+/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, max);
+  apostrophes(
+    s
+      .replace(/[*_#`]/g, "")
+      .replace(/https?:\/\/\S+/g, "")
+      .replace(/\s+/g, " ")
+      .trim(),
+  ).slice(0, max);
 
 const sansNumero = (titre: string) => {
   const t = titre.replace(/^\s*(?:(?:étape|point|n°)\s*)?\d+\s*[.)\-–:/]\s*/i, "").trim();

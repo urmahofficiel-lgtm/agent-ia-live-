@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { consigneCarrousel, couleurAss, couper, lireCarrousel, sansAccents, scriptCarrousel, titreDocument } from "./carrousel";
+import { apostrophes, consigneCarrousel, couleurAss, couper, lireCarrousel, sansAccents, scriptCarrousel, titreDocument } from "./carrousel";
 
 const diapos = (n: number) => Array.from({ length: n }, (_, i) => ({ titre: `Idée ${i + 1}`, texte: `Explication ${i + 1}` }));
 
@@ -39,6 +39,13 @@ describe("carrousel", () => {
     expect(sansAccents(sans.replace("methode", "méthode"), "fr-FR")).toBe(false);
     expect(sansAccents("Court texte sans accent", "fr-FR")).toBe(false);
     expect(sansAccents(sans, "en-GB")).toBe(false);
+  });
+
+  it("remet les apostrophes oubliées, sans toucher au reste", () => {
+    expect(apostrophes("Chiffrer sans voir le chantier, c est courir vers l envoi d un devis qu il regrette")).toBe(
+      "Chiffrer sans voir le chantier, c'est courir vers l'envoi d'un devis qu'il regrette",
+    );
+    expect(apostrophes("5 m au sol, de la marge, un acompte")).toBe("5 m au sol, de la marge, un acompte");
   });
 
   it("coupe les lignes sur des mots entiers", () => {
