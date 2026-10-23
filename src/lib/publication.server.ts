@@ -62,6 +62,18 @@ export type ExtrasPublication = {
 
 const avertir = (quoi: string) => (e: unknown) => console.warn(quoi, e instanceof Error ? e.message : e);
 
+// Format riche (carrousel, document) refusé par le réseau : le post part
+// quand même, au format simple, plutôt que d'échouer.
+async function enSecours<T>(essai: () => Promise<T>, secours: (() => Promise<T>) | null, quoi: string): Promise<T> {
+  try {
+    return await essai();
+  } catch (e) {
+    if (!secours) throw e;
+    avertir(quoi)(e);
+    return secours();
+  }
+}
+
 // Publie par le bon canal : connexion directe (Meta ou Instagram) si elle
 // existe, sinon Zernio. Renvoie l'identifiant du post et la « suite » (Story,
 // premier commentaire) : le moteur enregistre le post comme publié AVANT la
@@ -114,7 +126,11 @@ export async function publierAvecSuite(
         await sb.rpc("compte_maj_jeton", { p_secret: secret, p_user: userId, p_externe: compte.compte_externe_id, p_jeton: neuf });
       }
       const post = carrousel
-        ? await publierCarrouselInstagramDirect(compte.compte_externe_id, jeton, texte, images)
+        ? await enSecours(
+            () => publierCarrouselInstagramDirect(compte.compte_externe_id, jeton, texte, images),
+            () => publierInstagramDirect(compte.compte_externe_id, jeton, texte, media),
+            "Carrousel Instagram refusé, publié en image",
+          )
         : await publierInstagramDirect(compte.compte_externe_id, jeton, texte, media, extras.reel);
       return {
         id: post.id,
@@ -128,7 +144,11 @@ export async function publierAvecSuite(
     }
     if (plateforme === "instagram") {
       const post = carrousel
-        ? await publierCarrouselInstagram(compte.compte_externe_id, jeton, texte, images)
+        ? await enSecours(
+            () => publierCarrouselInstagram(compte.compte_externe_id, jeton, texte, images),
+            () => publierInstagram(compte.compte_externe_id, jeton, texte, media),
+            "Carrousel Instagram refusé, publié en image",
+          )
         : await publierInstagram(compte.compte_externe_id, jeton, texte, media, undefined, false, extras.reel);
       return {
         id: post.id,
@@ -138,7 +158,13 @@ export async function publierAvecSuite(
         },
       };
     }
-    const post = await publierFacebook(compte.compte_externe_id, jeton, texte, media, images);
+    const post = carrousel
+      ? await enSecours(
+          () => publierFacebook(compte.compte_externe_id, jeton, texte, media, images),
+          () => publierFacebook(compte.compte_externe_id, jeton, texte, media),
+          "Photos multiples refusées par Facebook, publié en image",
+        )
+      : await publierFacebook(compte.compte_externe_id, jeton, texte, media);
     return {
       id: post.id,
       suite: async () => {
@@ -149,11 +175,13 @@ export async function publierAvecSuite(
   const zernio = PLATEFORMES.find((p) => p.id === plateforme)?.zernio;
   if (!zernio) throw new Error("Cette plateforme ne peut pas encore publier.");
   // Zernio publie lui-même le premier commentaire (LinkedIn, Facebook…).
-  const post = await publier(zernio, compte.compte_externe_id, texte, media, compte.cible_urn, {
-    images,
-    document: extras.document ?? null,
-    premierCommentaire: commentaire,
-  });
+  const avecFormat = images.length >= 2 || Boolean(extras.document);
+  const post = await enSecours(
+    () => publier(zernio, compte.compte_externe_id, texte, media, compte.cible_urn, { images, document: extras.document ?? null, premierCommentaire: commentaire }),
+    // Carrousel ou document refusé : le post part avec sa couverture en image.
+    avecFormat ? () => publier(zernio, compte.compte_externe_id, texte, media, compte.cible_urn, { premierCommentaire: commentaire }) : null,
+    `Carrousel ou document refusé sur ${plateforme}, publié en image`,
+  );
   return { id: post._id, suite: rien };
 }
 
