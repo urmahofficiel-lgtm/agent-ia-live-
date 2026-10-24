@@ -67,11 +67,17 @@ export async function planifierJournees(
     try {
       const canaux = lireCanaux(u.canaux);
       // Mode croissance (Réglages) : piliers « utiles d'abord », rythme plafonné.
-      const { data: croissance } = await sb.rpc("agent_croissance", { p_secret: secret, p_user: u.user_id, p_jour: u.jour });
-      const enCroissance = croissance === true;
+      // Test de stratégies (14 jours) : rythme habituel sans plafond, un jour
+      // croissance, un jour comme avant, pour comparer à volume égal.
+      const [{ data: croissance }, { data: test }] = await Promise.all([
+        sb.rpc("agent_croissance", { p_secret: secret, p_user: u.user_id, p_jour: u.jour }),
+        sb.rpc("agent_test_strategies", { p_secret: secret, p_user: u.user_id, p_jour: u.jour }),
+      ]);
+      const strategie = typeof test === "string" ? test : null;
+      const enCroissance = strategie ? strategie === "croissance" : croissance === true;
       const plan = planDuJour(
         canaux,
-        enCroissance ? rythmeCroissance(u.rythme, canaux.map((c) => c.plateforme)) : u.rythme,
+        enCroissance && !strategie ? rythmeCroissance(u.rythme, canaux.map((c) => c.plateforme)) : u.rythme,
         normaliserCreneaux(u.creneaux),
         u.jour,
       );
@@ -117,7 +123,7 @@ export async function planifierJournees(
           if (secours.length >= plan.heures.length) sujets = secours;
         }
         if (!sujets) throw new Error("réponse de l'IA inutilisable");
-        taches = tachesDuJour(plan.creneaux, sujets, categories, enCroissance);
+        taches = tachesDuJour(plan.creneaux, sujets, categories, enCroissance, strategie);
       }
       // Série « Une journée de… » (essai d'une semaine) : l'épisode du jour,
       // en plus des sujets choisis par l'IA.

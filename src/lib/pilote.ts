@@ -429,6 +429,9 @@ export function tachesDuJour(
   sujets: Sujet[],
   categories: string[],
   croissance = false,
+  // Test de stratégies (14 jours) : la stratégie du jour est notée sur chaque
+  // tâche, avec sa catégorie, pour comparer les résultats ensuite.
+  strategie: string | null = null,
 ) {
   return creneaux.map((c) => {
     const s = sujets[c.sujet];
@@ -440,7 +443,7 @@ export function tachesDuJour(
         titre: s.titre,
         consigne: `${s.consigne}\n\n${consigneCroissance(categorie)}\n${REGLES_PILOTE}`,
         planifiee_pour: c.quand,
-        resultat: resultatCroissance(categorie, c.plateforme),
+        resultat: { ...resultatCroissance(categorie, c.plateforme), ...(strategie && { strategie }) },
       };
     }
     const type = CATEGORIES_SUJET.find((x) => x.id === categorie);
@@ -450,6 +453,7 @@ export function tachesDuJour(
       titre: s.titre,
       consigne: `${s.consigne}\n\nType de publication : ${type?.consigne ?? ""}\n${REGLES_PILOTE}`,
       planifiee_pour: c.quand,
+      ...(strategie && { resultat: { strategie, categorie } }),
     };
   });
 }

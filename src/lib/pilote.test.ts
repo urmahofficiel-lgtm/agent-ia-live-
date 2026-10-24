@@ -411,5 +411,11 @@ describe("mode croissance", () => {
     expect(t[1].resultat).toEqual({ pilier: "pov" });
     // Sans le mode : rien ne change.
     expect(tachesDuJour(creneaux, [{ titre: "a", consigne: "x" }, { titre: "b", consigne: "y" }], ["conseil", "demo"])[0]).not.toHaveProperty("resultat");
+    // Test de stratégies : la stratégie du jour est notée sur chaque tâche.
+    const sujets = [{ titre: "a", consigne: "x" }, { titre: "b", consigne: "y" }];
+    expect(tachesDuJour(creneaux, sujets, ["astuce", "pov"], true, "croissance")[1].resultat).toEqual({ pilier: "pov", strategie: "croissance" });
+    const classique = tachesDuJour(creneaux, sujets, ["conseil", "demo"], false, "classique");
+    expect(classique[0].resultat).toEqual({ strategie: "classique", categorie: "conseil" });
+    expect(classique[0].consigne).not.toContain("Mode croissance :");
   });
 });
