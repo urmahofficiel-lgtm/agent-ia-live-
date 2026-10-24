@@ -21,6 +21,7 @@ import {
   type Canal,
   type ProspectARediger,
 } from "./prospection";
+import { marquesEtrangeres } from "./marque";
 
 // OpenStreetMap (Overpass) : souvent téléphone, e-mail et site.
 // Serveurs Overpass publics : le principal est souvent saturé, on essaie les
@@ -130,14 +131,23 @@ export async function redigerMessageProspect(
   delaiTotal = 50_000,
 ): Promise<BrouillonProspect> {
   const canal = choisirCanal(p, prefere);
-  const reponse = await demanderIA(consigneMessage(p, canal), {
-    systeme:
-      "Tu rédiges des messages de prospection B2B honnêtes et concis. Tu réponds uniquement en JSON valide.",
-    maxTokens: 600,
-    delaiTotal,
-    // Message court : Gemini répond en quelques secondes ; les modèles NVIDIA
-    // gratuits sont parfois trop lents et épuisent le délai.
-    gemini: "d'abord",
-  });
-  return lireMessage(reponse, canal, p.genre);
+  const debut = Date.now();
+  // Un message qui cite une autre marque (ancienne fiche) est réécrit une
+  // fois, puis refusé : il ne doit jamais partir chez un prospect.
+  for (let essai = 0; ; essai++) {
+    const reponse = await demanderIA(consigneMessage(p, canal), {
+      systeme:
+        "Tu rédiges des messages de prospection B2B honnêtes et concis. Tu réponds uniquement en JSON valide.",
+      maxTokens: 600,
+      delaiTotal: essai ? Math.max(20_000, delaiTotal - (Date.now() - debut)) : delaiTotal,
+      // Message court : Gemini répond en quelques secondes ; les modèles NVIDIA
+      // gratuits sont parfois trop lents et épuisent le délai.
+      gemini: "d'abord",
+    });
+    const brouillon = lireMessage(reponse, canal, p.genre);
+    const autres = marquesEtrangeres(`${brouillon.objet}\n${brouillon.texte}`, p.contexte);
+    if (!autres.length) return brouillon;
+    if (essai >= 1)
+      throw new Error(`Le message cite une autre marque (${autres.join(", ")}) au lieu de la vôtre : vérifiez la fiche de la marque, puis réessayez.`);
+  }
 }

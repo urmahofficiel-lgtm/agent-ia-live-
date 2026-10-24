@@ -2,6 +2,8 @@
 // PRÉPARER : c'est l'utilisateur qui relit puis envoie lui-même (e-mail,
 // téléphone, WhatsApp, SMS), avant de marquer le prospect « contacté ».
 
+import { nomDeLaMarque } from "./marque";
+
 export type Canal = "email" | "message";
 export type Genre = "premier" | "relance";
 
@@ -75,6 +77,9 @@ export function consigneMessage(p: ProspectARediger, canal: Canal): string {
     "- Vouvoiement, en français, ton simple et humain, pas de formules creuses ni d'emoji.",
     "- Fais le lien concret entre notre offre et LE MÉTIER du destinataire (c'est ce qui rend le message légitime).",
     "- N'invente aucun chiffre, client, témoignage ni fait sur le destinataire.",
+    ...(nomDeLaMarque(p.contexte)
+      ? [`- Notre marque s'appelle « ${nomDeLaMarque(p.contexte)} » : c'est le seul nom de marque ou de produit à citer.`]
+      : []),
     ...(p.pays && p.pays !== "FR"
       ? [
           "- Destinataire hors de France (" + p.pays + ") : ne parle ni de Factur-X ni d'obligations ou de lois françaises ; reste sur la collaboration et le gain de temps.",

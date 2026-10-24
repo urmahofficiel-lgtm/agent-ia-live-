@@ -3,6 +3,7 @@ import { nettoyerHashtags } from "./tendances";
 import { estCroissance, estSansPub, reglesCroissance } from "./croissance";
 import { nomPlateforme } from "./plateformes";
 import { decorMarche, marcheDe, reglesMarche, systemeMarche } from "./marches";
+import { marquesEtrangeres } from "./marque";
 
 // Cerveau de l'agent : NVIDIA NIM (API compatible OpenAI).
 const NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
@@ -297,6 +298,10 @@ export async function rediger(t: Consigne, contexte?: string | null): Promise<st
       .join("\n"),
     { systeme: systemeMarche(t.marche) },
   );
+  // Une autre marque citée (ancienne fiche) : refusé, le moteur réécrit au
+  // passage suivant (le titre ou la consigne peuvent aussi venir de l'erreur).
+  const autres = marquesEtrangeres(`${t.titre}\n${t.consigne}\n${texte}`, contexte);
+  if (autres.length) throw new Error(`le texte cite une autre marque (${autres.join(", ")})`);
   return sansHashtagsSiGroupe(nettoyerHashtags(sansLienSiReseau(nettoyerPost(texte, t.titre), t.plateforme), t.plateforme), t.plateforme);
 }
 
