@@ -62,7 +62,9 @@ async function avancer(secret: string) {
         await maj({ etude: e, erreur: null, progres: true });
       });
       if (!estAnalyse(r)) {
-        await maj(progres ? { libre: true } : sansProgres("Gemini saturé : l'écoute reprend dans une minute."));
+        // Gemini saturé : ce n'est pas un échec, on reprend au passage suivant
+        // (seule la limite de 3 heures arrête un doublage).
+        await maj(progres ? { libre: true } : { erreur: "Gemini saturé : l'écoute reprend dans une minute.", libre: true });
         return { id: d.id, etape, passages: `${Object.keys(r.textes).length} / ${r.passages.length}` };
       }
       analyse = r;
@@ -109,8 +111,7 @@ async function avancer(secret: string) {
       await maj({ statut: "pret", video_url, erreur: null, libre: true });
       return { id: d.id, pret: true };
     }
-    // Aucun progrès pendant ce passage (IA saturée) : compté comme un échec.
-    await maj(progres ? { libre: true } : sansProgres("Voix Gemini saturées : nouvel essai dans une minute."));
+    await maj(progres ? { libre: true } : { erreur: "Voix Gemini saturées : nouvel essai dans une minute.", libre: true });
     return { id: d.id, etape, voix: Object.keys(segments).length, repliques: analyse.repliques.length };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erreur inattendue.";
