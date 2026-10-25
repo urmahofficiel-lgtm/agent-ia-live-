@@ -14,6 +14,7 @@ import {
   consigneRelecture,
   genreDe,
   lireEcoute,
+  legendePassage,
   lireEcouteGuidee,
   passagesParles,
   placesDisponibles,
@@ -183,12 +184,18 @@ export async function analyserVideo(video: Buffer, contexte: string | null): Pro
       // Gemini : passages et hauteurs de voix mesurés ici, texte et rôles par l'IA.
       const passages = await mesurerPassages(dossier, duree);
       if (!passages.length) throw new Error("Aucune parole entendue dans la vidéo.");
+      // Un extrait audio par passage, étiqueté : le texte reste à sa place.
+      const extraits = [];
+      for (const [i, p] of passages.entries()) {
+        await executer(["-ss", p.debut.toFixed(2), "-to", p.fin.toFixed(2), "-i", "voix.mp3", "-c:a", "libmp3lame", "-b:a", "32k", `p${i}.mp3`], dossier);
+        extraits.push({ mime: "audio/mp3", donnees: (await readFile(path.join(dossier, `p${i}.mp3`))).toString("base64"), legende: legendePassage(i) });
+      }
       lu = lireEcouteGuidee(
         await demanderIA(consigneEcouteGuidee(passages, contexte), {
           systeme: "Tu transcris des vidéos en français avec précision. Tu réponds uniquement en JSON valide.",
           maxTokens: 8000,
           delaiTotal: 150_000,
-          images: [{ mime: "audio/mp3", donnees: mp3.toString("base64") }, ...image],
+          images: [...extraits, ...image.map((x) => ({ ...x, legende: "Planche d'images de la vidéo :" }))],
         }),
         passages,
       );

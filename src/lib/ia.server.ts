@@ -104,8 +104,10 @@ export async function listerGemini(cle: string) {
   return modelesGemini;
 }
 
-// `images` : captures d'écran jointes à la demande (Gemini seulement).
-export type ImageJointe = { mime: string; donnees: string };
+// `images` : captures d'écran (ou extraits audio) jointes à la demande
+// (Gemini seulement) ; `legende` : texte placé juste avant le fichier, pour
+// que l'IA sache de quel fichier on parle.
+export type ImageJointe = { mime: string; donnees: string; legende?: string };
 
 // Modèles Gemini à court de quota (429) : écartés 10 min, les suivants de la
 // liste répondent (la version la plus récente sature souvent la première).
@@ -132,7 +134,7 @@ async function demanderGemini(cle: string, systeme: string, demande: string, ech
         headers: { "x-goog-api-key": cle, "Content-Type": "application/json" },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systeme }] },
-          contents: [{ role: "user", parts: [...images.map((i) => ({ inlineData: { mimeType: i.mime, data: i.donnees } })), { text: demande }] }],
+          contents: [{ role: "user", parts: [...images.flatMap((i) => [...(i.legende ? [{ text: i.legende }] : []), { inlineData: { mimeType: i.mime, data: i.donnees } }]), { text: demande }] }],
           generationConfig: { temperature: 0.7 },
         }),
       });

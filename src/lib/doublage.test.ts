@@ -142,7 +142,7 @@ describe("doublage", () => {
         ],
         passages: [
           { i: 0, texte: "Bonjour, je suis l'architecte.", debut: 3.8, locuteur: "voix_1" },
-          { i: 1, texte: "C'est quoi, la dernière version du plan ?", debut: 99, locuteur: "voix_2" },
+          { i: 1, texte: "C'est quoi, la dernière version du plan ?", debut: 5, locuteur: "voix_2" },
           // Voix de femme donnée à tort au maçon : elle passe à une voix de femme.
           { i: 2, texte: "Je l'ouvre sur mon téléphone.", locuteur: "voix_2" },
           { i: 3, texte: "", locuteur: "voix_1" },

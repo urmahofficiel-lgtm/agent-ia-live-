@@ -158,20 +158,24 @@ const SEUIL_FEMME = 165;
 const SEUIL_HOMME = 150;
 export const genreDeHauteur = (h: number | null): Genre | null => (h === null ? null : h >= SEUIL_FEMME ? "femme" : h < SEUIL_HOMME ? "homme" : null);
 
+// Chaque passage est joint à part (extrait audio étiqueté « Passage i ») :
+// l'IA ne peut pas décaler les textes d'un passage à l'autre.
+export const legendePassage = (i: number) => `Passage ${i} :`;
+
 export function consigneEcouteGuidee(passages: Passage[], contexte: string | null) {
-  return `Voici la bande son d'une vidéo en français (audio) et une planche d'images de cette vidéo, dans l'ordre.
+  return `Ci-dessus : les passages parlés d'une vidéo en français, chacun dans son propre extrait audio (« Passage 0 », « Passage 1 »…), puis une planche d'images de la vidéo, dans l'ordre.
 ${contexte ? `\nContexte de la marque (noms de produits, vocabulaire) :\n${contexte.slice(0, 1500)}\n` : ""}
-Le logiciel a déjà trouvé les passages parlés (temps exacts) et mesuré la hauteur de chaque voix :
+Temps de chaque passage dans la vidéo et hauteur de la voix mesurée :
 ${passages.map((p, i) => `${i}. ${p.debut.toFixed(2)}–${p.fin.toFixed(2)} s · voix ${p.hauteur === null ? "?" : `${p.hauteur} Hz (${genreDeHauteur(p.hauteur) ?? "?"})`}`).join("\n")}
 
-Ta mission, pour chaque passage :
-1. "texte" : exactement ce qui est PRONONCÉ dans ce passage, en français correct (ponctuation, accords, sigles et noms de produits bien écrits). Les textes à l'écran t'aident pour l'orthographe, mais n'écris jamais un texte qui n'est pas dit à voix haute. Rien de dit : "".
-2. "debut" : la seconde exacte où la parole commence dans ce passage (un passage peut commencer par un son d'intro, de la musique ou un bruit).
+Ta mission, pour chaque passage (en n'écoutant QUE son extrait) :
+1. "texte" : exactement ce qui est prononcé dans cet extrait, en français correct (ponctuation, accords, sigles et noms de produits bien écrits). Les textes à l'écran t'aident pour l'orthographe, mais n'écris jamais un texte qui n'est pas dit dans l'extrait. Rien de dit (musique, bruit) : "".
+2. "debut" : le nombre de secondes, depuis le début de l'extrait, où la parole commence (0 si elle commence tout de suite ; plus si l'extrait commence par un son d'intro, de la musique ou un bruit).
 3. "locuteur" : qui parle ("voix_1", "voix_2"…). La même personne garde le même numéro dans toute la vidéo ; une voix aiguë (plus de 165 Hz) est une femme, une voix grave un homme.
 Puis décris chaque voix : son rôle d'après les images et ce qu'elle dit (ex. « l'architecte », « le maçon », « la cliente ») et son genre.
 
 Réponds UNIQUEMENT en JSON :
-{"personnages": [{"id": "voix_1", "role": "l'architecte", "genre": "femme"}], "passages": [{"i": 0, "texte": "…", "debut": 3.8, "locuteur": "voix_1"}]}`;
+{"personnages": [{"id": "voix_1", "role": "l'architecte", "genre": "femme"}], "passages": [{"i": 0, "texte": "…", "debut": 0, "locuteur": "voix_1"}]}`;
 }
 
 const schemaEcouteGuidee = z.object({
@@ -193,8 +197,10 @@ export function lireEcouteGuidee(reponse: string, passages: Passage[]): { repliq
   const lignes = passages
     .map((p, i) => {
       const x = r.passages.find((y) => y.i === i);
-      // Début de la parole donné par l'IA, s'il tombe bien dans le passage.
-      const debut = x?.debut != null && x.debut > p.debut && x.debut < p.fin - 0.2 ? arrondi(x.debut) : p.debut;
+      // Début de la parole dans l'extrait (son d'intro avant la voix), s'il
+      // tombe bien dans le passage.
+      const decalage = x?.debut ?? 0;
+      const debut = decalage > 0.2 && p.debut + decalage < p.fin - 0.2 ? arrondi(p.debut + decalage) : p.debut;
       return { ...p, debut, texte: (x?.texte ?? "").replace(/\s+/g, " ").trim(), locuteur: x?.locuteur.trim() || "voix_1" };
     })
     .filter((x) => x.texte);
