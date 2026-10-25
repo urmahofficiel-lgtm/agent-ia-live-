@@ -142,6 +142,28 @@ export function attribuerVoix(personnages: Personnage[], repliques: Replique[], 
   return choix;
 }
 
+// Voix Gemini (clé déjà en place), par genre : les plus naturelles en français
+// d'abord.
+export const VOIX_GEMINI: VoixDispo[] = [
+  ...["Kore", "Aoede", "Leda", "Despina", "Sulafat", "Callirrhoe"].map((id) => ({ id, nom: id, genre: "femme" as const, francaise: true })),
+  ...["Charon", "Puck", "Orus", "Algieba", "Iapetus", "Sadaltager"].map((id) => ({ id, nom: id, genre: "homme" as const, francaise: true })),
+];
+
+// Façon de dire une réplique (voix Gemini) : une vraie personne qui parle,
+// selon son rôle et le type de phrase — jamais un ton de publicité.
+export function styleReplique(p: Pick<Personnage, "role" | "genre">, texte: string) {
+  const qui = p.role && !/^voix /.test(p.role) ? p.role : p.genre === "femme" ? "une femme" : "un homme";
+  const t = texte.trim();
+  const facon = /\?$/.test(t)
+    ? "pose la question avec une vraie curiosité, un peu pressé"
+    : /!$/.test(t)
+      ? "avec de l'énergie et le sourire"
+      : /^(ok|parfait|reçu|voilà|c'est noté|pareil|moi aussi)/i.test(t)
+        ? "répond du tac au tac, détendu"
+        : "parle simplement, comme à un collègue";
+  return `français naturel de France, ${qui} qui ${facon} sur un chantier ; voix humaine et spontanée, rythme de conversation, respirations naturelles, aucun ton de publicité ni de lecture`;
+}
+
 // Place laissée à chaque réplique : jusqu'au début de la suivante (ou la fin
 // de la vidéo), moins un petit souffle.
 export function placesDisponibles(repliques: Replique[], dureeVideo: number) {

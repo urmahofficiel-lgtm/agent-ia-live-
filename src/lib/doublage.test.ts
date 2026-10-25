@@ -5,6 +5,8 @@ import {
   lireEcoute,
   placesDisponibles,
   repliquesDepuisMots,
+  styleReplique,
+  VOIX_GEMINI,
   vitessePour,
   type Replique,
 } from "./doublage";
@@ -83,5 +85,13 @@ describe("doublage", () => {
     expect(vitessePour(5, 6)).toBe(1);
     expect(vitessePour(6.6, 6)).toBe(1.1);
     expect(vitessePour(12, 6)).toBe(1.25);
+  });
+
+  it("voix Gemini : une façon de dire selon le rôle et la phrase, jamais publicitaire", () => {
+    expect(styleReplique({ role: "le maçon", genre: "homme" }, "C'est quoi, la dernière version du plan ?")).toContain("le maçon qui pose la question");
+    expect(styleReplique({ role: "voix 2", genre: "femme" }, "Reçu.")).toContain("une femme qui répond du tac au tac");
+    expect(styleReplique({ role: "l'architecte", genre: "femme" }, "Je vous montre.")).toContain("aucun ton de publicité");
+    expect(VOIX_GEMINI.filter((v) => v.genre === "femme").length).toBeGreaterThanOrEqual(3);
+    expect(VOIX_GEMINI.filter((v) => v.genre === "homme").length).toBeGreaterThanOrEqual(3);
   });
 });

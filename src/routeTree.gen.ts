@@ -29,6 +29,7 @@ import { Route as TachesRouteImport } from './routes/taches'
 import { Route as DesinscriptionJetonRouteImport } from './routes/desinscription/$jeton'
 import { Route as LCodeRouteImport } from './routes/l/$code'
 import { Route as ApiAgentCoordonneesRouteImport } from './routes/api/agent/coordonnees'
+import { Route as ApiAgentDoublageRouteImport } from './routes/api/agent/doublage'
 import { Route as ApiAgentEmailsRouteImport } from './routes/api/agent/emails'
 import { Route as ApiAgentStatsRouteImport } from './routes/api/agent/stats'
 import { Route as ApiAgentTickRouteImport } from './routes/api/agent/tick'
@@ -145,6 +146,11 @@ const ApiAgentCoordonneesRoute = ApiAgentCoordonneesRouteImport.update({
   path: '/api/agent/coordonnees',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentDoublageRoute = ApiAgentDoublageRouteImport.update({
+  id: '/api/agent/doublage',
+  path: '/api/agent/doublage',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentEmailsRoute = ApiAgentEmailsRouteImport.update({
   id: '/api/agent/emails',
   path: '/api/agent/emails',
@@ -242,6 +248,7 @@ export interface FileRoutesByFullPath {
   '/desinscription/$jeton': typeof DesinscriptionJetonRoute
   '/l/$code': typeof LCodeRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
+  '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
@@ -279,6 +286,7 @@ export interface FileRoutesByTo {
   '/desinscription/$jeton': typeof DesinscriptionJetonRoute
   '/l/$code': typeof LCodeRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
+  '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
@@ -317,6 +325,7 @@ export interface FileRoutesById {
   '/desinscription/$jeton': typeof DesinscriptionJetonRoute
   '/l/$code': typeof LCodeRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
+  '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
@@ -356,6 +365,7 @@ export interface FileRouteTypes {
     | '/desinscription/$jeton'
     | '/l/$code'
     | '/api/agent/coordonnees'
+    | '/api/agent/doublage'
     | '/api/agent/emails'
     | '/api/agent/stats'
     | '/api/agent/tick'
@@ -393,6 +403,7 @@ export interface FileRouteTypes {
     | '/desinscription/$jeton'
     | '/l/$code'
     | '/api/agent/coordonnees'
+    | '/api/agent/doublage'
     | '/api/agent/emails'
     | '/api/agent/stats'
     | '/api/agent/tick'
@@ -430,6 +441,7 @@ export interface FileRouteTypes {
     | '/desinscription/$jeton'
     | '/l/$code'
     | '/api/agent/coordonnees'
+    | '/api/agent/doublage'
     | '/api/agent/emails'
     | '/api/agent/stats'
     | '/api/agent/tick'
@@ -468,6 +480,7 @@ export interface RootRouteChildren {
   DesinscriptionJetonRoute: typeof DesinscriptionJetonRoute
   LCodeRoute: typeof LCodeRoute
   ApiAgentCoordonneesRoute: typeof ApiAgentCoordonneesRoute
+  ApiAgentDoublageRoute: typeof ApiAgentDoublageRoute
   ApiAgentEmailsRoute: typeof ApiAgentEmailsRoute
   ApiAgentStatsRoute: typeof ApiAgentStatsRoute
   ApiAgentTickRoute: typeof ApiAgentTickRoute
@@ -627,6 +640,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentCoordonneesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/doublage': {
+      id: '/api/agent/doublage'
+      path: '/api/agent/doublage'
+      fullPath: '/api/agent/doublage'
+      preLoaderRoute: typeof ApiAgentDoublageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/emails': {
       id: '/api/agent/emails'
       path: '/api/agent/emails'
@@ -756,6 +776,7 @@ const rootRouteChildren: RootRouteChildren = {
   DesinscriptionJetonRoute: DesinscriptionJetonRoute,
   LCodeRoute: LCodeRoute,
   ApiAgentCoordonneesRoute: ApiAgentCoordonneesRoute,
+  ApiAgentDoublageRoute: ApiAgentDoublageRoute,
   ApiAgentEmailsRoute: ApiAgentEmailsRoute,
   ApiAgentStatsRoute: ApiAgentStatsRoute,
   ApiAgentTickRoute: ApiAgentTickRoute,
