@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   appliquerRelecture,
   attribuerVoix,
+  genreDeHauteur,
   lireEcoute,
+  lireEcouteGuidee,
+  passagesParles,
   placesDisponibles,
   repliquesDepuisMots,
   styleReplique,
   VOIX_GEMINI,
   vitessePour,
+  voisement,
   type Replique,
 } from "./doublage";
 
@@ -93,5 +97,67 @@ describe("doublage", () => {
     expect(styleReplique({ role: "l'architecte", genre: "femme" }, "Je vous montre.")).toContain("aucun ton de publicité");
     expect(VOIX_GEMINI.filter((v) => v.genre === "femme").length).toBeGreaterThanOrEqual(3);
     expect(VOIX_GEMINI.filter((v) => v.genre === "homme").length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("passages parlés entre les blancs : petits trous fusionnés, bruits courts ignorés", () => {
+    const silences = [
+      { debut: 0, fin: 3.7 },
+      { debut: 7.3, fin: 7.5 },
+      { debut: 7.6, fin: 10.5 },
+      { debut: 10.7, fin: 11 },
+      { debut: 12.5, fin: 20 },
+    ];
+    expect(passagesParles(silences, 20)).toEqual([
+      { debut: 3.7, fin: 7.6 },
+      { debut: 11, fin: 12.5 },
+    ]);
+  });
+
+  it("mesure la hauteur d'une voix et sa première syllabe", () => {
+    const f = 16000;
+    const pcm = new Int16Array(f * 2);
+    // Silence 0,5 s, puis une voix à 200 Hz.
+    for (let k = f / 2; k < pcm.length; k++) pcm[k] = Math.round(8000 * Math.sin((2 * Math.PI * 200 * k) / f));
+    const v = voisement(pcm, f, 0, 2);
+    expect(v.hauteur).toBeGreaterThan(195);
+    expect(v.hauteur).toBeLessThan(205);
+    expect(v.premier).toBeCloseTo(0.5, 1);
+    expect(genreDeHauteur(v.hauteur)).toBe("femme");
+    expect(genreDeHauteur(95)).toBe("homme");
+    expect(genreDeHauteur(158)).toBeNull();
+  });
+
+  it("écoute guidée : temps mesurés, genre mesuré prioritaire, passages muets écartés", () => {
+    const passages = [
+      { debut: 0, fin: 4.4, hauteur: 195 },
+      { debut: 10.8, fin: 13.1, hauteur: 88 },
+      { debut: 183.8, fin: 188.1, hauteur: 208 },
+      { debut: 190, fin: 191, hauteur: null },
+    ];
+    const lu = lireEcouteGuidee(
+      JSON.stringify({
+        personnages: [
+          { id: "voix_1", role: "l'architecte", genre: "femme" },
+          { id: "voix_2", role: "le maçon", genre: "homme" },
+        ],
+        passages: [
+          { i: 0, texte: "Bonjour, je suis l'architecte.", debut: 3.8, locuteur: "voix_1" },
+          { i: 1, texte: "C'est quoi, la dernière version du plan ?", debut: 99, locuteur: "voix_2" },
+          // Voix de femme donnée à tort au maçon : elle passe à une voix de femme.
+          { i: 2, texte: "Je l'ouvre sur mon téléphone.", locuteur: "voix_2" },
+          { i: 3, texte: "", locuteur: "voix_1" },
+        ],
+      }),
+      passages,
+    );
+    expect(lu.repliques).toEqual([
+      { debut: 3.8, fin: 4.4, texte: "Bonjour, je suis l'architecte.", locuteur: "voix_1" },
+      { debut: 10.8, fin: 13.1, texte: "C'est quoi, la dernière version du plan ?", locuteur: "voix_2" },
+      { debut: 183.8, fin: 188.1, texte: "Je l'ouvre sur mon téléphone.", locuteur: "voix_1" },
+    ]);
+    expect(lu.personnages.map((p) => [p.id, p.genre])).toEqual([
+      ["voix_1", "femme"],
+      ["voix_2", "homme"],
+    ]);
   });
 });

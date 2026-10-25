@@ -10,14 +10,19 @@ import {
   VOIX_GEMINI,
   appliquerRelecture,
   attribuerVoix,
+  consigneEcouteGuidee,
   consigneRelecture,
   genreDe,
   lireEcoute,
+  lireEcouteGuidee,
+  passagesParles,
   placesDisponibles,
   repliquesDepuisMots,
   styleReplique,
   vitessePour,
+  voisement,
   type Mot,
+  type Passage,
   type Personnage,
   type Replique,
   type VoixDispo,
@@ -41,18 +46,39 @@ export type Analyse = {
   moteur: "elevenlabs" | "gemini";
 };
 
-// Durée d'un média (lue dans la sortie de ffmpeg).
-function dureeMedia(fichier: string, dossier: string) {
-  return new Promise<number>((resolve) => {
-    const p = spawn(cheminFfmpeg(), ["-hide_banner", "-i", fichier], { cwd: dossier });
+// Ce que ffmpeg écrit sur sa sortie d'erreur (durée, blancs détectés…).
+function journalFfmpeg(args: string[], dossier: string) {
+  return new Promise<string>((resolve) => {
+    const p = spawn(cheminFfmpeg(), ["-hide_banner", ...args], { cwd: dossier });
     let sortie = "";
     p.stderr.on("data", (d) => (sortie += d.toString()));
-    p.on("close", () => {
-      const m = sortie.match(/Duration: (\d+):(\d+):(\d+(?:\.\d+)?)/);
-      resolve(m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : 0);
-    });
-    p.on("error", () => resolve(0));
+    p.on("close", () => resolve(sortie));
+    p.on("error", () => resolve(sortie));
   });
+}
+
+// Durée d'un média (lue dans la sortie de ffmpeg).
+async function dureeMedia(fichier: string, dossier: string) {
+  const m = (await journalFfmpeg(["-i", fichier], dossier)).match(/Duration: (\d+):(\d+):(\d+(?:\.\d+)?)/);
+  return m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : 0;
+}
+
+// Passages parlés (entre les blancs) et hauteur de voix de chacun.
+async function mesurerPassages(dossier: string, duree: number): Promise<Passage[]> {
+  const journal = await journalFfmpeg(["-i", "voix.mp3", "-af", "silencedetect=noise=-35dB:d=0.4", "-f", "null", "-"], dossier);
+  const silences: { debut: number; fin: number }[] = [];
+  let debut: number | null = null;
+  for (const m of journal.matchAll(/silence_(start|end): (-?[\d.]+)/g)) {
+    if (m[1] === "start") debut = Math.max(0, Number(m[2]));
+    else {
+      silences.push({ debut: debut ?? 0, fin: Number(m[2]) });
+      debut = null;
+    }
+  }
+  if (debut !== null) silences.push({ debut, fin: duree });
+  const brut = await readFile(path.join(dossier, "voix.pcm"));
+  const pcm = new Int16Array(new Uint8Array(brut).buffer, 0, Math.floor(brut.length / 2));
+  return passagesParles(silences, duree).map((p) => ({ ...p, hauteur: voisement(pcm, 16000, p.debut, p.fin).hauteur }));
 }
 
 async function dansDossier<T>(travail: (dossier: string) => Promise<T>): Promise<T> {
@@ -128,26 +154,46 @@ export async function analyserVideo(video: Buffer, contexte: string | null): Pro
     if (duree > 600) throw new Error("Vidéo trop longue : 10 minutes au plus.");
     const eleven = voixElevenDisponibles();
 
-    // La bande son, en mono léger.
+    // La bande son, en mono léger (MP3 pour l'IA, PCM brut pour les mesures).
     await executer(["-i", "v.mp4", "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame", "-b:a", "32k", "voix.mp3"], dossier).catch(() => {
       throw new Error("La vidéo n'a pas de son à doubler.");
     });
+    await executer(["-i", "voix.mp3", "-ac", "1", "-ar", "16000", "-f", "s16le", "voix.pcm"], dossier);
     const mp3 = await readFile(path.join(dossier, "voix.mp3"));
-    let repliques = eleven ? await ecouterEleven(mp3).catch(() => ecouterGemini(mp3)) : await ecouterGemini(mp3);
-    repliques = repliques.filter((r) => r.debut < duree);
-    if (!repliques.length) throw new Error("Aucune parole entendue dans la vidéo.");
 
     // Une planche de 16 images : textes à l'écran et personnages.
     const pas = Math.max(1, duree / 16);
     await executer(["-i", "v.mp4", "-vf", `fps=1/${pas.toFixed(2)},scale=480:-2,tile=4x4`, "-frames:v", "1", "-q:v", "4", "planche.jpg"], dossier).catch(() => {});
     const planche = await readFile(path.join(dossier, "planche.jpg")).catch(() => null);
-    const relecture = await demanderIA(consigneRelecture(repliques, contexte), {
-      systeme: "Tu corriges des transcriptions de vidéos en français. Tu réponds uniquement en JSON valide.",
-      maxTokens: 8000,
-      delaiTotal: 90_000,
-      images: planche ? [{ mime: "image/jpeg", donnees: planche.toString("base64") }] : [],
-    }).catch(() => null);
-    const lu = appliquerRelecture(repliques, relecture);
+    const image = planche ? [{ mime: "image/jpeg", donnees: planche.toString("base64") }] : [];
+
+    let lu: { repliques: Replique[]; personnages: Personnage[] };
+    if (eleven) {
+      // ElevenLabs : transcription mot à mot avec qui parle, puis relecture.
+      const repliques = (await ecouterEleven(mp3).catch(() => ecouterGemini(mp3))).filter((r) => r.debut < duree);
+      if (!repliques.length) throw new Error("Aucune parole entendue dans la vidéo.");
+      const relecture = await demanderIA(consigneRelecture(repliques, contexte), {
+        systeme: "Tu corriges des transcriptions de vidéos en français. Tu réponds uniquement en JSON valide.",
+        maxTokens: 8000,
+        delaiTotal: 90_000,
+        images: image,
+      }).catch(() => null);
+      lu = appliquerRelecture(repliques, relecture);
+    } else {
+      // Gemini : passages et hauteurs de voix mesurés ici, texte et rôles par l'IA.
+      const passages = await mesurerPassages(dossier, duree);
+      if (!passages.length) throw new Error("Aucune parole entendue dans la vidéo.");
+      lu = lireEcouteGuidee(
+        await demanderIA(consigneEcouteGuidee(passages, contexte), {
+          systeme: "Tu transcris des vidéos en français avec précision. Tu réponds uniquement en JSON valide.",
+          maxTokens: 8000,
+          delaiTotal: 150_000,
+          images: [{ mime: "audio/mp3", donnees: mp3.toString("base64") }, ...image],
+        }),
+        passages,
+      );
+      if (!lu.repliques.length) throw new Error("Aucune parole comprise dans la vidéo. Réessayez.");
+    }
 
     const dispo: VoixDispo[] = eleven ? await voixEleven() : VOIX_GEMINI;
     const choix = attribuerVoix(lu.personnages, lu.repliques, dispo.length ? dispo : VOIX_GEMINI);
@@ -222,8 +268,12 @@ export async function mixerDoublage(video: Buffer, a: Analyse, voix: { mp3: Buff
       const ms = Math.round(a.repliques[i].debut * 1000);
       return `[${i + 1}:a]aresample=44100,${vitesse > 1 ? `atempo=${vitesse},` : ""}adelay=${ms}|${ms}[a${i}]`;
     });
+    // Le son d'origine reste (intro, musique, bruitages), sauf pendant les
+    // répliques : l'ancienne voix y est coupée.
+    const coupes = a.repliques.map((r) => `between(t,${Math.max(0, r.debut - 0.05).toFixed(2)},${(r.fin + 0.05).toFixed(2)})`).join("+");
+    filtres.push(`[0:a]aresample=44100,volume=0:enable='${coupes}'[fond]`);
     filtres.push(
-      `${voix.map((_, i) => `[a${i}]`).join("")}amix=inputs=${voix.length}:duration=longest:normalize=0,apad,atrim=0:${a.duree.toFixed(2)},alimiter=limit=0.95[voix]`,
+      `[fond]${voix.map((_, i) => `[a${i}]`).join("")}amix=inputs=${voix.length + 1}:duration=first:normalize=0,apad,atrim=0:${a.duree.toFixed(2)},alimiter=limit=0.95[voix]`,
     );
     await writeFile(path.join(dossier, "filtres.txt"), filtres.join(";\n"));
     await executer(

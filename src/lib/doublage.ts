@@ -77,6 +77,163 @@ export function lireEcoute(reponse: string): Replique[] {
     .sort((a, b) => a.debut - b.debut);
 }
 
+// --- Écoute guidée (voix Gemini) -------------------------------------------------
+// Les passages parlés sont trouvés par le logiciel lui-même (blancs de la
+// bande son) : leurs temps sont exacts. L'IA n'écrit que le texte de chaque
+// passage et dit qui parle ; la hauteur de chaque voix (mesurée) tranche le
+// genre, que l'IA devine mal.
+
+export type Passage = { debut: number; fin: number; hauteur: number | null };
+
+// Blancs (ffmpeg silencedetect) → passages parlés. Deux passages séparés de
+// moins de 0,3 s n'en font qu'un ; les bruits de moins de 0,35 s sont ignorés.
+export function passagesParles(silences: { debut: number; fin: number }[], duree: number) {
+  const parles: { debut: number; fin: number }[] = [];
+  let curseur = 0;
+  for (const s of [...silences].sort((a, b) => a.debut - b.debut)) {
+    if (s.debut > curseur) parles.push({ debut: curseur, fin: Math.min(s.debut, duree) });
+    curseur = Math.max(curseur, s.fin);
+  }
+  if (curseur < duree) parles.push({ debut: curseur, fin: duree });
+  const fusion: { debut: number; fin: number }[] = [];
+  for (const p of parles) {
+    const der = fusion[fusion.length - 1];
+    if (der && p.debut - der.fin < 0.3) der.fin = p.fin;
+    else fusion.push({ ...p });
+  }
+  return fusion.filter((p) => p.fin - p.debut >= 0.35).map((p) => ({ debut: arrondi(p.debut), fin: arrondi(p.fin) }));
+}
+
+// Hauteur médiane d'une voix (Hz) sur un extrait PCM 16 bits mono, par
+// autocorrélation sur des fenêtres de 40 ms (entre 70 et 350 Hz) ; null si
+// l'extrait est trop faible pour juger.
+export function hauteurMediane(pcm: Int16Array, frequence: number, debut: number, fin: number): number | null {
+  return voisement(pcm, frequence, debut, fin).hauteur;
+}
+
+// Hauteur médiane et instant de la première syllabe voisée (un son d'intro
+// ou un bruit avant la voix ne décale pas la réplique).
+export function voisement(pcm: Int16Array, frequence: number, debut: number, fin: number): { hauteur: number | null; premier: number | null } {
+  const n = Math.round(0.04 * frequence);
+  const min = Math.floor(frequence / 350);
+  const max = Math.floor(frequence / 70);
+  const valeurs: number[] = [];
+  let premier: number | null = null;
+  let precedente = -1;
+  for (let s = Math.floor(debut * frequence); s + n <= Math.min(pcm.length, fin * frequence); s += n) {
+    let moyenne = 0;
+    for (let k = 0; k < n; k++) moyenne += pcm[s + k];
+    moyenne /= n;
+    const x = new Float32Array(n);
+    let energie = 0;
+    for (let k = 0; k < n; k++) {
+      x[k] = (pcm[s + k] - moyenne) / 32768;
+      energie += x[k] * x[k];
+    }
+    if (Math.sqrt(energie / n) < 0.02) continue;
+    let meilleur = 0;
+    let decalage = 0;
+    for (let d = min; d <= max; d++) {
+      let c = 0;
+      for (let k = 0; k + d < n; k++) c += x[k] * x[k + d];
+      if (c > meilleur) {
+        meilleur = c;
+        decalage = d;
+      }
+    }
+    if (decalage && meilleur > 0.3 * energie) {
+      valeurs.push(frequence / decalage);
+      // Première syllabe : deux fenêtres voisées d'affilée.
+      if (premier === null && precedente === s - n) premier = Math.max(debut, (s - n) / frequence);
+      precedente = s;
+    }
+  }
+  if (valeurs.length < 3) return { hauteur: null, premier };
+  valeurs.sort((a, b) => a - b);
+  return { hauteur: Math.round(valeurs[Math.floor(valeurs.length / 2)]), premier };
+}
+
+// Au-dessus : voix de femme ; en dessous de la seconde : voix d'homme.
+const SEUIL_FEMME = 165;
+const SEUIL_HOMME = 150;
+export const genreDeHauteur = (h: number | null): Genre | null => (h === null ? null : h >= SEUIL_FEMME ? "femme" : h < SEUIL_HOMME ? "homme" : null);
+
+export function consigneEcouteGuidee(passages: Passage[], contexte: string | null) {
+  return `Voici la bande son d'une vidéo en français (audio) et une planche d'images de cette vidéo, dans l'ordre.
+${contexte ? `\nContexte de la marque (noms de produits, vocabulaire) :\n${contexte.slice(0, 1500)}\n` : ""}
+Le logiciel a déjà trouvé les passages parlés (temps exacts) et mesuré la hauteur de chaque voix :
+${passages.map((p, i) => `${i}. ${p.debut.toFixed(2)}–${p.fin.toFixed(2)} s · voix ${p.hauteur === null ? "?" : `${p.hauteur} Hz (${genreDeHauteur(p.hauteur) ?? "?"})`}`).join("\n")}
+
+Ta mission, pour chaque passage :
+1. "texte" : exactement ce qui est PRONONCÉ dans ce passage, en français correct (ponctuation, accords, sigles et noms de produits bien écrits). Les textes à l'écran t'aident pour l'orthographe, mais n'écris jamais un texte qui n'est pas dit à voix haute. Rien de dit : "".
+2. "debut" : la seconde exacte où la parole commence dans ce passage (un passage peut commencer par un son d'intro, de la musique ou un bruit).
+3. "locuteur" : qui parle ("voix_1", "voix_2"…). La même personne garde le même numéro dans toute la vidéo ; une voix aiguë (plus de 165 Hz) est une femme, une voix grave un homme.
+Puis décris chaque voix : son rôle d'après les images et ce qu'elle dit (ex. « l'architecte », « le maçon », « la cliente ») et son genre.
+
+Réponds UNIQUEMENT en JSON :
+{"personnages": [{"id": "voix_1", "role": "l'architecte", "genre": "femme"}], "passages": [{"i": 0, "texte": "…", "debut": 3.8, "locuteur": "voix_1"}]}`;
+}
+
+const schemaEcouteGuidee = z.object({
+  personnages: z
+    .array(z.object({ id: z.string().catch(""), role: z.string().catch(""), genre: z.string().catch("") }))
+    .catch([]),
+  passages: z
+    .array(z.object({ i: z.coerce.number().catch(-1), texte: z.string().catch(""), debut: z.coerce.number().nullable().catch(null), locuteur: z.string().catch("") }))
+    .catch([]),
+});
+
+// Réponse de l'IA + passages mesurés → répliques et personnages. Le genre
+// mesuré l'emporte : un passage à voix de femme donné à un homme (ou
+// l'inverse) passe au personnage du bon genre le plus proche en hauteur, ou à
+// un nouveau personnage.
+export function lireEcouteGuidee(reponse: string, passages: Passage[]): { repliques: Replique[]; personnages: Personnage[] } {
+  const brut = json(reponse);
+  const r = brut ? schemaEcouteGuidee.parse(brut) : { personnages: [], passages: [] };
+  const lignes = passages
+    .map((p, i) => {
+      const x = r.passages.find((y) => y.i === i);
+      // Début de la parole donné par l'IA, s'il tombe bien dans le passage.
+      const debut = x?.debut != null && x.debut > p.debut && x.debut < p.fin - 0.2 ? arrondi(x.debut) : p.debut;
+      return { ...p, debut, texte: (x?.texte ?? "").replace(/\s+/g, " ").trim(), locuteur: x?.locuteur.trim() || "voix_1" };
+    })
+    .filter((x) => x.texte);
+
+  // Genre de chaque personnage ; sa hauteur : la médiane des passages de ce
+  // genre.
+  const personnages: (Personnage & { hauteur: number | null })[] = [...new Set(lignes.map((x) => x.locuteur))].map((id) => {
+    const p = r.personnages.find((y) => y.id === id);
+    const siens = lignes.filter((x) => x.locuteur === id);
+    const temps = (g: Genre) => siens.filter((x) => genreDeHauteur(x.hauteur) === g).reduce((t, x) => t + x.fin - x.debut, 0);
+    // Le genre déclaré par l'IA (d'après le rôle : « le maçon ») tient s'il
+    // correspond à au moins un passage mesuré ; sinon la majorité mesurée.
+    const declare = genreDe(p?.genre);
+    const mesure = temps("femme") > temps("homme") ? "femme" : temps("homme") > temps("femme") ? "homme" : null;
+    const genre = (declare && (temps(declare) > 0 || !mesure) ? declare : mesure) ?? "homme";
+    const h = siens.filter((x) => genreDeHauteur(x.hauteur) === genre).map((x) => x.hauteur!).sort((a, b) => a - b);
+    return { id, role: p?.role.trim() || id.replace("_", " "), genre, hauteur: h.length ? h[Math.floor(h.length / 2)] : null };
+  });
+  for (const x of lignes) {
+    const g = genreDeHauteur(x.hauteur);
+    const p = personnages.find((y) => y.id === x.locuteur)!;
+    if (!g || g === p.genre) continue;
+    const proche = personnages
+      .filter((y) => y.genre === g && y.hauteur !== null)
+      .sort((a, b) => Math.abs(a.hauteur! - x.hauteur!) - Math.abs(b.hauteur! - x.hauteur!))[0];
+    if (proche) x.locuteur = proche.id;
+    else {
+      const id = `voix_${personnages.length + 1}`;
+      personnages.push({ id, role: g === "femme" ? "une femme" : "un homme", genre: g, hauteur: x.hauteur });
+      x.locuteur = id;
+    }
+  }
+  const utilises = new Set(lignes.map((x) => x.locuteur));
+  return {
+    repliques: lignes.map(({ debut, fin, texte, locuteur }) => ({ debut, fin, texte, locuteur })),
+    personnages: personnages.filter((p) => utilises.has(p.id)).map(({ id, role, genre }) => ({ id, role, genre })),
+  };
+}
+
 // Relecture : l'IA regarde des images de la vidéo (textes à l'écran, bulles,
 // noms des personnages) et corrige la transcription automatique, puis dit qui
 // parle (rôle et genre de chaque voix).
