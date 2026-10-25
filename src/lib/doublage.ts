@@ -158,24 +158,47 @@ const SEUIL_FEMME = 165;
 const SEUIL_HOMME = 150;
 export const genreDeHauteur = (h: number | null): Genre | null => (h === null ? null : h >= SEUIL_FEMME ? "femme" : h < SEUIL_HOMME ? "homme" : null);
 
-// Chaque passage est joint à part (extrait audio étiqueté « Passage i ») :
-// l'IA ne peut pas décaler les textes d'un passage à l'autre.
-export const legendePassage = (i: number) => `Passage ${i} :`;
+// Chaque passage est transcrit seul, dans sa propre demande : l'IA ne peut
+// pas faire glisser un texte d'un passage à l'autre.
+export function consigneExtrait(contexte: string | null) {
+  return `Cet extrait audio vient d'une vidéo en français.${contexte ? ` Vocabulaire de la marque (orthographe des noms de produits) : ${contexte.slice(0, 400).replace(/\s+/g, " ")}` : ""}
+1. "texte" : écris exactement ce qui est prononcé dans l'extrait, en français correct (ponctuation, accords, sigles bien écrits). Rien d'autre. Si personne ne parle (musique, bruit) : "".
+2. "debut" : le nombre de secondes, depuis le début de l'extrait, où la parole commence (0 si elle commence tout de suite ; plus s'il y a d'abord un son d'intro, de la musique ou un bruit).
+Réponds UNIQUEMENT en JSON : {"texte": "…", "debut": 0}`;
+}
 
-export function consigneEcouteGuidee(passages: Passage[], contexte: string | null) {
-  return `Ci-dessus : les passages parlés d'une vidéo en français, chacun dans son propre extrait audio (« Passage 0 », « Passage 1 »…), puis une planche d'images de la vidéo, dans l'ordre.
-${contexte ? `\nContexte de la marque (noms de produits, vocabulaire) :\n${contexte.slice(0, 1500)}\n` : ""}
-Temps de chaque passage dans la vidéo et hauteur de la voix mesurée :
-${passages.map((p, i) => `${i}. ${p.debut.toFixed(2)}–${p.fin.toFixed(2)} s · voix ${p.hauteur === null ? "?" : `${p.hauteur} Hz (${genreDeHauteur(p.hauteur) ?? "?"})`}`).join("\n")}
+const schemaExtrait = z.object({ texte: z.string().catch(""), debut: z.coerce.number().nullable().catch(null) });
 
-Ta mission, pour chaque passage (en n'écoutant QUE son extrait) :
-1. "texte" : exactement ce qui est prononcé dans cet extrait, en français correct (ponctuation, accords, sigles et noms de produits bien écrits). Les textes à l'écran t'aident pour l'orthographe, mais n'écris jamais un texte qui n'est pas dit dans l'extrait. Rien de dit (musique, bruit) : "".
-2. "debut" : le nombre de secondes, depuis le début de l'extrait, où la parole commence (0 si elle commence tout de suite ; plus si l'extrait commence par un son d'intro, de la musique ou un bruit).
-3. "locuteur" : qui parle ("voix_1", "voix_2"…). La même personne garde le même numéro dans toute la vidéo ; une voix aiguë (plus de 165 Hz) est une femme, une voix grave un homme.
-Puis décris chaque voix : son rôle d'après les images et ce qu'elle dit (ex. « l'architecte », « le maçon », « la cliente ») et son genre.
+export function lireExtrait(reponse: string): { texte: string; debut: number | null } {
+  const brut = json(reponse);
+  if (!brut) return { texte: "", debut: null };
+  const x = schemaExtrait.parse(brut);
+  return { texte: x.texte.replace(/\s+/g, " ").trim(), debut: x.debut };
+}
+
+// Puis une seule demande, sans audio, pour dire qui parle : le texte de
+// chaque passage, la hauteur de voix mesurée et une planche d'images.
+export function consigneQuiParle(passages: (Passage & { texte: string })[], contexte: string | null) {
+  return `Voici une planche d'images d'une vidéo (dans l'ordre) et le texte de chaque passage parlé, avec ses temps et la hauteur de la voix mesurée.
+${contexte ? `\nContexte de la marque :\n${contexte.slice(0, 1200)}\n` : ""}
+${passages.map((p, i) => `${i}. [${p.debut.toFixed(1)}–${p.fin.toFixed(1)} s · ${p.hauteur === null ? "?" : `${p.hauteur} Hz, ${genreDeHauteur(p.hauteur) ?? "?"}`}] ${p.texte || "(rien)"}`).join("\n")}
+
+Dis qui parle dans chaque passage : "voix_1", "voix_2"… (la même personne garde le même numéro dans toute la vidéo). Une voix aiguë (plus de 165 Hz) est une femme, une voix grave un homme ; deux passages de hauteurs très différentes ne sont pas la même personne. Appuie-toi sur le sens (qui répond à qui, qui se présente) et les images (personnages, bulles).
+Puis décris chaque voix : son rôle (ex. « l'architecte », « le maçon », « la cliente ») et son genre.
 
 Réponds UNIQUEMENT en JSON :
-{"personnages": [{"id": "voix_1", "role": "l'architecte", "genre": "femme"}], "passages": [{"i": 0, "texte": "…", "debut": 0, "locuteur": "voix_1"}]}`;
+{"personnages": [{"id": "voix_1", "role": "l'architecte", "genre": "femme"}], "passages": [{"i": 0, "locuteur": "voix_1"}]}`;
+}
+
+// Textes (un par passage) + réponse « qui parle » → même forme que l'écoute
+// guidée, lue par lireEcouteGuidee.
+export function assemblerEcoute(textes: { texte: string; debut: number | null }[], quiParle: string | null) {
+  const brut = quiParle ? json(quiParle) : null;
+  const q = brut ? schemaEcouteGuidee.parse(brut) : { personnages: [], passages: [] };
+  return JSON.stringify({
+    personnages: q.personnages,
+    passages: textes.map((t, i) => ({ i, texte: t.texte, debut: t.debut, locuteur: q.passages.find((x) => x.i === i)?.locuteur || "voix_1" })),
+  });
 }
 
 const schemaEcouteGuidee = z.object({

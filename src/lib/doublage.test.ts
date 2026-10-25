@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   appliquerRelecture,
+  assemblerEcoute,
+  consigneExtrait,
+  consigneQuiParle,
   attribuerVoix,
   genreDeHauteur,
   lireEcoute,
   lireEcouteGuidee,
+  lireExtrait,
   passagesParles,
   placesDisponibles,
   repliquesDepuisMots,
@@ -159,5 +163,33 @@ describe("doublage", () => {
       ["voix_1", "femme"],
       ["voix_2", "homme"],
     ]);
+  });
+
+  it("un passage transcrit seul, puis qui parle : chaque texte reste à sa place", () => {
+    expect(consigneExtrait(null)).toContain('"debut"');
+    expect(lireExtrait('Voici : {"texte": "  Bonjour,  je suis l\'architecte. ", "debut": 3.6}')).toEqual({ texte: "Bonjour, je suis l'architecte.", debut: 3.6 });
+    expect(lireExtrait("rien")).toEqual({ texte: "", debut: null });
+    const passages = [
+      { debut: 0, fin: 4.4, hauteur: 195, texte: "Bonjour." },
+      { debut: 10.8, fin: 13.1, hauteur: 88, texte: "C'est quoi, la dernière version du plan ?" },
+    ];
+    expect(consigneQuiParle(passages, null)).toContain("0. [0.0–4.4 s · 195 Hz, femme] Bonjour.");
+    const lu = lireEcouteGuidee(
+      assemblerEcoute(
+        [
+          { texte: "Bonjour.", debut: 3.8 },
+          { texte: "C'est quoi, la dernière version du plan ?", debut: 0 },
+        ],
+        '{"personnages": [{"id": "voix_1", "role": "l\'architecte", "genre": "femme"}, {"id": "voix_2", "role": "le maçon", "genre": "homme"}], "passages": [{"i": 0, "locuteur": "voix_1"}, {"i": 1, "locuteur": "voix_2"}]}',
+      ),
+      passages,
+    );
+    expect(lu.repliques.map((r) => [r.debut, r.locuteur, r.texte])).toEqual([
+      [3.8, "voix_1", "Bonjour."],
+      [10.8, "voix_2", "C'est quoi, la dernière version du plan ?"],
+    ]);
+    // Sans réponse « qui parle » : les voix sont séparées par la hauteur mesurée.
+    const seul = lireEcouteGuidee(assemblerEcoute([{ texte: "a", debut: 0 }, { texte: "b", debut: 0 }], null), passages);
+    expect(seul.personnages.map((p) => p.genre).sort()).toEqual(["femme", "homme"]);
   });
 });

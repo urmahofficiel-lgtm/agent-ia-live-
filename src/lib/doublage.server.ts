@@ -10,11 +10,13 @@ import {
   VOIX_GEMINI,
   appliquerRelecture,
   attribuerVoix,
-  consigneEcouteGuidee,
+  assemblerEcoute,
+  consigneExtrait,
+  consigneQuiParle,
   consigneRelecture,
   genreDe,
   lireEcoute,
-  legendePassage,
+  lireExtrait,
   lireEcouteGuidee,
   passagesParles,
   placesDisponibles,
@@ -184,23 +186,48 @@ export async function analyserVideo(video: Buffer, contexte: string | null): Pro
       // Gemini : passages et hauteurs de voix mesurés ici, texte et rôles par l'IA.
       const passages = await mesurerPassages(dossier, duree);
       if (!passages.length) throw new Error("Aucune parole entendue dans la vidéo.");
-      // Un extrait audio par passage, étiqueté : le texte reste à sa place.
-      const extraits = [];
-      for (const [i, p] of passages.entries()) {
+      // Chaque passage transcrit seul (3 à la fois) : un texte ne peut pas
+      // glisser d'un passage à l'autre. Un refus passager est retenté une fois.
+      const consigne = consigneExtrait(contexte);
+      const transcrire = async (i: number) => {
+        const p = passages[i];
         await executer(["-ss", p.debut.toFixed(2), "-to", p.fin.toFixed(2), "-i", "voix.mp3", "-c:a", "libmp3lame", "-b:a", "32k", `p${i}.mp3`], dossier);
-        extraits.push({ mime: "audio/mp3", donnees: (await readFile(path.join(dossier, `p${i}.mp3`))).toString("base64"), legende: legendePassage(i) });
-      }
-      lu = lireEcouteGuidee(
-        await demanderIA(consigneEcouteGuidee(passages, contexte), {
-          systeme: "Tu transcris des vidéos en français avec précision. Tu réponds uniquement en JSON valide.",
-          maxTokens: 8000,
-          delaiTotal: 170_000,
-          // Longue réponse (une ligne par passage) : jusqu'à 2 min par modèle.
-          delaiModele: 120_000,
-          images: [...extraits, ...image.map((x) => ({ ...x, legende: "Planche d'images de la vidéo :" }))],
+        const extrait = { mime: "audio/mp3", donnees: (await readFile(path.join(dossier, `p${i}.mp3`))).toString("base64") };
+        const demander = () =>
+          demanderIA(consigne, {
+            systeme: "Tu transcris de courts extraits audio en français, mot pour mot. Tu réponds uniquement en JSON valide.",
+            maxTokens: 400,
+            delaiTotal: 40_000,
+            images: [extrait],
+          });
+        const reponse = await demander().catch(async () => {
+          await new Promise((r) => setTimeout(r, 5_000));
+          return demander();
+        });
+        return lireExtrait(reponse);
+      };
+      const textes: { texte: string; debut: number | null }[] = new Array(passages.length);
+      let suivant = 0;
+      await Promise.all(
+        Array.from({ length: 3 }, async () => {
+          while (suivant < passages.length) {
+            const i = suivant++;
+            textes[i] = await transcrire(i);
+          }
         }),
-        passages,
       );
+      // Puis qui parle : une demande, sans audio.
+      const quiParle = await demanderIA(
+        consigneQuiParle(passages.map((p, i) => ({ ...p, texte: textes[i].texte })), contexte),
+        {
+          systeme: "Tu identifies les personnages d'une vidéo. Tu réponds uniquement en JSON valide.",
+          maxTokens: 4000,
+          delaiTotal: 90_000,
+          delaiModele: 80_000,
+          images: image,
+        },
+      ).catch(() => null);
+      lu = lireEcouteGuidee(assemblerEcoute(textes, quiParle), passages);
       if (!lu.repliques.length) throw new Error("Aucune parole comprise dans la vidéo. Réessayez.");
     }
 
