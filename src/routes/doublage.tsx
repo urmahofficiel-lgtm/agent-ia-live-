@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { jetonSession } from "@/lib/session";
 import { useUserId } from "@/lib/donnees";
 import { etatDoublage } from "@/lib/doublage.functions";
-import type { Personnage, Replique } from "@/lib/doublage";
+import { LANGUES_DOUBLAGE, type Personnage, type Replique } from "@/lib/doublage";
 
 export const Route = createFileRoute("/doublage")({ component: Doublage });
 
@@ -26,6 +26,7 @@ type Ligne = {
   video_url: string | null;
   erreur: string | null;
   created_at: string;
+  langue: string;
 };
 
 const minutes = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
@@ -48,6 +49,8 @@ function Doublage() {
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [doublages, setDoublages] = useState<Ligne[]>([]);
+  // Langues voulues : une vidéo doublée par langue cochée.
+  const [langues, setLangues] = useState<string[]>(["fr"]);
 
   useEffect(() => {
     jetonSession()
@@ -64,7 +67,7 @@ function Doublage() {
     const charger = async () => {
       const { data } = await supabase()
         .from("doublages")
-        .select("id, statut, etape, etude, segments, video_url, erreur, created_at")
+        .select("id, statut, etape, etude, segments, video_url, erreur, created_at, langue")
         .order("created_at", { ascending: false })
         .limit(10);
       if (actif && data) setDoublages(data as Ligne[]);
@@ -95,28 +98,47 @@ function Doublage() {
     const source_url = supabase().storage.from("studio").getPublicUrl(chemin).data.publicUrl;
     const { data, error: e2 } = await supabase()
       .from("doublages")
-      .insert({ source_url })
-      .select("id, statut, etape, etude, segments, video_url, erreur, created_at")
-      .single();
+      .insert(langues.map((langue) => ({ source_url, langue })))
+      .select("id, statut, etape, etude, segments, video_url, erreur, created_at, langue");
     setEnvoi(false);
-    if (e2 || !data) return setErreur(`Demande impossible : ${e2?.message ?? "réessayez"}`);
-    setDoublages((l) => [data as Ligne, ...l]);
+    if (e2 || !data?.length) return setErreur(`Demande impossible : ${e2?.message ?? "réessayez"}`);
+    setDoublages((l) => [...(data as Ligne[]), ...l]);
   }
 
   return (
     <div className="mx-auto max-w-4xl">
-      <Titre sous="Gardez vos images telles quelles : l'agent écoute la vidéo, lit ce qui est à l'écran, reconnaît chaque personnage et refait toutes les voix en français, posées exactement au même moment.">
+      <Titre sous="Gardez vos images telles quelles : l'agent écoute la vidéo, lit ce qui est à l'écran, reconnaît chaque personnage et refait toutes les voix, en français ou traduites dans d'autres langues, posées exactement au même moment.">
         Voix réalistes
       </Titre>
 
       <Carte className="grid gap-3">
+        <fieldset className="grid gap-2">
+          <legend className="mb-1 text-sm font-medium">Langues des voix (une vidéo par langue)</legend>
+          <div className="flex flex-wrap gap-2">
+            {LANGUES_DOUBLAGE.map((l) => {
+              const coche = langues.includes(l.id);
+              return (
+                <label key={l.id} className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm ${coche ? "border-accent bg-accent/10" : "border-bord"}`}>
+                  <input
+                    type="checkbox"
+                    className="accent-[var(--color-accent)]"
+                    checked={coche}
+                    onChange={() => setLangues((x) => (coche ? (x.length > 1 ? x.filter((y) => y !== l.id) : x) : [...x, l.id]))}
+                  />
+                  {l.nom}
+                  {l.id === "fr" && <span className="text-xs text-doux">(langue d'origine)</span>}
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
         <div className="flex flex-wrap items-center gap-3">
           <label className={`${bouton} inline-flex cursor-pointer items-center gap-2 ${envoi ? "pointer-events-none opacity-50" : ""}`}>
             {envoi ? <LoaderCircle size={16} className="animate-spin" /> : <Upload size={16} />}
             {envoi ? "Envoi…" : "Doubler une vidéo"}
             <input type="file" accept={TYPES.join(",")} className="sr-only" onChange={deposer} disabled={envoi} />
           </label>
-          <span className="text-sm text-doux">MP4, MOV ou WebM, 50 Mo et 10 minutes au plus. Comptez 2 à 5 minutes ; vous pouvez fermer la page.</span>
+          <span className="text-sm text-doux">MP4, MOV ou WebM en français, 50 Mo et 10 minutes au plus. L'écoute est faite une fois pour toutes les langues ; vous pouvez fermer la page.</span>
         </div>
         {elevenlabs !== null && (
           <p className="text-xs text-doux">
@@ -130,7 +152,10 @@ function Doublage() {
         {doublages.map((d) => (
           <Carte key={d.id} className="grid gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="mr-auto text-sm text-doux">{new Date(d.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</span>
+              <span className="mr-auto text-sm text-doux">
+                {new Date(d.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })} ·{" "}
+                <strong className="text-texte">{LANGUES_DOUBLAGE.find((l) => l.id === d.langue)?.nom ?? d.langue}</strong>
+              </span>
               {d.statut === "pret" && <Pastille ton="ok">Prête</Pastille>}
               {d.statut === "echec" && <Pastille ton="erreur">Échec</Pastille>}
               {(d.statut === "en_attente" || d.statut === "en_cours") && (
@@ -170,7 +195,7 @@ function Doublage() {
                       <li key={i} className="grid grid-cols-[3.5rem_8rem_1fr] gap-2">
                         <span className="tabular-nums text-doux">{minutes(r.debut)}</span>
                         <span className="truncate font-medium">{analyse(d)?.personnages.find((p) => p.id === r.locuteur)?.role ?? r.locuteur}</span>
-                        <span>{r.texte}</span>
+                        <span dir={d.langue === "ar" ? "rtl" : undefined}>{r.texte}</span>
                       </li>
                     ))}
                   </ol>

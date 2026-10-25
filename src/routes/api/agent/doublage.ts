@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { clientMoteur } from "@/lib/supabase-serveur";
-import { ecouter, estAnalyse, mixerDoublage, voixLot, voixReplique, type Analyse, type Ecoute } from "@/lib/doublage.server";
+import { ecouter, estAnalyse, mixerDoublage, traduire, voixLot, voixReplique, type Analyse, type Ecoute } from "@/lib/doublage.server";
 import { lotsParPersonnage } from "@/lib/doublage";
 
 // Moteur de doublage (Voix réalistes) : appelé chaque minute par pg_cron.
@@ -19,6 +19,9 @@ type Doublage = {
   segments: Record<string, { url: string; duree: number }>;
   echecs: number;
   contexte: string | null;
+  // Langue voulue, et l'analyse d'un doublage déjà fait de la même vidéo.
+  langue: string;
+  etude_source: Analyse | null;
 };
 
 async function telecharger(url: string) {
@@ -55,10 +58,18 @@ async function avancer(secret: string) {
     let etape = d.etape;
     const segments = { ...d.segments };
 
-    // 1. Écouter et regarder (repris au passage suivant si le temps manque).
+    // 1. Écouter et regarder (repris au passage suivant si le temps manque) ;
+    // l'écoute d'un autre doublage de la même vidéo est reprise telle quelle.
     let analyse: Analyse;
-    if (etape === "ecoute" || !estAnalyse(d.etude)) {
-      const r = await ecouter(video, d.contexte, estAnalyse(d.etude) ? null : d.etude, Date.now() + reste() - 60_000, async (e) => {
+    const source = d.etude_source ?? null;
+    if (estAnalyse(d.etude)) analyse = d.etude;
+    else if (estAnalyse(source)) {
+      const s = source;
+      analyse = { ...s, repliques: s.repliques.map((r, i) => ({ ...r, texte: s.originales?.[i] ?? r.texte })), langue: "fr", originales: undefined };
+      await maj({ etude: analyse, erreur: null, progres: true });
+      progres = true;
+    } else {
+      const r = await ecouter(video, d.contexte, d.etude, Date.now() + reste() - 60_000, async (e) => {
         progres = true;
         await maj({ etude: e, erreur: null, progres: true });
       });
@@ -69,10 +80,25 @@ async function avancer(secret: string) {
         return { id: d.id, etape, passages: `${Object.keys(r.textes).length} / ${r.passages.length}` };
       }
       analyse = r;
-      etape = "voix";
-      await maj({ etape, etude: analyse, erreur: null, progres: true });
+      await maj({ etude: analyse, erreur: null, progres: true });
       progres = true;
-    } else analyse = d.etude;
+    }
+    if (etape === "ecoute") {
+      // Autre langue : traduction des répliques (mêmes temps, mêmes voix).
+      const langue = d.langue ?? "fr";
+      if (langue !== "fr" && (analyse.langue ?? "fr") !== langue) {
+        try {
+          analyse = await traduire(analyse, langue, d.contexte);
+        } catch (e) {
+          await maj({ erreur: e instanceof Error ? e.message : "Traduction impossible pour le moment.", libre: true });
+          return { id: d.id, etape, traduction: false };
+        }
+        await maj({ etude: analyse, erreur: null, progres: true });
+        progres = true;
+      }
+      etape = "voix";
+      await maj({ etape });
+    }
 
     // 2. La voix de chaque réplique, tant qu'il reste du temps. Gemini limite
     // le nombre de voix par minute : un refus est retenté après une pause, puis

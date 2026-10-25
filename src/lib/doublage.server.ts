@@ -14,6 +14,8 @@ import {
   consigneExtrait,
   consigneQuiParle,
   consigneRelecture,
+  consigneTraduction,
+  lireTraduction,
   decouperLot,
   genreDe,
   lireEcoute,
@@ -48,6 +50,10 @@ export type Analyse = {
   repliques: Replique[];
   personnages: (Personnage & { voix: string; nom_voix: string })[];
   moteur: "elevenlabs" | "gemini";
+  // Langue des répliques (« fr » si absente) et texte français d'origine
+  // quand elles ont été traduites.
+  langue?: string;
+  originales?: string[];
 };
 
 // Ce que ffmpeg écrit sur sa sortie d'erreur (durée, blancs détectés…).
@@ -275,6 +281,23 @@ export async function ecouter(
   });
 }
 
+// Traduction des répliques (mêmes temps, mêmes personnages, mêmes voix).
+export async function traduire(a: Analyse, langue: string, contexte: string | null): Promise<Analyse> {
+  const originales = a.originales ?? a.repliques.map((r) => r.texte);
+  const source = a.repliques.map((r, i) => ({ ...r, texte: originales[i] }));
+  const traduites = lireTraduction(
+    await demanderIA(consigneTraduction(source, langue, contexte), {
+      systeme: "Tu es traducteur et adaptateur de doublage. Tu réponds uniquement en JSON valide.",
+      maxTokens: 6000,
+      delaiTotal: 90_000,
+      gemini: "d'abord",
+    }),
+    source,
+  );
+  if (!traduites) throw new Error("Traduction incomplète : nouvel essai dans une minute.");
+  return { ...a, repliques: traduites, langue, originales };
+}
+
 // --- 2. Voix d'une réplique ------------------------------------------------------
 
 async function parlerEleven(texte: string, voix: string, avant: string, apres: string): Promise<Buffer> {
@@ -305,7 +328,7 @@ export async function voixReplique(a: Analyse, i: number): Promise<{ mp3: Buffer
       fichier = "r.mp3";
       await writeFile(path.join(dossier, fichier), await parlerEleven(r.texte, p.voix, a.repliques[i - 1]?.texte ?? "", a.repliques[i + 1]?.texte ?? ""));
     } else {
-      const son = await voixOff(r.texte, styleReplique(p, r.texte), p.voix || "Kore");
+      const son = await voixOff(r.texte, styleReplique(p, r.texte, a.langue), p.voix || "Kore");
       if (!son) throw new Error("Voix Gemini indisponible pour le moment.");
       fichier = "r.wav";
       await writeFile(path.join(dossier, fichier), enWav(son));
@@ -333,7 +356,7 @@ export async function voixLot(a: Analyse, indices: number[]): Promise<{ mp3: Buf
   return dansDossier(async (dossier) => {
     const son = await voixOff(
       repliques.map((r) => r.texte).join("\n\n"),
-      `${styleReplique(p, "")} ; chaque paragraphe est une réplique différente : marque une vraie pause d'une seconde entre deux paragraphes`,
+      `${styleReplique(p, "", a.langue)} ; chaque paragraphe est une réplique différente : marque une vraie pause d'une seconde entre deux paragraphes`,
       p.voix || "Kore",
     );
     if (!son) throw new Error("Voix Gemini indisponible pour le moment.");

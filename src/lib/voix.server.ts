@@ -8,7 +8,15 @@ const MODELES = [
 ];
 const VOIX = process.env.GEMINI_VOIX || "Kore";
 
-export const voixConfiguree = () => Boolean(process.env.GEMINI_API_KEY);
+// Plusieurs clés possibles (autres comptes Google, offre gratuite) : chacune a
+// ses propres limites par minute, la voix passe à la suivante quand l'une est
+// saturée. GEMINI_API_KEY, puis GEMINI_API_KEY_2, GEMINI_API_KEY_3.
+export const clesGemini = () =>
+  [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY_2, process.env.GEMINI_API_KEY_3]
+    .map((c) => c?.trim())
+    .filter((c): c is string => Boolean(c));
+
+export const voixConfiguree = () => clesGemini().length > 0;
 
 export type Audio = { donnees: Buffer; format: "wav" | "pcm"; duree: number };
 
@@ -138,17 +146,17 @@ export async function voixOff(
   ton = TON_PUBLICITAIRE,
   voix = VOIX,
 ): Promise<Audio | null> {
-  const cle = process.env.GEMINI_API_KEY;
-  if (!cle) return null;
-  for (const modele of [process.env.GEMINI_MODELE_TTS, ...MODELES].filter(
-    (m): m is string => Boolean(m),
-  )) {
-    for (const methode of [viaInteractions, viaGenerateContent]) {
-      try {
-        const a = await methode(cle, modele, texte, ton, voix);
-        if (a && a.duree > 1) return a;
-      } catch (e) {
-        console.warn("Gemini TTS", modele, e instanceof Error ? e.message : e);
+  for (const cle of clesGemini()) {
+    for (const modele of [process.env.GEMINI_MODELE_TTS, ...MODELES].filter(
+      (m): m is string => Boolean(m),
+    )) {
+      for (const methode of [viaInteractions, viaGenerateContent]) {
+        try {
+          const a = await methode(cle, modele, texte, ton, voix);
+          if (a && a.duree > 1) return a;
+        } catch (e) {
+          console.warn("Gemini TTS", modele, e instanceof Error ? e.message : e);
+        }
       }
     }
   }

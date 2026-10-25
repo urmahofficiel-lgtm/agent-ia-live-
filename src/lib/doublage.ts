@@ -358,7 +358,7 @@ export const VOIX_GEMINI: VoixDispo[] = [
 
 // Façon de dire une réplique (voix Gemini) : une vraie personne qui parle,
 // selon son rôle et le type de phrase — jamais un ton de publicité.
-export function styleReplique(p: Pick<Personnage, "role" | "genre">, texte: string) {
+export function styleReplique(p: Pick<Personnage, "role" | "genre">, texte: string, langue = "fr") {
   const qui = p.role && !/^voix /.test(p.role) ? p.role : p.genre === "femme" ? "une femme" : "un homme";
   const t = texte.trim();
   const facon = /\?$/.test(t)
@@ -368,7 +368,52 @@ export function styleReplique(p: Pick<Personnage, "role" | "genre">, texte: stri
       : /^(ok|parfait|reçu|voilà|c'est noté|pareil|moi aussi)/i.test(t)
         ? "répond du tac au tac, détendu"
         : "parle simplement, comme à un collègue";
-  return `français naturel de France, ${qui} qui ${facon} sur un chantier ; voix humaine et spontanée, rythme de conversation, respirations naturelles, aucun ton de publicité ni de lecture`;
+  const parle = langue === "fr" ? "français naturel de France" : `${nomLangue(langue)} naturel, avec l'accent d'une personne dont c'est la langue maternelle`;
+  return `${parle}, ${qui} qui ${facon} sur un chantier ; voix humaine et spontanée, rythme de conversation, respirations naturelles, aucun ton de publicité ni de lecture`;
+}
+
+// --- Traduction ------------------------------------------------------------------
+// Les langues de btp-ecosystem.com, plus l'arabe. La vidéo d'origine est en
+// français : les autres langues sont traduites réplique par réplique.
+
+export const LANGUES_DOUBLAGE = [
+  { id: "fr", nom: "Français" },
+  { id: "en", nom: "Anglais" },
+  { id: "es", nom: "Espagnol" },
+  { id: "de", nom: "Allemand" },
+  { id: "it", nom: "Italien" },
+  { id: "nl", nom: "Néerlandais" },
+  { id: "pt", nom: "Portugais" },
+  { id: "ar", nom: "Arabe" },
+] as const;
+export type LangueDoublage = (typeof LANGUES_DOUBLAGE)[number]["id"];
+export const nomLangue = (id: string) => LANGUES_DOUBLAGE.find((l) => l.id === id)?.nom.toLowerCase() ?? id;
+
+export function consigneTraduction(repliques: Replique[], langue: string, contexte: string | null) {
+  return `Traduis en ${nomLangue(langue)} les répliques d'une vidéo en français (dialogues ou voix off).
+${contexte ? `\nContexte de la marque (vocabulaire, noms de produits) :\n${contexte.slice(0, 1200)}\n` : ""}
+Règles :
+- Une traduction par réplique, dans le même ordre, même sens et même ton (oral, naturel, comme on le dirait vraiment dans ce pays).
+- Chaque traduction doit se dire dans le même temps que l'original : aussi courte que possible, jamais plus longue que nécessaire.
+- Garde tels quels les noms de produits et formats : BTP Ecosystem, WhatsApp, SMS, PDF, DWG, CCTP, Gantt, IA (traduite si l'usage local le veut : AI, KI…).
+- Vocabulaire du métier tel qu'on le dit dans ce pays (pas de traduction mot à mot).${langue === "ar" ? "\n- Arabe standard moderne, simple et naturel à l'oral, écrit en caractères arabes." : ""}
+
+Répliques :
+${repliques.map((r, i) => `${i}. ${r.texte}`).join("\n")}
+
+Réponds UNIQUEMENT en JSON : {"repliques": [{"i": 0, "texte": "…"}]}`;
+}
+
+const schemaTraduction = z.object({ repliques: z.array(z.object({ i: z.coerce.number().catch(-1), texte: z.string().catch("") })).catch([]) });
+
+// Réponse → répliques traduites (temps et personnages inchangés). null s'il
+// manque une traduction : on redemandera plutôt que de mélanger les langues.
+export function lireTraduction(reponse: string, repliques: Replique[]): Replique[] | null {
+  const brut = json(reponse);
+  if (!brut) return null;
+  const t = schemaTraduction.parse(brut).repliques;
+  const sortie = repliques.map((r, i) => ({ ...r, texte: t.find((x) => x.i === i)?.texte.replace(/\s+/g, " ").trim() ?? "" }));
+  return sortie.every((r) => r.texte) ? sortie : null;
 }
 
 // --- Voix par lots ---------------------------------------------------------------

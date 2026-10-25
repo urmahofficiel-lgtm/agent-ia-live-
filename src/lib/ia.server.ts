@@ -3,6 +3,7 @@ import { nettoyerHashtags } from "./tendances";
 import { estCroissance, estSansPub, reglesCroissance } from "./croissance";
 import { nomPlateforme } from "./plateformes";
 import { decorMarche, marcheDe, reglesMarche, systemeMarche } from "./marches";
+import { clesGemini } from "./voix.server";
 import { marquesEtrangeres } from "./marque";
 
 // Cerveau de l'agent : NVIDIA NIM (API compatible OpenAI).
@@ -115,12 +116,14 @@ const quotaEpuise = new Map<string, number>();
 
 async function demanderGemini(cle: string, systeme: string, demande: string, echeance: number, images: ImageJointe[] = [], delaiModele = 40_000) {
   let derniere = "Gemini n'a pas répondu.";
-  const modeles = (await listerGemini(cle)).filter((m) => (quotaEpuise.get(m) ?? 0) < Date.now());
+  // Quota épuisé noté par clé (chaque compte Google a ses propres limites).
+  const q = (m: string) => `${cle.slice(-6)}:${m}`;
+  const modeles = (await listerGemini(cle)).filter((m) => (quotaEpuise.get(q(m)) ?? 0) < Date.now());
   // Surcharge (503) : un second essai sur le premier modèle, après une courte
   // pause, avant de passer aux suivants.
   const essais = modeles.length ? [modeles[0], ...modeles] : [];
   for (const [i, modele] of essais.entries()) {
-    if ((quotaEpuise.get(modele) ?? 0) >= Date.now()) continue;
+    if ((quotaEpuise.get(q(modele)) ?? 0) >= Date.now()) continue;
     if (i === 1) await new Promise((r) => setTimeout(r, 2500));
     const reste = echeance - Date.now();
     if (reste < 5_000) break;
@@ -142,7 +145,7 @@ async function demanderGemini(cle: string, systeme: string, demande: string, ech
       console.info("Gemini", modele, r.status, Date.now() - debut, "ms");
       if (!r.ok) {
         derniere = `Gemini a refusé la demande (${r.status}).`;
-        if (r.status === 429) quotaEpuise.set(modele, Date.now() + 10 * 60_000);
+        if (r.status === 429) quotaEpuise.set(q(modele), Date.now() + 10 * 60_000);
         continue;
       }
       const json = (await r.json()) as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[] };
@@ -228,12 +231,26 @@ export async function demanderIA(
   const systeme = options.systeme ?? SYSTEME;
   const echeance = Date.now() + (options.delaiTotal ?? 170_000);
   const cleN = cleNvidia();
-  const cleG = process.env.GEMINI_API_KEY ?? "";
+  // Plusieurs clés Gemini possibles (GEMINI_API_KEY, _2, _3) : la suivante
+  // prend le relais quand une clé est saturée.
+  const clesG = clesGemini();
+  const cleG = clesG[0] ?? "";
   if (!cleN && !cleG) throw new Error("Aucune clé d'IA (NVIDIA ou Gemini) dans les variables Vercel.");
 
   const nvidia = (fin: number) => demanderNvidia(cleN, systeme, demande, maxTokens, fin);
   const images = options.images ?? [];
-  const gemini = (fin: number) => demanderGemini(cleG, systeme, demande, fin, images, options.delaiModele);
+  const gemini = async (fin: number) => {
+    let derniere: unknown = null;
+    for (const cle of clesG) {
+      try {
+        return await demanderGemini(cle, systeme, demande, fin, images, options.delaiModele);
+      } catch (e) {
+        derniere = e;
+        if (Date.now() > fin - 5_000) break;
+      }
+    }
+    throw derniere instanceof Error ? derniere : new Error("Gemini n'a pas répondu.");
+  };
   // Avec des captures d'écran, seul Gemini sait les lire.
   if (images.length && !cleG) throw new Error("La lecture des captures d'écran demande la clé Gemini (variable GEMINI_API_KEY).");
   // Un fournisseur qui vient d'échouer (NVIDIA saturé la nuit, Gemini en

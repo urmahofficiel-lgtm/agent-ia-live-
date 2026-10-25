@@ -6,6 +6,9 @@ import {
   decouperLot,
   lotsParPersonnage,
   consigneQuiParle,
+  consigneTraduction,
+  LANGUES_DOUBLAGE,
+  lireTraduction,
   attribuerVoix,
   genreDeHauteur,
   lireEcoute,
@@ -242,5 +245,26 @@ describe("doublage", () => {
     expect(decouperLot([], 8, [20, 25])).toBeNull();
     expect(decouperLot([{ debut: 0.3, fin: 1 }], 8, [40, 40])).toBeNull();
     expect(decouperLot([], 3, [10])).toEqual([{ debut: 0, fin: 3 }]);
+  });
+
+  it("traduction : langues du site + arabe, chaque réplique traduite, voix dans la langue", () => {
+    expect(LANGUES_DOUBLAGE.map((l) => l.id)).toEqual(["fr", "en", "es", "de", "it", "nl", "pt", "ar"]);
+    const rep = [
+      { debut: 3.6, fin: 4.4, texte: "Bonjour !", locuteur: "voix_1" },
+      { debut: 10.8, fin: 13.1, texte: "C'est quoi, la dernière version du plan ?", locuteur: "voix_2" },
+    ];
+    const c = consigneTraduction(rep, "ar", null);
+    expect(c).toContain("Traduis en arabe");
+    expect(c).toContain("Arabe standard moderne");
+    expect(c).toContain("1. C'est quoi, la dernière version du plan ?");
+    const t = lireTraduction('{"repliques": [{"i": 0, "texte": "Hello!"}, {"i": 1, "texte": "What\'s the latest version of the plan?"}]}', rep);
+    expect(t?.map((r) => [r.debut, r.locuteur, r.texte])).toEqual([
+      [3.6, "voix_1", "Hello!"],
+      [10.8, "voix_2", "What's the latest version of the plan?"],
+    ]);
+    // Une réplique sans traduction : on redemande plutôt que de mélanger les langues.
+    expect(lireTraduction('{"repliques": [{"i": 0, "texte": "Hello!"}]}', rep)).toBeNull();
+    expect(styleReplique({ role: "le maçon", genre: "homme" }, "Hello!", "en")).toContain("anglais naturel");
+    expect(styleReplique({ role: "le maçon", genre: "homme" }, "Bonjour !")).toContain("français naturel de France");
   });
 });
