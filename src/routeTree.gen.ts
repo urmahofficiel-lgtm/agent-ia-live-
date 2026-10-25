@@ -15,6 +15,7 @@ import { Route as ComptesRouteImport } from './routes/comptes'
 import { Route as ConditionsRouteImport } from './routes/conditions'
 import { Route as ConfidentialiteRouteImport } from './routes/confidentialite'
 import { Route as ConnexionRouteImport } from './routes/connexion'
+import { Route as DoublageRouteImport } from './routes/doublage'
 import { Route as EnDirectRouteImport } from './routes/en-direct'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as MontageRouteImport } from './routes/montage'
@@ -72,6 +73,11 @@ const ConfidentialiteRoute = ConfidentialiteRouteImport.update({
 const ConnexionRoute = ConnexionRouteImport.update({
   id: '/connexion',
   path: '/connexion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DoublageRoute = DoublageRouteImport.update({
+  id: '/doublage',
+  path: '/doublage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EnDirectRoute = EnDirectRouteImport.update({
@@ -222,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/conditions': typeof ConditionsRoute
   '/confidentialite': typeof ConfidentialiteRoute
   '/connexion': typeof ConnexionRoute
+  '/doublage': typeof DoublageRoute
   '/en-direct': typeof EnDirectRoute
   '/messages': typeof MessagesRoute
   '/montage': typeof MontageRoute
@@ -258,6 +265,7 @@ export interface FileRoutesByTo {
   '/conditions': typeof ConditionsRoute
   '/confidentialite': typeof ConfidentialiteRoute
   '/connexion': typeof ConnexionRoute
+  '/doublage': typeof DoublageRoute
   '/en-direct': typeof EnDirectRoute
   '/messages': typeof MessagesRoute
   '/montage': typeof MontageRoute
@@ -295,6 +303,7 @@ export interface FileRoutesById {
   '/conditions': typeof ConditionsRoute
   '/confidentialite': typeof ConfidentialiteRoute
   '/connexion': typeof ConnexionRoute
+  '/doublage': typeof DoublageRoute
   '/en-direct': typeof EnDirectRoute
   '/messages': typeof MessagesRoute
   '/montage': typeof MontageRoute
@@ -333,6 +342,7 @@ export interface FileRouteTypes {
     | '/conditions'
     | '/confidentialite'
     | '/connexion'
+    | '/doublage'
     | '/en-direct'
     | '/messages'
     | '/montage'
@@ -369,6 +379,7 @@ export interface FileRouteTypes {
     | '/conditions'
     | '/confidentialite'
     | '/connexion'
+    | '/doublage'
     | '/en-direct'
     | '/messages'
     | '/montage'
@@ -405,6 +416,7 @@ export interface FileRouteTypes {
     | '/conditions'
     | '/confidentialite'
     | '/connexion'
+    | '/doublage'
     | '/en-direct'
     | '/messages'
     | '/montage'
@@ -442,6 +454,7 @@ export interface RootRouteChildren {
   ConditionsRoute: typeof ConditionsRoute
   ConfidentialiteRoute: typeof ConfidentialiteRoute
   ConnexionRoute: typeof ConnexionRoute
+  DoublageRoute: typeof DoublageRoute
   EnDirectRoute: typeof EnDirectRoute
   MessagesRoute: typeof MessagesRoute
   MontageRoute: typeof MontageRoute
@@ -514,6 +527,13 @@ declare module '@tanstack/react-router' {
       path: '/connexion'
       fullPath: '/connexion'
       preLoaderRoute: typeof ConnexionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/doublage': {
+      id: '/doublage'
+      path: '/doublage'
+      fullPath: '/doublage'
+      preLoaderRoute: typeof DoublageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/en-direct': {
@@ -722,6 +742,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConditionsRoute: ConditionsRoute,
   ConfidentialiteRoute: ConfidentialiteRoute,
   ConnexionRoute: ConnexionRoute,
+  DoublageRoute: DoublageRoute,
   EnDirectRoute: EnDirectRoute,
   MessagesRoute: MessagesRoute,
   MontageRoute: MontageRoute,

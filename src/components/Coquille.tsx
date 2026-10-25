@@ -10,6 +10,7 @@ import {
   LogOut,
   Menu,
   MessageCircle,
+  Mic,
   Scissors,
   Settings,
   Target,
@@ -41,6 +42,7 @@ const MENU = [
       { to: "/montage", label: "Studio montage IA", icone: Scissors },
       { to: "/studio-video", label: "Studio vidéo IA", icone: Clapperboard },
       { to: "/animer", label: "Animer une photo", icone: Wand2 },
+      { to: "/doublage", label: "Voix réalistes", icone: Mic },
     ],
   },
   {
