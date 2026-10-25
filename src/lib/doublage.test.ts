@@ -192,4 +192,32 @@ describe("doublage", () => {
     const seul = lireEcouteGuidee(assemblerEcoute([{ texte: "a", debut: 0 }, { texte: "b", debut: 0 }], null), passages);
     expect(seul.personnages.map((p) => p.genre).sort()).toEqual(["femme", "homme"]);
   });
+
+  it("calage d'une phrase courte après un son d'intro, correction d'un mot mal entendu", () => {
+    const passages = [
+      { debut: 0, fin: 4.43, hauteur: 229 },
+      { debut: 22.62, fin: 25.47, hauteur: 190 },
+    ];
+    const lu = lireEcouteGuidee(
+      assemblerEcoute(
+        [
+          { texte: "Bonjour.", debut: 0 },
+          { texte: "Des devis sages partout et c'est toujours moi qu'on appelle.", debut: 0 },
+        ],
+        JSON.stringify({
+          personnages: [{ id: "voix_1", role: "l'architecte", genre: "femme" }],
+          passages: [
+            { i: 0, locuteur: "voix_1", texte: "Bonjour ! Je suis l'architecte de ce chantier, et voici ma journée type sur le terrain." },
+            { i: 1, locuteur: "voix_1", texte: "Des messages partout, et c'est toujours moi qu'on appelle." },
+          ],
+        }),
+      ),
+      passages,
+    );
+    // « Bonjour » (0,9 s) dans un passage de 4,4 s : calé sur la fin, pas à 0 s.
+    expect(lu.repliques[0].debut).toBeGreaterThan(3.2);
+    // Correction trop longue (phrase ajoutée) : refusée ; mot mal entendu : corrigé.
+    expect(lu.repliques[0].texte).toBe("Bonjour.");
+    expect(lu.repliques[1].texte).toBe("Des messages partout, et c'est toujours moi qu'on appelle.");
+  });
 });

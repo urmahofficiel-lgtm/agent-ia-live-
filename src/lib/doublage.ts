@@ -153,6 +153,10 @@ export function voisement(pcm: Int16Array, frequence: number, debut: number, fin
   return { hauteur: Math.round(valeurs[Math.floor(valeurs.length / 2)]), premier };
 }
 
+// Durée approximative d'une phrase dite à voix haute (≈ 14 caractères par
+// seconde en français).
+export const dureeParlee = (texte: string) => 0.3 + texte.length / 14;
+
 // Au-dessus : voix de femme ; en dessous de la seconde : voix d'homme.
 const SEUIL_FEMME = 165;
 const SEUIL_HOMME = 150;
@@ -184,10 +188,11 @@ ${contexte ? `\nContexte de la marque :\n${contexte.slice(0, 1200)}\n` : ""}
 ${passages.map((p, i) => `${i}. [${p.debut.toFixed(1)}–${p.fin.toFixed(1)} s · ${p.hauteur === null ? "?" : `${p.hauteur} Hz, ${genreDeHauteur(p.hauteur) ?? "?"}`}] ${p.texte || "(rien)"}`).join("\n")}
 
 Dis qui parle dans chaque passage : "voix_1", "voix_2"… (la même personne garde le même numéro dans toute la vidéo). Une voix aiguë (plus de 165 Hz) est une femme, une voix grave un homme ; deux passages de hauteurs très différentes ne sont pas la même personne. Appuie-toi sur le sens (qui répond à qui, qui se présente) et les images (personnages, bulles).
+Si un mot a manifestement été mal entendu (absurde dans le contexte, ex. « des devis sages partout » pour « des messages partout »), donne le texte corrigé dans "texte" ; sinon n'écris pas "texte". Ne reformule pas, n'ajoute rien, ne coupe rien.
 Puis décris chaque voix : son rôle (ex. « l'architecte », « le maçon », « la cliente ») et son genre.
 
 Réponds UNIQUEMENT en JSON :
-{"personnages": [{"id": "voix_1", "role": "l'architecte", "genre": "femme"}], "passages": [{"i": 0, "locuteur": "voix_1"}]}`;
+{"personnages": [{"id": "voix_1", "role": "l'architecte", "genre": "femme"}], "passages": [{"i": 0, "locuteur": "voix_1"}, {"i": 7, "locuteur": "voix_1", "texte": "Des messages partout, et c'est toujours moi qu'on appelle."}]}`;
 }
 
 // Textes (un par passage) + réponse « qui parle » → même forme que l'écoute
@@ -197,7 +202,14 @@ export function assemblerEcoute(textes: { texte: string; debut: number | null }[
   const q = brut ? schemaEcouteGuidee.parse(brut) : { personnages: [], passages: [] };
   return JSON.stringify({
     personnages: q.personnages,
-    passages: textes.map((t, i) => ({ i, texte: t.texte, debut: t.debut, locuteur: q.passages.find((x) => x.i === i)?.locuteur || "voix_1" })),
+    passages: textes.map((t, i) => {
+      const x = q.passages.find((y) => y.i === i);
+      // Correction d'un mot mal entendu : gardée seulement si la phrase reste
+      // de même longueur (jamais une phrase ajoutée ou coupée).
+      const corrige = x?.texte?.trim() ?? "";
+      const proche = corrige && t.texte && corrige.length >= t.texte.length * 0.7 && corrige.length <= t.texte.length * 1.4;
+      return { i, texte: proche ? corrige : t.texte, debut: t.debut, locuteur: x?.locuteur || "voix_1" };
+    }),
   });
 }
 
@@ -223,8 +235,17 @@ export function lireEcouteGuidee(reponse: string, passages: Passage[]): { repliq
       // Début de la parole dans l'extrait (son d'intro avant la voix), s'il
       // tombe bien dans le passage.
       const decalage = x?.debut ?? 0;
-      const debut = decalage > 0.2 && p.debut + decalage < p.fin - 0.2 ? arrondi(p.debut + decalage) : p.debut;
-      return { ...p, debut, texte: (x?.texte ?? "").replace(/\s+/g, " ").trim(), locuteur: x?.locuteur.trim() || "voix_1" };
+      const texte = (x?.texte ?? "").replace(/\s+/g, " ").trim();
+      // Passage bien plus long que la phrase (son d'intro avant la voix) :
+      // sans début donné par l'IA, la phrase est calée sur la fin du passage.
+      const longue = texte && p.fin - p.debut > 2 * dureeParlee(texte) + 0.5;
+      const debut =
+        decalage > 0.2 && p.debut + decalage < p.fin - 0.2
+          ? arrondi(p.debut + decalage)
+          : longue
+            ? arrondi(Math.max(p.debut, p.fin - dureeParlee(texte) * 1.15))
+            : p.debut;
+      return { ...p, debut, texte, locuteur: x?.locuteur.trim() || "voix_1" };
     })
     .filter((x) => x.texte);
 
