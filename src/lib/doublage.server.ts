@@ -14,6 +14,7 @@ import {
   consigneExtrait,
   consigneQuiParle,
   consigneRelecture,
+  decouperLot,
   genreDe,
   lireEcoute,
   lireExtrait,
@@ -66,9 +67,9 @@ async function dureeMedia(fichier: string, dossier: string) {
   return m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : 0;
 }
 
-// Passages parlés (entre les blancs) et hauteur de voix de chacun.
-async function mesurerPassages(dossier: string, duree: number): Promise<Passage[]> {
-  const journal = await journalFfmpeg(["-i", "voix.mp3", "-af", "silencedetect=noise=-35dB:d=0.4", "-f", "null", "-"], dossier);
+// Blancs d'un fichier audio (ffmpeg silencedetect).
+async function blancs(fichier: string, dossier: string, duree: number, seuil = "-35dB", minimum = 0.4) {
+  const journal = await journalFfmpeg(["-i", fichier, "-af", `silencedetect=noise=${seuil}:d=${minimum}`, "-f", "null", "-"], dossier);
   const silences: { debut: number; fin: number }[] = [];
   let debut: number | null = null;
   for (const m of journal.matchAll(/silence_(start|end): (-?[\d.]+)/g)) {
@@ -79,6 +80,12 @@ async function mesurerPassages(dossier: string, duree: number): Promise<Passage[
     }
   }
   if (debut !== null) silences.push({ debut, fin: duree });
+  return silences;
+}
+
+// Passages parlés (entre les blancs) et hauteur de voix de chacun.
+async function mesurerPassages(dossier: string, duree: number): Promise<Passage[]> {
+  const silences = await blancs("voix.mp3", dossier, duree);
   const brut = await readFile(path.join(dossier, "voix.pcm"));
   const pcm = new Int16Array(new Uint8Array(brut).buffer, 0, Math.floor(brut.length / 2));
   return passagesParles(silences, duree).map((p) => ({ ...p, hauteur: voisement(pcm, 16000, p.debut, p.fin).hauteur }));
@@ -234,7 +241,9 @@ export async function ecouter(
           await attendre(8_000);
         }
       }
-      if (Date.now() > echeance) return ecoute;
+      // Un passage refusé ou plus de temps : on reprendra au passage suivant.
+      const reprendre = ecoute;
+      if (Date.now() > echeance || reprendre.passages.some((_, i) => !reprendre.textes[i])) return reprendre;
       // Puis qui parle : une demande, sans audio.
       const fini = ecoute;
       const textes = fini.passages.map((_, i) => fini.textes[i] ?? { texte: "", debut: null });
@@ -248,6 +257,8 @@ export async function ecouter(
           images: await planche(),
         },
       ).catch(() => null);
+      // Refusée (Gemini saturé) : on la redemandera, sans rien refaire d'autre.
+      if (!quiParle) return fini;
       lu = lireEcouteGuidee(assemblerEcoute(textes, quiParle), fini.passages);
       if (!lu.repliques.length) throw new Error("Aucune parole comprise dans la vidéo.");
     }
@@ -310,6 +321,39 @@ export async function voixReplique(a: Analyse, i: number): Promise<{ mp3: Buffer
       dossier,
     );
     return { mp3: await readFile(path.join(dossier, "sortie.mp3")), duree: await dureeMedia("sortie.mp3", dossier) };
+  });
+}
+
+// Un lot de répliques d'un même personnage en une seule demande (voix
+// Gemini), découpé ensuite sur les plus longs blancs. null si la découpe ne
+// colle pas aux phrases : les répliques sont alors faites une à une.
+export async function voixLot(a: Analyse, indices: number[]): Promise<{ mp3: Buffer; duree: number }[] | null> {
+  const repliques = indices.map((i) => a.repliques[i]);
+  const p = a.personnages.find((x) => x.id === repliques[0].locuteur) ?? a.personnages[0];
+  return dansDossier(async (dossier) => {
+    const son = await voixOff(
+      repliques.map((r) => r.texte).join("\n\n"),
+      `${styleReplique(p, "")} ; chaque paragraphe est une réplique différente : marque une vraie pause d'une seconde entre deux paragraphes`,
+      p.voix || "Kore",
+    );
+    if (!son) throw new Error("Voix Gemini indisponible pour le moment.");
+    await writeFile(path.join(dossier, "lot.wav"), enWav(son));
+    const duree = await dureeMedia("lot.wav", dossier);
+    const morceaux = decouperLot(await blancs("lot.wav", dossier, duree, "-40dB", 0.25), duree, repliques.map((r) => r.texte.length));
+    if (!morceaux) return null;
+    const sortie: { mp3: Buffer; duree: number }[] = [];
+    for (const [k, m] of morceaux.entries()) {
+      await executer(
+        [
+          "-ss", m.debut.toFixed(2), "-to", m.fin.toFixed(2), "-i", "lot.wav",
+          "-af", "silenceremove=start_periods=1:start_threshold=-45dB,areverse,silenceremove=start_periods=1:start_threshold=-45dB,areverse,aresample=44100",
+          "-ac", "1", "-c:a", "libmp3lame", "-b:a", "96k", `m${k}.mp3`,
+        ],
+        dossier,
+      );
+      sortie.push({ mp3: await readFile(path.join(dossier, `m${k}.mp3`)), duree: await dureeMedia(`m${k}.mp3`, dossier) });
+    }
+    return sortie;
   });
 }
 

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { clientMoteur } from "@/lib/supabase-serveur";
-import { ecouter, estAnalyse, mixerDoublage, voixReplique, type Analyse, type Ecoute } from "@/lib/doublage.server";
+import { ecouter, estAnalyse, mixerDoublage, voixLot, voixReplique, type Analyse, type Ecoute } from "@/lib/doublage.server";
+import { lotsParPersonnage } from "@/lib/doublage";
 
 // Moteur de doublage (Voix réalistes) : appelé chaque minute par pg_cron.
 // Avance le doublage en attente le plus ancien, étape par étape, dans la
@@ -73,25 +74,39 @@ async function avancer(secret: string) {
       progres = true;
     } else analyse = d.etude;
 
-    // 2. La voix de chaque réplique, une à la fois, tant qu'il reste du
-    // temps. Gemini limite le nombre de voix par minute : une réplique refusée
-    // est retentée après une pause, puis au passage suivant.
+    // 2. La voix de chaque réplique, tant qu'il reste du temps. Gemini limite
+    // le nombre de voix par minute : un refus est retenté après une pause, puis
+    // au passage suivant.
     if (etape === "voix") {
       const a = analyse;
       let refusDeSuite = 0;
-      for (const i of a.repliques.map((_, k) => k).filter((k) => !segments[k])) {
-        if (reste() < 40_000 || refusDeSuite >= 4) break;
+      const garder = async (i: number, v: { mp3: Buffer; duree: number }) => {
+        const url = await deposer("studio", `doublage-${d.id}-r${i}.mp3`, v.mp3, "audio/mpeg");
+        segments[i] = { url, duree: v.duree };
+        progres = true;
+        await maj({ segments: { [i]: segments[i] }, erreur: null, progres: true });
+      };
+      // Voix Gemini : par lots (une demande pour plusieurs répliques d'un même
+      // personnage) ; ElevenLabs, ou lot impossible à découper : une à une.
+      const lots =
+        a.moteur === "gemini"
+          ? lotsParPersonnage(a.repliques, new Set(Object.keys(segments).map(Number)))
+          : a.repliques.map((_, k) => [k]).filter(([k]) => !segments[k]);
+      for (const lot of lots) {
+        if (reste() < 60_000 || refusDeSuite >= 3) break;
         try {
-          const v = await voixReplique(a, i);
-          const url = await deposer("studio", `doublage-${d.id}-r${i}.mp3`, v.mp3, "audio/mpeg");
-          segments[i] = { url, duree: v.duree };
-          progres = true;
+          const voix = lot.length > 1 ? await voixLot(a, lot) : null;
+          if (voix) for (const [k, i] of lot.entries()) await garder(i, voix[k]);
+          else
+            for (const i of lot) {
+              if (reste() < 40_000) break;
+              await garder(i, await voixReplique(a, i));
+            }
           refusDeSuite = 0;
-          await maj({ segments: { [i]: segments[i] }, erreur: null, progres: true });
         } catch (e) {
           refusDeSuite++;
-          console.warn("doublage : voix refusée", i, e instanceof Error ? e.message : e);
-          await new Promise((r) => setTimeout(r, Math.min(20_000, Math.max(0, reste() - 40_000))));
+          console.warn("doublage : voix refusée", lot.join(","), e instanceof Error ? e.message : e);
+          await new Promise((r) => setTimeout(r, Math.min(20_000, Math.max(0, reste() - 60_000))));
         }
       }
       if (a.repliques.every((_, i) => segments[i])) {

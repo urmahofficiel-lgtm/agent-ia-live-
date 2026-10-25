@@ -3,6 +3,8 @@ import {
   appliquerRelecture,
   assemblerEcoute,
   consigneExtrait,
+  decouperLot,
+  lotsParPersonnage,
   consigneQuiParle,
   attribuerVoix,
   genreDeHauteur,
@@ -219,5 +221,26 @@ describe("doublage", () => {
     // Correction trop longue (phrase ajoutée) : refusée ; mot mal entendu : corrigé.
     expect(lu.repliques[0].texte).toBe("Bonjour.");
     expect(lu.repliques[1].texte).toBe("Des messages partout, et c'est toujours moi qu'on appelle.");
+  });
+
+  it("voix par lots : répliques d'un même personnage regroupées, découpées sur les plus longs blancs", () => {
+    const r = (locuteur: string) => ({ debut: 0, fin: 1, texte: "x", locuteur });
+    const rep = [r("a"), r("b"), r("a"), r("a"), r("b"), r("a")];
+    expect(lotsParPersonnage(rep, new Set([2]), 2)).toEqual([[0, 3], [1, 4], [5]]);
+    // Trois phrases : deux grands blancs (les coupes) et un petit (virgule).
+    const silences = [
+      { debut: 1.2, fin: 1.4 },
+      { debut: 2.0, fin: 2.9 },
+      { debut: 5.0, fin: 6.0 },
+    ];
+    expect(decouperLot(silences, 8, [20, 25, 25])).toEqual([
+      { debut: 0, fin: 2 },
+      { debut: 2.9, fin: 5 },
+      { debut: 6, fin: 8 },
+    ]);
+    // Pas assez de blancs, ou morceaux qui ne collent pas aux phrases : null.
+    expect(decouperLot([], 8, [20, 25])).toBeNull();
+    expect(decouperLot([{ debut: 0.3, fin: 1 }], 8, [40, 40])).toBeNull();
+    expect(decouperLot([], 3, [10])).toEqual([{ debut: 0, fin: 3 }]);
   });
 });

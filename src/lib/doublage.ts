@@ -371,6 +371,51 @@ export function styleReplique(p: Pick<Personnage, "role" | "genre">, texte: stri
   return `français naturel de France, ${qui} qui ${facon} sur un chantier ; voix humaine et spontanée, rythme de conversation, respirations naturelles, aucun ton de publicité ni de lecture`;
 }
 
+// --- Voix par lots ---------------------------------------------------------------
+// Gemini ne laisse passer que quelques voix par minute : les répliques
+// consécutives d'un même personnage sont dites en une seule demande, puis
+// découpées sur les plus longs blancs.
+
+// Lots de répliques (indices) d'un même personnage, dans l'ordre de la vidéo,
+// `taille` au plus, en sautant celles déjà faites.
+export function lotsParPersonnage(repliques: Replique[], faites: Set<number>, taille = 8): number[][] {
+  const parPersonnage = new Map<string, number[][]>();
+  for (const [i, r] of repliques.entries()) {
+    if (faites.has(i)) continue;
+    const lots = parPersonnage.get(r.locuteur) ?? [];
+    const dernier = lots[lots.length - 1];
+    if (dernier && dernier.length < taille) dernier.push(i);
+    else lots.push([i]);
+    parPersonnage.set(r.locuteur, lots);
+  }
+  // Les lots qui commencent le plus tôt d'abord.
+  return [...parPersonnage.values()].flat().sort((a, b) => a[0] - b[0]);
+}
+
+// Découpe l'audio d'un lot (durée `duree`, blancs détectés) en `longueurs.length`
+// morceaux, sur les plus longs blancs. null si les morceaux ne collent pas aux
+// textes (un morceau beaucoup trop court ou trop long pour sa phrase).
+export function decouperLot(silences: { debut: number; fin: number }[], duree: number, longueurs: number[]): { debut: number; fin: number }[] | null {
+  const n = longueurs.length;
+  if (n === 1) return [{ debut: 0, fin: duree }];
+  const interieurs = silences.filter((s) => s.debut > 0.05 && s.fin < duree - 0.05);
+  if (interieurs.length < n - 1) return null;
+  const coupes = [...interieurs]
+    .sort((a, b) => b.fin - b.debut - (a.fin - a.debut))
+    .slice(0, n - 1)
+    .sort((a, b) => a.debut - b.debut);
+  const morceaux = coupes.map((c, k) => ({ debut: k === 0 ? 0 : coupes[k - 1].fin, fin: c.debut }));
+  morceaux.push({ debut: coupes[n - 2].fin, fin: duree });
+  const total = longueurs.reduce((t, l) => t + l, 0);
+  const parle = morceaux.reduce((t, m) => t + m.fin - m.debut, 0);
+  const plausible = morceaux.every((m, k) => {
+    const attendu = (longueurs[k] / total) * parle;
+    const rapport = (m.fin - m.debut) / attendu;
+    return rapport > 0.4 && rapport < 2.5;
+  });
+  return plausible ? morceaux.map((m) => ({ debut: arrondi(m.debut), fin: arrondi(m.fin) })) : null;
+}
+
 // Place laissée à chaque réplique : jusqu'au début de la suivante (ou la fin
 // de la vidéo), moins un petit souffle.
 export function placesDisponibles(repliques: Replique[], dureeVideo: number) {
