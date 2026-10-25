@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { clientMoteur } from "@/lib/supabase-serveur";
-import { analyserVideo, mixerDoublage, voixReplique, type Analyse } from "@/lib/doublage.server";
+import { ecouter, estAnalyse, mixerDoublage, voixReplique, type Analyse, type Ecoute } from "@/lib/doublage.server";
 
 // Moteur de doublage (Voix réalistes) : appelé chaque minute par pg_cron.
 // Avance le doublage en attente le plus ancien, étape par étape, dans la
@@ -13,7 +13,8 @@ type Doublage = {
   user_id: string;
   source_url: string;
   etape: "ecoute" | "voix" | "mixage";
-  etude: Analyse | null;
+  // Écoute en cours (étape « ecoute »), puis l'analyse finie.
+  etude: Analyse | Ecoute | null;
   segments: Record<string, { url: string; duree: number }>;
   echecs: number;
   contexte: string | null;
@@ -50,17 +51,25 @@ async function avancer(secret: string) {
     d.echecs + 1 >= MAX_ECHECS ? { statut: "echec", erreur, libre: true } : { erreur, echec: true, libre: true };
   try {
     const video = await telecharger(d.source_url);
-    let analyse = d.etude;
     let etape = d.etape;
     const segments = { ...d.segments };
 
-    // 1. Écouter et regarder.
-    if (etape === "ecoute" || !analyse) {
-      analyse = await analyserVideo(video, d.contexte);
+    // 1. Écouter et regarder (repris au passage suivant si le temps manque).
+    let analyse: Analyse;
+    if (etape === "ecoute" || !estAnalyse(d.etude)) {
+      const r = await ecouter(video, d.contexte, estAnalyse(d.etude) ? null : d.etude, Date.now() + reste() - 60_000, async (e) => {
+        progres = true;
+        await maj({ etude: e, erreur: null, progres: true });
+      });
+      if (!estAnalyse(r)) {
+        await maj(progres ? { libre: true } : sansProgres("Gemini saturé : l'écoute reprend dans une minute."));
+        return { id: d.id, etape, passages: `${Object.keys(r.textes).length} / ${r.passages.length}` };
+      }
+      analyse = r;
       etape = "voix";
       await maj({ etape, etude: analyse, erreur: null, progres: true });
       progres = true;
-    }
+    } else analyse = d.etude;
 
     // 2. La voix de chaque réplique, une à la fois, tant qu'il reste du
     // temps. Gemini limite le nombre de voix par minute : une réplique refusée

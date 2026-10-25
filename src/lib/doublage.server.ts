@@ -149,86 +149,107 @@ async function voixEleven(): Promise<VoixDispo[]> {
   return [...imposees, ...compte.filter((v) => !imposees.some((i) => i.id === v.id))];
 }
 
-export async function analyserVideo(video: Buffer, contexte: string | null): Promise<Analyse> {
+// Écoute en cours avec Gemini, reprise d'un passage du moteur à l'autre :
+// les passages mesurés et les textes déjà transcrits sont gardés.
+export type Ecoute = { duree: number; passages: Passage[]; textes: Record<string, { texte: string; debut: number | null }> };
+export const estAnalyse = (x: Analyse | Ecoute | null | undefined): x is Analyse => Boolean(x && "repliques" in x);
+
+const attendre = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Écoute la vidéo jusqu'à `echeance` (horodatage). Renvoie l'analyse finie,
+// ou l'écoute en cours à reprendre au passage suivant. `noter` enregistre
+// chaque progrès.
+export async function ecouter(
+  video: Buffer,
+  contexte: string | null,
+  enCours: Ecoute | null,
+  echeance: number,
+  noter: (e: Ecoute) => Promise<unknown>,
+): Promise<Analyse | Ecoute> {
   return dansDossier(async (dossier) => {
     await writeFile(path.join(dossier, "v.mp4"), video);
-    const duree = await dureeMedia("v.mp4", dossier);
+    const duree = enCours?.duree ?? (await dureeMedia("v.mp4", dossier));
     if (!duree) throw new Error("Vidéo illisible.");
     if (duree > 600) throw new Error("Vidéo trop longue : 10 minutes au plus.");
     const eleven = voixElevenDisponibles();
 
-    // La bande son, en mono léger (MP3 pour l'IA, PCM brut pour les mesures).
+    // La bande son, en mono léger.
     await executer(["-i", "v.mp4", "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame", "-b:a", "32k", "voix.mp3"], dossier).catch(() => {
       throw new Error("La vidéo n'a pas de son à doubler.");
     });
-    await executer(["-i", "voix.mp3", "-ac", "1", "-ar", "16000", "-f", "s16le", "voix.pcm"], dossier);
-    const mp3 = await readFile(path.join(dossier, "voix.mp3"));
-
-    // Une planche de 16 images : textes à l'écran et personnages.
-    const pas = Math.max(1, duree / 16);
-    await executer(["-i", "v.mp4", "-vf", `fps=1/${pas.toFixed(2)},scale=480:-2,tile=4x4`, "-frames:v", "1", "-q:v", "4", "planche.jpg"], dossier).catch(() => {});
-    const planche = await readFile(path.join(dossier, "planche.jpg")).catch(() => null);
-    const image = planche ? [{ mime: "image/jpeg", donnees: planche.toString("base64") }] : [];
+    const planche = async () => {
+      // 16 images : textes à l'écran et personnages.
+      const pas = Math.max(1, duree / 16);
+      await executer(["-i", "v.mp4", "-vf", `fps=1/${pas.toFixed(2)},scale=480:-2,tile=4x4`, "-frames:v", "1", "-q:v", "4", "planche.jpg"], dossier).catch(() => {});
+      const jpeg = await readFile(path.join(dossier, "planche.jpg")).catch(() => null);
+      return jpeg ? [{ mime: "image/jpeg", donnees: jpeg.toString("base64") }] : [];
+    };
 
     let lu: { repliques: Replique[]; personnages: Personnage[] };
     if (eleven) {
       // ElevenLabs : transcription mot à mot avec qui parle, puis relecture.
+      const mp3 = await readFile(path.join(dossier, "voix.mp3"));
       const repliques = (await ecouterEleven(mp3).catch(() => ecouterGemini(mp3))).filter((r) => r.debut < duree);
       if (!repliques.length) throw new Error("Aucune parole entendue dans la vidéo.");
       const relecture = await demanderIA(consigneRelecture(repliques, contexte), {
         systeme: "Tu corriges des transcriptions de vidéos en français. Tu réponds uniquement en JSON valide.",
         maxTokens: 8000,
         delaiTotal: 90_000,
-        images: image,
+        images: await planche(),
       }).catch(() => null);
       lu = appliquerRelecture(repliques, relecture);
     } else {
-      // Gemini : passages et hauteurs de voix mesurés ici, texte et rôles par l'IA.
-      const passages = await mesurerPassages(dossier, duree);
-      if (!passages.length) throw new Error("Aucune parole entendue dans la vidéo.");
-      // Chaque passage transcrit seul (3 à la fois) : un texte ne peut pas
-      // glisser d'un passage à l'autre. Un refus passager est retenté une fois.
+      // Gemini : passages et hauteurs de voix mesurés ici (une fois).
+      let ecoute = enCours;
+      if (!ecoute) {
+        await executer(["-i", "voix.mp3", "-ac", "1", "-ar", "16000", "-f", "s16le", "voix.pcm"], dossier);
+        const passages = await mesurerPassages(dossier, duree);
+        if (!passages.length) throw new Error("Aucune parole entendue dans la vidéo.");
+        ecoute = { duree, passages, textes: {} };
+        await noter(ecoute);
+      }
+      // Chaque passage transcrit seul, un à la fois et espacés : Gemini
+      // limite les demandes par minute (et l'agent de publication s'en sert
+      // aussi). Trois refus de suite : pause jusqu'au passage suivant.
       const consigne = consigneExtrait(contexte);
-      const transcrire = async (i: number) => {
-        const p = passages[i];
+      let refus = 0;
+      for (const [i, p] of ecoute.passages.entries()) {
+        if (ecoute.textes[i]) continue;
+        if (Date.now() > echeance || refus >= 3) return ecoute;
         await executer(["-ss", p.debut.toFixed(2), "-to", p.fin.toFixed(2), "-i", "voix.mp3", "-c:a", "libmp3lame", "-b:a", "32k", `p${i}.mp3`], dossier);
         const extrait = { mime: "audio/mp3", donnees: (await readFile(path.join(dossier, `p${i}.mp3`))).toString("base64") };
-        const demander = () =>
-          demanderIA(consigne, {
+        try {
+          const reponse = await demanderIA(consigne, {
             systeme: "Tu transcris de courts extraits audio en français, mot pour mot. Tu réponds uniquement en JSON valide.",
             maxTokens: 400,
-            delaiTotal: 40_000,
+            delaiTotal: 30_000,
             images: [extrait],
           });
-        const reponse = await demander().catch(async () => {
-          await new Promise((r) => setTimeout(r, 5_000));
-          return demander();
-        });
-        return lireExtrait(reponse);
-      };
-      const textes: { texte: string; debut: number | null }[] = new Array(passages.length);
-      let suivant = 0;
-      await Promise.all(
-        Array.from({ length: 3 }, async () => {
-          while (suivant < passages.length) {
-            const i = suivant++;
-            textes[i] = await transcrire(i);
-          }
-        }),
-      );
+          ecoute.textes[i] = lireExtrait(reponse);
+          refus = 0;
+          await noter(ecoute);
+          await attendre(1_500);
+        } catch {
+          refus++;
+          await attendre(8_000);
+        }
+      }
+      if (Date.now() > echeance) return ecoute;
       // Puis qui parle : une demande, sans audio.
+      const fini = ecoute;
+      const textes = fini.passages.map((_, i) => fini.textes[i] ?? { texte: "", debut: null });
       const quiParle = await demanderIA(
-        consigneQuiParle(passages.map((p, i) => ({ ...p, texte: textes[i].texte })), contexte),
+        consigneQuiParle(fini.passages.map((p, i) => ({ ...p, texte: textes[i].texte })), contexte),
         {
           systeme: "Tu identifies les personnages d'une vidéo. Tu réponds uniquement en JSON valide.",
           maxTokens: 4000,
           delaiTotal: 90_000,
           delaiModele: 80_000,
-          images: image,
+          images: await planche(),
         },
       ).catch(() => null);
-      lu = lireEcouteGuidee(assemblerEcoute(textes, quiParle), passages);
-      if (!lu.repliques.length) throw new Error("Aucune parole comprise dans la vidéo. Réessayez.");
+      lu = lireEcouteGuidee(assemblerEcoute(textes, quiParle), fini.passages);
+      if (!lu.repliques.length) throw new Error("Aucune parole comprise dans la vidéo.");
     }
 
     const dispo: VoixDispo[] = eleven ? await voixEleven() : VOIX_GEMINI;

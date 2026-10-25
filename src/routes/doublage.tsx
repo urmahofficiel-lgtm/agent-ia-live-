@@ -17,7 +17,11 @@ type Ligne = {
   id: string;
   statut: "en_attente" | "en_cours" | "pret" | "echec";
   etape: "ecoute" | "voix" | "mixage";
-  etude: { repliques: Replique[]; personnages: (Personnage & { nom_voix: string })[]; moteur: string } | null;
+  // Pendant l'écoute : passages et textes déjà transcrits ; ensuite : l'analyse.
+  etude:
+    | { repliques: Replique[]; personnages: (Personnage & { nom_voix: string })[]; moteur: string }
+    | { passages: unknown[]; textes: Record<string, unknown> }
+    | null;
   segments: Record<string, unknown>;
   video_url: string | null;
   erreur: string | null;
@@ -26,10 +30,15 @@ type Ligne = {
 
 const minutes = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
+const analyse = (d: Ligne) => (d.etude && "repliques" in d.etude ? d.etude : null);
+
 function avancement(d: Ligne) {
   if (d.statut === "en_attente") return "En file : démarre dans moins d'une minute.";
-  if (d.etape === "ecoute") return "L'agent écoute la vidéo et lit les images…";
-  if (d.etape === "voix") return `Voix des personnages : ${Object.keys(d.segments).length} / ${d.etude?.repliques.length ?? "?"} répliques.`;
+  if (d.etape === "ecoute")
+    return d.etude && "passages" in d.etude
+      ? `L'agent écoute la vidéo : ${Object.keys(d.etude.textes).length} / ${d.etude.passages.length} passages compris.`
+      : "L'agent écoute la vidéo et lit les images…";
+  if (d.etape === "voix") return `Voix des personnages : ${Object.keys(d.segments).length} / ${analyse(d)?.repliques.length ?? "?"} répliques.`;
   return "Mixage du nouveau son…";
 }
 
@@ -145,22 +154,22 @@ function Doublage() {
             )}
             {d.statut === "echec" && <p className="text-sm text-erreur">{d.erreur ?? "Le doublage n'a pas abouti."}</p>}
             {d.video_url && <video src={d.video_url} controls className="max-h-96 w-full rounded-xl bg-black" />}
-            {d.etude && (
+            {analyse(d) && (
               <>
                 <div className="flex flex-wrap gap-2">
-                  {d.etude.personnages.map((p) => (
+                  {analyse(d)!.personnages.map((p) => (
                     <Pastille key={p.id} ton="doux">
                       {p.role} · voix {p.nom_voix || "?"}
                     </Pastille>
                   ))}
                 </div>
                 <details>
-                  <summary className="cursor-pointer text-sm text-doux">Texte de la vidéo ({d.etude.repliques.length} répliques)</summary>
+                  <summary className="cursor-pointer text-sm text-doux">Texte de la vidéo ({analyse(d)!.repliques.length} répliques)</summary>
                   <ol className="mt-2 grid gap-1.5 text-sm">
-                    {d.etude.repliques.map((r, i) => (
+                    {analyse(d)!.repliques.map((r, i) => (
                       <li key={i} className="grid grid-cols-[3.5rem_8rem_1fr] gap-2">
                         <span className="tabular-nums text-doux">{minutes(r.debut)}</span>
-                        <span className="truncate font-medium">{d.etude?.personnages.find((p) => p.id === r.locuteur)?.role ?? r.locuteur}</span>
+                        <span className="truncate font-medium">{analyse(d)?.personnages.find((p) => p.id === r.locuteur)?.role ?? r.locuteur}</span>
                         <span>{r.texte}</span>
                       </li>
                     ))}
