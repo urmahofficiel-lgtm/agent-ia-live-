@@ -45,7 +45,7 @@ function avancement(d: Ligne) {
 
 function Doublage() {
   const userId = useUserId();
-  const [elevenlabs, setElevenlabs] = useState<boolean | null>(null);
+  const [moteur, setMoteur] = useState<"elevenlabs" | "azure" | "gemini" | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [doublages, setDoublages] = useState<Ligne[]>([]);
@@ -55,8 +55,8 @@ function Doublage() {
   useEffect(() => {
     jetonSession()
       .then((j) => etatDoublage({ data: { jeton: j } }))
-      .then((r) => setElevenlabs(r.ok ? r.elevenlabs : false))
-      .catch(() => setElevenlabs(false));
+      .then((r) => setMoteur(r.ok && r.elevenlabs ? "elevenlabs" : r.ok && r.azure ? "azure" : "gemini"))
+      .catch(() => setMoteur("gemini"));
   }, []);
 
   // Liste, rafraîchie toutes les 5 s tant qu'un doublage avance.
@@ -140,9 +140,15 @@ function Doublage() {
           </label>
           <span className="text-sm text-doux">MP4, MOV ou WebM en français, 50 Mo et 10 minutes au plus. L'écoute est faite une fois pour toutes les langues ; vous pouvez fermer la page.</span>
         </div>
-        {elevenlabs !== null && (
+        {moteur && (
           <p className="text-xs text-doux">
-            Voix : {elevenlabs ? "ElevenLabs" : "Gemini, une voix par personnage, ton de conversation"}.
+            Voix :{" "}
+            {moteur === "elevenlabs"
+              ? "ElevenLabs"
+              : moteur === "azure"
+                ? "Azure (voix neurales), une voix par personnage, doublage en quelques minutes"
+                : "Gemini, une voix par personnage, ton de conversation (plus lent : quota par minute)"}
+            .
           </p>
         )}
         <Erreur message={erreur} />

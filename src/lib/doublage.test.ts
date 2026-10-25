@@ -18,7 +18,9 @@ import {
   placesDisponibles,
   repliquesDepuisMots,
   styleReplique,
+  VOIX_AZURE,
   VOIX_GEMINI,
+  ssmlAzure,
   vitessePour,
   voisement,
   type Replique,
@@ -266,5 +268,13 @@ describe("doublage", () => {
     expect(lireTraduction('{"repliques": [{"i": 0, "texte": "Hello!"}]}', rep)).toBeNull();
     expect(styleReplique({ role: "le maçon", genre: "homme" }, "Hello!", "en")).toContain("anglais naturel");
     expect(styleReplique({ role: "le maçon", genre: "homme" }, "Bonjour !")).toContain("français naturel de France");
+  });
+
+  it("voix Azure : une voix par personnage, SSML dans la langue, voix multilingue hors français", () => {
+    expect(VOIX_AZURE.filter((v) => v.genre === "femme").length).toBeGreaterThanOrEqual(3);
+    expect(VOIX_AZURE.filter((v) => v.genre === "homme").length).toBeGreaterThanOrEqual(3);
+    expect(ssmlAzure("Plans & devis <3", "fr-FR-HenriNeural")).toContain('<voice name="fr-FR-HenriNeural"><lang xml:lang="fr-FR">Plans &amp; devis &lt;3</lang>');
+    expect(ssmlAzure("مرحبا", "fr-FR-HenriNeural", "ar")).toContain('<voice name="fr-FR-RemyMultilingualNeural"><lang xml:lang="ar-SA">');
+    expect(ssmlAzure("Hello", "en-US-AvaMultilingualNeural", "en")).toContain('<voice name="en-US-AvaMultilingualNeural"><lang xml:lang="en-US">');
   });
 });

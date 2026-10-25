@@ -387,6 +387,38 @@ export const LANGUES_DOUBLAGE = [
   { id: "ar", nom: "Arabe" },
 ] as const;
 export type LangueDoublage = (typeof LANGUES_DOUBLAGE)[number]["id"];
+
+// Voix neurales Azure Speech (clé AZURE_SPEECH_KEY) : rapides, sans quota par
+// minute. Les voix « Multilingual » parlent toutes les langues du doublage
+// avec le même timbre : un personnage garde sa voix d'une langue à l'autre.
+export const VOIX_AZURE: VoixDispo[] = [
+  ...[
+    ["fr-FR-VivienneMultilingualNeural", "Vivienne"],
+    ["fr-FR-DeniseNeural", "Denise"],
+    ["en-US-AvaMultilingualNeural", "Ava"],
+    ["de-DE-SeraphinaMultilingualNeural", "Seraphina"],
+    ["en-US-EmmaMultilingualNeural", "Emma"],
+  ].map(([id, nom]) => ({ id, nom, genre: "femme" as const, francaise: true })),
+  ...[
+    ["fr-FR-RemyMultilingualNeural", "Rémy"],
+    ["fr-FR-HenriNeural", "Henri"],
+    ["en-US-AndrewMultilingualNeural", "Andrew"],
+    ["de-DE-FlorianMultilingualNeural", "Florian"],
+    ["en-US-BrianMultilingualNeural", "Brian"],
+  ].map(([id, nom]) => ({ id, nom, genre: "homme" as const, francaise: true })),
+];
+
+const LOCALES: Record<string, string> = { fr: "fr-FR", en: "en-US", es: "es-ES", de: "de-DE", it: "it-IT", nl: "nl-NL", pt: "pt-PT", ar: "ar-SA" };
+
+// Texte → SSML Azure. Une voix qui ne parle que français (Denise, Henri) est
+// remplacée hors français par la voix multilingue du même genre.
+export function ssmlAzure(texte: string, voix: string, langue = "fr") {
+  const locale = LOCALES[langue] ?? "fr-FR";
+  const homme = VOIX_AZURE.find((x) => x.id === voix)?.genre === "homme";
+  const v = langue !== "fr" && !voix.includes("Multilingual") ? (homme ? "fr-FR-RemyMultilingualNeural" : "fr-FR-VivienneMultilingualNeural") : voix;
+  const echappe = texte.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${locale}"><voice name="${v}"><lang xml:lang="${locale}">${echappe}</lang></voice></speak>`;
+}
 export const nomLangue = (id: string) => LANGUES_DOUBLAGE.find((l) => l.id === id)?.nom.toLowerCase() ?? id;
 
 export function consigneTraduction(repliques: Replique[], langue: string, contexte: string | null) {

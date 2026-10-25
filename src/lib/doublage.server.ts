@@ -7,6 +7,7 @@ import { cheminFfmpeg, executer } from "./video.server";
 import { enWav, voixOff } from "./voix.server";
 import {
   CONSIGNE_ECOUTE,
+  VOIX_AZURE,
   VOIX_GEMINI,
   appliquerRelecture,
   attribuerVoix,
@@ -24,6 +25,7 @@ import {
   passagesParles,
   placesDisponibles,
   repliquesDepuisMots,
+  ssmlAzure,
   styleReplique,
   vitessePour,
   voisement,
@@ -38,18 +40,21 @@ import {
 // l'autre : 1. écouter (transcription minutée, qui parle) et regarder (textes
 // à l'écran, rôle de chaque personnage) ; 2. refaire chaque réplique avec la
 // voix de son personnage ; 3. remixer la bande son à l'identique, sans toucher
-// aux images. Voix Gemini (clé déjà en place) ; voix ElevenLabs si la clé
-// ELEVENLABS_API_KEY est ajoutée.
+// aux images. Voix ElevenLabs si ELEVENLABS_API_KEY est ajoutée, sinon voix
+// Azure Speech si AZURE_SPEECH_KEY l'est (rapides, sans quota par minute),
+// sinon voix Gemini (clé déjà en place).
 
 const ELEVEN = "https://api.elevenlabs.io/v1";
 const cleEleven = () => process.env.ELEVENLABS_API_KEY ?? "";
 export const voixElevenDisponibles = () => Boolean(cleEleven());
+const cleAzure = () => process.env.AZURE_SPEECH_KEY ?? "";
+export const voixAzureDisponibles = () => Boolean(cleAzure());
 
 export type Analyse = {
   duree: number;
   repliques: Replique[];
   personnages: (Personnage & { voix: string; nom_voix: string })[];
-  moteur: "elevenlabs" | "gemini";
+  moteur: "elevenlabs" | "azure" | "gemini";
   // Langue des répliques (« fr » si absente) et texte français d'origine
   // quand elles ont été traduites.
   langue?: string;
@@ -269,9 +274,11 @@ export async function ecouter(
       if (!lu.repliques.length) throw new Error("Aucune parole comprise dans la vidéo.");
     }
 
-    const dispo: VoixDispo[] = eleven ? await voixEleven() : VOIX_GEMINI;
-    const choix = attribuerVoix(lu.personnages, lu.repliques, dispo.length ? dispo : VOIX_GEMINI);
-    const moteur = eleven && dispo.length ? "elevenlabs" : "gemini";
+    const azure = voixAzureDisponibles();
+    const eleve = eleven ? await voixEleven() : [];
+    const moteur = eleve.length ? "elevenlabs" : azure ? "azure" : "gemini";
+    const dispo: VoixDispo[] = moteur === "elevenlabs" ? eleve : moteur === "azure" ? VOIX_AZURE : VOIX_GEMINI;
+    const choix = attribuerVoix(lu.personnages, lu.repliques, dispo);
     return {
       duree,
       repliques: lu.repliques,
@@ -317,6 +324,23 @@ async function parlerEleven(texte: string, voix: string, avant: string, apres: s
   return Buffer.from(await r.arrayBuffer());
 }
 
+async function parlerAzure(texte: string, voix: string, langue?: string): Promise<Buffer> {
+  const region = process.env.AZURE_SPEECH_REGION || "westeurope";
+  const r = await fetch(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+    method: "POST",
+    headers: {
+      "Ocp-Apim-Subscription-Key": cleAzure(),
+      "Content-Type": "application/ssml+xml",
+      "X-Microsoft-OutputFormat": "audio-24khz-96kbitrate-mono-mp3",
+      "User-Agent": "agent-ia-live",
+    },
+    signal: AbortSignal.timeout(30_000),
+    body: ssmlAzure(texte, voix, langue),
+  });
+  if (!r.ok) throw new Error(`Voix Azure refusée (${r.status}).`);
+  return Buffer.from(await r.arrayBuffer());
+}
+
 // Réplique → MP3 (et sa durée). Gemini : la façon de dire suit le rôle et la
 // phrase (question, réponse, enthousiasme), comme une vraie conversation.
 export async function voixReplique(a: Analyse, i: number): Promise<{ mp3: Buffer; duree: number }> {
@@ -327,6 +351,9 @@ export async function voixReplique(a: Analyse, i: number): Promise<{ mp3: Buffer
     if (a.moteur === "elevenlabs") {
       fichier = "r.mp3";
       await writeFile(path.join(dossier, fichier), await parlerEleven(r.texte, p.voix, a.repliques[i - 1]?.texte ?? "", a.repliques[i + 1]?.texte ?? ""));
+    } else if (a.moteur === "azure") {
+      fichier = "r.mp3";
+      await writeFile(path.join(dossier, fichier), await parlerAzure(r.texte, p.voix, a.langue));
     } else {
       const son = await voixOff(r.texte, styleReplique(p, r.texte, a.langue), p.voix || "Kore");
       if (!son) throw new Error("Voix Gemini indisponible pour le moment.");
