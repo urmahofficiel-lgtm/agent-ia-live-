@@ -113,7 +113,7 @@ export type ImageJointe = { mime: string; donnees: string; legende?: string };
 // liste répondent (la version la plus récente sature souvent la première).
 const quotaEpuise = new Map<string, number>();
 
-async function demanderGemini(cle: string, systeme: string, demande: string, echeance: number, images: ImageJointe[] = []) {
+async function demanderGemini(cle: string, systeme: string, demande: string, echeance: number, images: ImageJointe[] = [], delaiModele = 40_000) {
   let derniere = "Gemini n'a pas répondu.";
   const modeles = (await listerGemini(cle)).filter((m) => (quotaEpuise.get(m) ?? 0) < Date.now());
   // Surcharge (503) : un second essai sur le premier modèle, après une courte
@@ -129,8 +129,9 @@ async function demanderGemini(cle: string, systeme: string, demande: string, ech
       const r = await fetch(`${GEMINI}/${modele}:generateContent`, {
         method: "POST",
         // Un modèle qui ne répond pas ne doit pas prendre tout le temps des
-        // suivants (≈ 7 s d'habitude, 30 s pour une longue réponse).
-        signal: AbortSignal.timeout(Math.floor(Math.min(40_000, Math.max(20_000, reste / 2), reste))),
+        // suivants (≈ 7 s d'habitude, 30 s pour une longue réponse ; plus pour
+        // une écoute de longue vidéo : `delaiModele`).
+        signal: AbortSignal.timeout(Math.floor(Math.min(delaiModele, delaiModele > 40_000 ? reste : Math.max(20_000, reste / 2), reste))),
         headers: { "x-goog-api-key": cle, "Content-Type": "application/json" },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systeme }] },
@@ -221,7 +222,7 @@ const derniereEchec = { nvidia: 0, gemini: 0 };
 // pour rester sous la limite d'exécution de Vercel.
 export async function demanderIA(
   demande: string,
-  options: { systeme?: string; maxTokens?: number; delaiTotal?: number; gemini?: "d'abord" | "secours"; images?: ImageJointe[] } = {},
+  options: { systeme?: string; maxTokens?: number; delaiTotal?: number; gemini?: "d'abord" | "secours"; images?: ImageJointe[]; delaiModele?: number } = {},
 ) {
   const maxTokens = options.maxTokens ?? 800;
   const systeme = options.systeme ?? SYSTEME;
@@ -232,7 +233,7 @@ export async function demanderIA(
 
   const nvidia = (fin: number) => demanderNvidia(cleN, systeme, demande, maxTokens, fin);
   const images = options.images ?? [];
-  const gemini = (fin: number) => demanderGemini(cleG, systeme, demande, fin, images);
+  const gemini = (fin: number) => demanderGemini(cleG, systeme, demande, fin, images, options.delaiModele);
   // Avec des captures d'écran, seul Gemini sait les lire.
   if (images.length && !cleG) throw new Error("La lecture des captures d'écran demande la clé Gemini (variable GEMINI_API_KEY).");
   // Un fournisseur qui vient d'échouer (NVIDIA saturé la nuit, Gemini en

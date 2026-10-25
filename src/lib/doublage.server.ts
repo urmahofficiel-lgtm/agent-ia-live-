@@ -194,7 +194,9 @@ export async function analyserVideo(video: Buffer, contexte: string | null): Pro
         await demanderIA(consigneEcouteGuidee(passages, contexte), {
           systeme: "Tu transcris des vidéos en français avec précision. Tu réponds uniquement en JSON valide.",
           maxTokens: 8000,
-          delaiTotal: 150_000,
+          delaiTotal: 170_000,
+          // Longue réponse (une ligne par passage) : jusqu'à 2 min par modèle.
+          delaiModele: 120_000,
           images: [...extraits, ...image.map((x) => ({ ...x, legende: "Planche d'images de la vidéo :" }))],
         }),
         passages,
