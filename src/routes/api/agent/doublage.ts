@@ -6,7 +6,7 @@ import { analyserVideo, mixerDoublage, voixReplique, type Analyse } from "@/lib/
 // Avance le doublage en attente le plus ancien, étape par étape, dans la
 // limite du temps d'un passage ; le passage suivant reprend où il s'est arrêté.
 const BUDGET = 230_000;
-const MAX_ECHECS = 3;
+const MAX_ECHECS = 6;
 
 type Doublage = {
   id: string;
@@ -45,6 +45,9 @@ async function avancer(secret: string) {
     return sb.storage.from(bucket).getPublicUrl(chemin).data.publicUrl;
   };
 
+  let progres = false;
+  const sansProgres = (erreur: string) =>
+    d.echecs + 1 >= MAX_ECHECS ? { statut: "echec", erreur, libre: true } : { erreur, echec: true, libre: true };
   try {
     const video = await telecharger(d.source_url);
     let analyse = d.etude;
@@ -56,23 +59,29 @@ async function avancer(secret: string) {
       analyse = await analyserVideo(video, d.contexte);
       etape = "voix";
       await maj({ etape, etude: analyse, erreur: null, progres: true });
+      progres = true;
     }
 
-    // 2. La voix de chaque réplique (2 à la fois), tant qu'il reste du temps.
+    // 2. La voix de chaque réplique, une à la fois, tant qu'il reste du
+    // temps. Gemini limite le nombre de voix par minute : une réplique refusée
+    // est retentée après une pause, puis au passage suivant.
     if (etape === "voix") {
       const a = analyse;
-      const restantes = a.repliques.map((_, i) => i).filter((i) => !segments[i]);
-      for (let k = 0; k < restantes.length && reste() > 40_000; k += 2) {
-        const lot = restantes.slice(k, k + 2);
-        const faits = await Promise.all(
-          lot.map(async (i) => {
-            const v = await voixReplique(a, i);
-            const url = await deposer("studio", `doublage-${d.id}-r${i}.mp3`, v.mp3, "audio/mpeg");
-            return [String(i), { url, duree: v.duree }] as const;
-          }),
-        );
-        Object.assign(segments, Object.fromEntries(faits));
-        await maj({ segments: Object.fromEntries(faits), erreur: null, progres: true });
+      let refusDeSuite = 0;
+      for (const i of a.repliques.map((_, k) => k).filter((k) => !segments[k])) {
+        if (reste() < 40_000 || refusDeSuite >= 4) break;
+        try {
+          const v = await voixReplique(a, i);
+          const url = await deposer("studio", `doublage-${d.id}-r${i}.mp3`, v.mp3, "audio/mpeg");
+          segments[i] = { url, duree: v.duree };
+          progres = true;
+          refusDeSuite = 0;
+          await maj({ segments: { [i]: segments[i] }, erreur: null, progres: true });
+        } catch (e) {
+          refusDeSuite++;
+          console.warn("doublage : voix refusée", i, e instanceof Error ? e.message : e);
+          await new Promise((r) => setTimeout(r, Math.min(20_000, Math.max(0, reste() - 40_000))));
+        }
       }
       if (a.repliques.every((_, i) => segments[i])) {
         etape = "mixage";
@@ -91,14 +100,15 @@ async function avancer(secret: string) {
       await maj({ statut: "pret", video_url, erreur: null, libre: true });
       return { id: d.id, pret: true };
     }
-    await maj({ libre: true });
+    // Aucun progrès pendant ce passage (IA saturée) : compté comme un échec.
+    await maj(progres ? { libre: true } : sansProgres("Voix Gemini saturées : nouvel essai dans une minute."));
     return { id: d.id, etape, voix: Object.keys(segments).length, repliques: analyse.repliques.length };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erreur inattendue.";
     console.warn("doublage", d.id, message);
-    // Erreur passagère (IA saturée) : on réessaie au passage suivant ; 3 échecs
-    // de suite, sans aucun progrès entre eux : abandon.
-    await maj(d.echecs + 1 >= MAX_ECHECS ? { statut: "echec", erreur: message, libre: true } : { erreur: message, echec: true, libre: true });
+    // Erreur passagère : on réessaie au passage suivant ; abandon après 6
+    // passages de suite sans aucun progrès.
+    await maj(progres ? { erreur: message, libre: true } : sansProgres(message));
     return { id: d.id, erreur: message };
   }
 }
