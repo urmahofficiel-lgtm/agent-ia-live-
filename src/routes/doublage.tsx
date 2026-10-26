@@ -26,7 +26,8 @@ type Ligne = {
   video_url: string | null;
   erreur: string | null;
   created_at: string;
-  langue: string;
+  // Absente tant que la base n'a pas la colonne : français.
+  langue?: string;
 };
 
 const minutes = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
@@ -67,7 +68,7 @@ function Doublage() {
     const charger = async () => {
       const { data } = await supabase()
         .from("doublages")
-        .select("id, statut, etape, etude, segments, video_url, erreur, created_at, langue")
+        .select("*")
         .order("created_at", { ascending: false })
         .limit(10);
       if (actif && data) setDoublages(data as Ligne[]);
@@ -98,8 +99,8 @@ function Doublage() {
     const source_url = supabase().storage.from("studio").getPublicUrl(chemin).data.publicUrl;
     const { data, error: e2 } = await supabase()
       .from("doublages")
-      .insert(langues.map((langue) => ({ source_url, langue })))
-      .select("id, statut, etape, etude, segments, video_url, erreur, created_at, langue");
+      .insert(langues.map((langue) => (langue === "fr" ? { source_url } : { source_url, langue })))
+      .select("*");
     setEnvoi(false);
     if (e2 || !data?.length) return setErreur(`Demande impossible : ${e2?.message ?? "réessayez"}`);
     setDoublages((l) => [...(data as Ligne[]), ...l]);
@@ -160,7 +161,7 @@ function Doublage() {
             <div className="flex flex-wrap items-center gap-2">
               <span className="mr-auto text-sm text-doux">
                 {new Date(d.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })} ·{" "}
-                <strong className="text-texte">{LANGUES_DOUBLAGE.find((l) => l.id === d.langue)?.nom ?? d.langue}</strong>
+                <strong className="text-texte">{LANGUES_DOUBLAGE.find((l) => l.id === (d.langue ?? "fr"))?.nom ?? d.langue}</strong>
               </span>
               {d.statut === "pret" && <Pastille ton="ok">Prête</Pastille>}
               {d.statut === "echec" && <Pastille ton="erreur">Échec</Pastille>}
