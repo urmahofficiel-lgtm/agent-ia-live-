@@ -32,6 +32,14 @@ describe("prospection", () => {
     expect(consigneMessage({ ...prospect, genre: "relance", dernier_message: "Premier texte" }, "message")).toContain("Premier texte");
   });
 
+  it("artisans du bâtiment : l'analyse d'appels d'offres gratuite en accroche", () => {
+    const btp = { ...prospect, categorie: "Électriciens", contexte: "Marque : BTP Ecosystem\nOffre : logiciel de chantier" };
+    expect(consigneMessage(btp, "email")).toContain("1 analyse offerte chaque mois");
+    expect(consigneMessage({ ...btp, categorie: "Architectes" }, "email")).not.toContain("1 analyse offerte chaque mois");
+    expect(consigneMessage({ ...btp, categorie: "Experts-comptables" }, "email")).not.toContain("1 analyse offerte chaque mois");
+    expect(consigneMessage({ ...prospect, categorie: "Électriciens" }, "email")).not.toContain("1 analyse offerte chaque mois");
+  });
+
   it("lit le JSON de l'IA et ajoute la désinscription", () => {
     const b = lireMessage('Voici : {"objet": "Vos réseaux", "texte": "Bonjour Madame, …"}', "email", "premier");
     expect(b.objet).toBe("Vos réseaux");
