@@ -86,6 +86,9 @@ export async function preparerMedias(
   fin: number,
   journal: (m: string) => unknown = () => {},
   userId?: string,
+  // false (vidéos automatiques de l'agent) : jamais de séquence ni de photo
+  // de banque d'images choisie seule, souvent hors sujet.
+  banque = true,
 ): Promise<MediaScene[]> {
   const dejaVus = new Set<number>();
   let k = 0;
@@ -113,7 +116,7 @@ export async function preparerMedias(
         continue;
       }
     }
-    if (reste > 60_000 && s.source !== "image_ia" && pexelsConfigure() && s.recherche) {
+    if (banque && reste > 60_000 && s.source !== "image_ia" && pexelsConfigure() && s.recherche) {
       const clip = await sequenceVerticale(s.recherche, d[i], dejaVus).catch(() => null);
       if (clip) {
         sortie.push({ clip });
@@ -126,8 +129,12 @@ export async function preparerMedias(
         sortie.push({ image: Buffer.from(img.base64, "base64") });
         continue;
       } catch {
-        journal(`Image IA indisponible pour la scène ${i + 1} : photo réelle à la place.`);
+        journal(`Image IA indisponible pour la scène ${i + 1} : ${banque ? "photo réelle" : "vue de l'application"} à la place.`);
       }
+    }
+    if (!banque) {
+      sortie.push(captures.length ? { image: captures[k++ % captures.length] } : {});
+      continue;
     }
     const img = pexelsConfigure() && s.recherche ? await photo(s.recherche, "portrait", dejaVus).catch(() => null) : null;
     sortie.push(img ? { image: img } : {});

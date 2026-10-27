@@ -5,7 +5,6 @@ import { monterVideo } from "./video.server";
 import { voixConfiguree, voixOff } from "./voix.server";
 import { tonVoix } from "./marches";
 import { estJournee } from "./journee";
-import { pexelsConfigure, photo, sequenceVerticale } from "./pexels.server";
 import { couleurDuSite, visuelsDuSite } from "./site.server";
 import { nomStyleVideo, type StyleVideo } from "./styles";
 import { conversationDeSecours, consigneConversation, lireConversation, minutage, scenarioPour } from "./conversation-video";
@@ -73,7 +72,6 @@ export async function fabriquerVideo(
       style = t.plateforme === "tiktok" ? "ugc" : "classique";
     }
   }
-  const debutVideo = Date.now();
   const reseau = PLATEFORMES.find((p) => p.id === t.plateforme)?.nom ?? "TikTok, Reels et Shorts";
   await etat({ video_etat: "en_cours", video_erreur: null, video_debut: new Date().toISOString(), video_style: style });
 
@@ -134,54 +132,42 @@ export async function fabriquerVideo(
   const d = durees(script.scenes, voix ? voix.duree + 0.6 : undefined);
 
   // Pour chaque scène : une capture du produit (scènes « produit »), sinon
-  // une séquence filmée Pexels différente à chaque fois, sinon une photo
-  // Pexels, sinon une image IA (FLUX) ; les images sont animées au montage.
+  // une image créée par IA pour la scène (jamais de séquence ni de photo de
+  // banque d'images, souvent hors sujet) ; les images sont animées au montage.
   const univers = contexte?.match(/Univers visuel[^:]*: (.*)/)?.[1] ?? "";
-  const dejaVus = new Set<number>();
   // La dernière scène (appel à l'action) prend l'image de partage du site
   // si elle existe ; les autres scènes produit, les captures dans l'ordre.
   const partage = capturesSite.find((v) => v.source === "og");
   const ecrans = ecransAppli.length ? ecransAppli : capturesSite.filter((v) => v !== partage).map((v) => v.donnees);
   let prochainEcran = 0;
-  const visuelProduit = (i: number) => {
-    if (!produitVisible) return null;
+  const visuelProduit = (i: number, force = false) => {
+    if (!produitVisible && !force) return null;
     if (i === script.scenes.length - 1 && partage) return partage.donnees;
     const liste = ecrans.length ? ecrans : capturesSite.map((v) => v.donnees);
-    return liste[prochainEcran++ % liste.length];
+    return liste.length ? liste[prochainEcran++ % liste.length] : null;
   };
-  const medias: { image?: Buffer; clip?: Buffer; cadre?: boolean }[] = [];
-  if (pexelsConfigure()) await journal("action", "🎥 Recherche de séquences filmées (Pexels)…");
-  // Scènes traitées une à une : la liste des séquences déjà utilisées doit
-  // être à jour avant de chercher la suivante.
-  for (const [i, s] of script.scenes.entries()) {
-    const produit = s.type_visuel === "produit" ? visuelProduit(i) : null;
-    if (produit) {
-      medias.push({ image: produit, cadre: true });
-      continue;
-    }
-    if (pexelsConfigure() && s.recherche_stock) {
-      const clip = await sequenceVerticale(s.recherche_stock, d[i], dejaVus).catch(() => null);
-      if (clip) {
-        medias.push({ clip });
-        continue;
-      }
-      const img = await photo(s.recherche_stock, "portrait", dejaVus).catch(() => null);
-      if (img) {
-        medias.push({ image: img });
-        continue;
-      }
-    }
-    // Image IA en dernier recours, seulement s'il reste du temps
-    // (la fonction doit finir en moins de 5 minutes).
-    if (Date.now() - debutVideo > 170_000) {
-      const secours = visuelProduit(i);
-      if (!secours) throw new Error("Temps insuffisant pour créer les images des scènes.");
-      medias.push({ image: secours, cadre: true });
-      continue;
-    }
-    const img = await genererImage(`${s.visuel}. ${univers} Vertical 9:16 composition, realistic photo, no text.`, "tiktok");
-    medias.push({ image: Buffer.from(img.base64, "base64") });
-  }
+  const produits = script.scenes.map((s, i) => (s.type_visuel === "produit" ? visuelProduit(i) : null));
+  await journal("action", "🎨 Création des images des scènes par IA…");
+  // Images créées en parallèle (la fonction doit finir en moins de 5 minutes).
+  const creees = await Promise.all(
+    script.scenes.map((s, i) =>
+      produits[i]
+        ? Promise.resolve(null)
+        : genererImage(`${s.visuel}. ${univers} Vertical 9:16 composition, realistic photo, no text.`, "tiktok")
+            .then((img) => Buffer.from(img.base64, "base64"))
+            .catch(() => null),
+    ),
+  );
+  const medias: { image?: Buffer; clip?: Buffer; cadre?: boolean }[] = script.scenes.map((_, i) => {
+    const produit = produits[i];
+    if (produit) return { image: produit, cadre: true };
+    const image = creees[i];
+    if (image) return { image };
+    // Image IA impossible : une vue du produit à la place.
+    const secours = visuelProduit(i, true);
+    if (!secours) throw new Error("Images des scènes impossibles à créer.");
+    return { image: secours, cadre: true };
+  });
   const nbClips = medias.filter((m) => m.clip).length;
   await journal("info", `Scènes prêtes : ${medias.filter((m) => m.cadre).length} vue(s) du produit, ${nbClips} séquence(s) filmée(s), ${medias.length - nbClips - medias.filter((m) => m.cadre).length} image(s).`);
 

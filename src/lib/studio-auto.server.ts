@@ -1,7 +1,6 @@
 import { demanderIA, genererImage } from "./ia.server";
 import { voixOff } from "./voix.server";
 import { tonVoix } from "./marches";
-import { photo } from "./pexels.server";
 import { monterMontage, preparerMedias } from "./montage.server";
 import { genererClipIA, moteursDisponibles } from "./video-ia.server";
 import { MODELES, appliquerModele, consignePlan, dureesScenes, lirePlan, modelePour, type PlanMontage } from "./montage";
@@ -60,23 +59,21 @@ export async function fabriquerStudio(
   const d = dureesScenes(plan.scenes, voix?.duree);
   await journal(voix ? "info" : "erreur", voix ? `🎙️ Voix off prête (${Math.round(voix.duree)} s).` : "Voix off impossible : vidéo sans voix.");
 
-  // 3. Médias : séquences filmées, captures de l'appli, et l'accroche en vraie
+  // 3. Médias : images IA, captures de l'appli, et l'accroche en vraie
   // vidéo IA (Wan 2.2) en parallèle, s'il reste du temps.
   const captures = await telechargerCaptures(liensCaptures ? await Promise.resolve(liensCaptures()).catch(() => []) : []);
   const p = plan;
   const iCle = Math.max(0, p.scenes.findIndex((s) => s.source === "ia_video"));
   const [medias, clip] = await Promise.all([
-    preparerMedias(p.scenes, d, captures, debut + 140_000, (m) => journal("info", m)),
+    preparerMedias(p.scenes, d, captures, debut + 140_000, (m) => journal("info", m), undefined, false),
     (async () => {
       if (!moteursDisponibles().some((m) => m.id === "wan") || Date.now() - debut > 100_000) return null;
       const s = p.scenes[iCle];
       try {
-        const image =
-          (s.recherche ? await photo(s.recherche, "portrait").catch(() => null) : null) ??
-          Buffer.from((await genererImage(`${s.prompt || s.recherche || s.phrase}. Vertical 9:16 composition, realistic photo, no text.`, "tiktok")).base64, "base64");
+        const image = Buffer.from((await genererImage(`${s.prompt || s.recherche || s.phrase}. Vertical 9:16 composition, realistic photo, no text.`, "tiktok")).base64, "base64");
         return await genererClipIA("wan", image, s.mouvement || s.prompt || s.recherche, Math.min(5, d[iCle]), Math.max(30_000, 140_000 - (Date.now() - debut)));
       } catch (e) {
-        await journal("info", `Vidéo IA de l'accroche impossible (${e instanceof Error ? e.message.slice(0, 100) : "erreur"}) : séquence filmée à la place.`);
+        await journal("info", `Vidéo IA de l'accroche impossible (${e instanceof Error ? e.message.slice(0, 100) : "erreur"}) : image à la place.`);
         return null;
       }
     })(),
