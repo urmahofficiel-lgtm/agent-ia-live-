@@ -1,6 +1,7 @@
 import { nomPlateforme } from "./plateformes";
 import { estEtranger, marcheDe } from "./marches";
-import { formatImage, genererImage, promptImage, rediger, type Consigne } from "./ia.server";
+import { demanderIA, formatImage, genererImage, promptImage, rediger, type Consigne } from "./ia.server";
+import { consigneChoixPhoto, lireChoixPhoto, photosDisponibles, type PhotoStockee } from "./phototheque";
 import { composerVisuel, textesVisuel } from "./visuel.server";
 import { ligneContexte } from "./visuel";
 import { couleurDuSite } from "./site.server";
@@ -16,7 +17,28 @@ export type Ecrivain = {
   journal: (niveau: "info" | "action" | "erreur", message: string, image?: string) => PromiseLike<unknown>;
   enregistrer: (resultat: Record<string, unknown>) => PromiseLike<unknown>;
   ajouterVisuel: (mime: string, base64: string, prompt: string) => Promise<string>;
+  // Photothèque (images préparées, Canva…) : facultative.
+  phototheque?: () => Promise<PhotoStockee[]>;
+  photoUtilisee?: (id: string) => PromiseLike<unknown>;
 };
+
+// Une image de la photothèque qui va avec le post, ou null.
+async function photoDeLaPhototheque(e: Ecrivain, post: string) {
+  if (!e.phototheque) return null;
+  const photos = photosDisponibles(await e.phototheque().catch(() => []));
+  if (!photos.length) return null;
+  const choix = lireChoixPhoto(
+    await demanderIA(consigneChoixPhoto(post, photos), { systeme: "Tu es directeur artistique. Tu réponds uniquement en JSON valide.", maxTokens: 200 }).catch(() => ""),
+    photos,
+  );
+  if (!choix) return null;
+  const r = await fetch(choix.url, { signal: AbortSignal.timeout(20_000) }).catch(() => null);
+  if (!r?.ok) return null;
+  const mime = r.headers.get("content-type") ?? "image/jpeg";
+  if (!mime.startsWith("image/")) return null;
+  await Promise.resolve(e.photoUtilisee?.(choix.id)).catch(() => null);
+  return { mime, base64: Buffer.from(await r.arrayBuffer()).toString("base64"), description: choix.description };
+}
 
 // `style_visuel` : photo (par défaut), accroche, citation ou promo.
 export type TacheAPreparer = Consigne & { brouillon?: string | null; visuel_url?: string | null; style_visuel?: StyleImage };
@@ -55,7 +77,13 @@ export async function preparer(t: TacheAPreparer, contexte: string | null, e: Ec
       let prompt = "";
       let image: { mime: string; base64: string } | null = null;
       // Citation : fond sobre aux couleurs de la marque, pas de photo.
-      if (style !== "citation") {
+      // Photothèque d'abord : une image préparée qui va avec le post.
+      const stockee = style !== "citation" ? await photoDeLaPhototheque(e, brouillon) : null;
+      if (stockee) {
+        image = { mime: stockee.mime, base64: stockee.base64 };
+        prompt = `Photothèque : ${stockee.description}`;
+        await e.journal("info", `Image de la photothèque : ${stockee.description.slice(0, 120)}`);
+      } else if (style !== "citation") {
         prompt = await promptImage(brouillon, t.plateforme, contexte, t.marche);
         // Place laissée au texte incrusté.
         if (style !== "photo") prompt += " Keep the lower third simple and uncluttered.";

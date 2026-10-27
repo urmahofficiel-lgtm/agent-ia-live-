@@ -5,6 +5,7 @@ import { publierAvecSuite } from "@/lib/publication.server";
 import { fabriquerCarrousel } from "@/lib/carrousel.server";
 import { estCroissance, extrairePremierCommentaire } from "@/lib/croissance";
 import { preparer, type Ecrivain } from "@/lib/preparation.server";
+import type { PhotoStockee } from "@/lib/phototheque";
 import { fabriquerVideo } from "@/lib/fabrication-video.server";
 import { clientMoteur } from "@/lib/supabase-serveur";
 import { lireStyleImage, lireStyleVideo, styleVideoPour } from "@/lib/styles";
@@ -73,6 +74,12 @@ async function tick(secret: string) {
       if (error || !data) throw new Error(error?.message ?? "Enregistrement de l'image impossible.");
       return data as string;
     },
+    // Fonctions absentes tant que la migration n'est pas appliquée : liste vide.
+    phototheque: async () => {
+      const { data, error } = await sb.rpc("agent_phototheque", { p_secret: secret, p_tache_id: tacheId });
+      return error ? [] : ((data ?? []) as PhotoStockee[]);
+    },
+    photoUtilisee: (id) => sb.rpc("agent_phototheque_utilisee", { p_secret: secret, p_photo_id: id }),
   });
 
   // Styles par défaut du propriétaire de la tâche (Réglages). Fonction
