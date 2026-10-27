@@ -1,7 +1,6 @@
 import { nomPlateforme } from "./plateformes";
 import { estEtranger, marcheDe } from "./marches";
 import { formatImage, genererImage, promptImage, rediger, type Consigne } from "./ia.server";
-import { photo, pexelsConfigure } from "./pexels.server";
 import { composerVisuel, textesVisuel } from "./visuel.server";
 import { ligneContexte } from "./visuel";
 import { couleurDuSite } from "./site.server";
@@ -44,13 +43,15 @@ export async function preparer(t: TacheAPreparer, contexte: string | null, e: Ec
       // Styles avec texte : textes et couleur de la marque préparés pendant
       // que l'image se crée (ces promesses ne lèvent jamais d'erreur).
       const site = ligneContexte(contexte, "Site / lien").split(/\s/)[0];
-      const miseEnPage =
-        style === "photo"
-          ? null
-          : Promise.all([
-              textesVisuel(style, { titre: t.titre, brouillon }, contexte, t.marche),
-              site ? couleurDuSite(site).catch(() => null) : Promise.resolve(null),
-            ]);
+      const mettreEnPage = (s: Exclude<StyleImage, "photo">) =>
+        Promise.all([
+          textesVisuel(s, { titre: t.titre, brouillon }, contexte, t.marche),
+          site ? couleurDuSite(site).catch(() => null) : Promise.resolve(null),
+        ]);
+      // Rendu final : le style demandé, ou le visuel aux couleurs de la marque
+      // quand l'image IA n'a pas pu être créée.
+      let rendu: Exclude<StyleImage, "photo"> | null = style === "photo" ? null : style;
+      let miseEnPage = rendu ? mettreEnPage(rendu) : null;
       let prompt = "";
       let image: { mime: string; base64: string } | null = null;
       // Citation : fond sobre aux couleurs de la marque, pas de photo.
@@ -59,38 +60,35 @@ export async function preparer(t: TacheAPreparer, contexte: string | null, e: Ec
         // Place laissée au texte incrusté.
         if (style !== "photo") prompt += " Keep the lower third simple and uncluttered.";
         await e.journal("info", `Idée de visuel : ${prompt.slice(0, 160)}`);
-        await e.journal("action", "🖼️ Génération de l'image (NVIDIA FLUX)…");
+        await e.journal("action", "🖼️ Génération de l'image par IA…");
         try {
-          image = await genererImage(prompt, t.plateforme);
+          const cree = await genererImage(prompt, t.plateforme);
+          image = { mime: cree.mime, base64: cree.base64 };
+          await e.journal("info", `Image créée (${cree.moteur}).`);
         } catch (err) {
-          // Secours : une vraie photo libre de droits (Pexels).
-          const orientation = ["pinterest", "tiktok", "snapchat"].includes(t.plateforme ?? "")
-            ? "portrait"
-            : t.plateforme === "instagram" || t.plateforme === "threads"
-              ? "carre"
-              : "paysage";
-          // Recherche : le début de la description (en anglais) de l'image voulue.
-          const motsCles = prompt.split(/[,.:]/)[0].split(/\s+/).slice(0, 8).join(" ");
-          const secours = pexelsConfigure() ? await photo(motsCles, orientation).catch(() => null) : null;
-          if (!secours) throw err;
-          await e.journal("info", "Image IA indisponible : photo réelle Pexels utilisée à la place.");
-          image = { mime: "image/jpeg", base64: secours.toString("base64") };
+          // Jamais de photo de banque d'images au hasard (hors sujet, pas au
+          // niveau de la marque) : fond aux couleurs de la marque et titre du post.
+          await e.journal("erreur", `Image IA indisponible (${err instanceof Error ? err.message.slice(0, 160) : "erreur"}) : visuel aux couleurs de la marque à la place.`);
+          if (!rendu) {
+            rendu = "citation";
+            miseEnPage = mettreEnPage(rendu);
+          }
         }
       }
-      if (miseEnPage) {
+      if (miseEnPage && rendu) {
         const [textes, couleur] = await miseEnPage;
         await e.journal("action", `🔤 Mise en page du texte : « ${textes.titre.slice(0, 80)} »`);
         try {
           const jpeg = await composerVisuel(
-            style as Exclude<StyleImage, "photo">,
+            rendu,
             image ? Buffer.from(image.base64, "base64") : null,
             textes,
             formatImage(t.plateforme),
             couleur ?? ACCENT_DEFAUT,
             ligneContexte(contexte, "Marque"),
           );
+          if (rendu === "citation") prompt = `Visuel de marque : ${textes.titre}`;
           image = { mime: "image/jpeg", base64: jpeg.toString("base64") };
-          prompt = prompt || `Citation : ${textes.titre}`;
         } catch (err) {
           // Mise en page impossible : la photo seule reste utilisable.
           if (!image) throw err;
@@ -100,7 +98,7 @@ export async function preparer(t: TacheAPreparer, contexte: string | null, e: Ec
       if (!image) throw new Error("Aucune image créée.");
       const id = await e.ajouterVisuel(image.mime, image.base64, prompt);
       visuel_url = urlVisuel(id);
-      await e.enregistrer({ visuel_id: id, visuel_url, visuel_prompt: prompt, visuel_style: style });
+      await e.enregistrer({ visuel_id: id, visuel_url, visuel_prompt: prompt, visuel_style: rendu ?? style });
       await e.journal("info", "Image prête.", visuel_url);
     } catch (err) {
       // Pas d'image : la publication reste possible en texte seul. On note

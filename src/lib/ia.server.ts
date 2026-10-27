@@ -392,12 +392,51 @@ function corpsImage(modele: string, prompt: string, [largeur, hauteur]: [number,
 
 // Génère une image (JPEG en base64) avec la clé NVIDIA, en basculant de
 // modèle si l'un est indisponible.
+// Image Gemini (même clé que le texte) : secours quand NVIDIA ne répond pas.
+const MODELES_IMAGE_GEMINI = ["gemini-2.5-flash-image", "gemini-2.0-flash-preview-image-generation"];
+
+function ratioImage([largeur, hauteur]: [number, number]) {
+  const r = largeur / hauteur;
+  return r > 1.5 ? "16:9" : r > 1.1 ? "4:3" : r < 0.7 ? "9:16" : r < 0.9 ? "3:4" : "1:1";
+}
+
+async function imageGemini(prompt: string, format: [number, number], erreurs: string[]) {
+  for (const cle of clesGemini()) {
+    for (const modele of MODELES_IMAGE_GEMINI) {
+      try {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modele}:generateContent`, {
+          method: "POST",
+          signal: AbortSignal.timeout(60_000),
+          headers: { "x-goog-api-key": cle, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: modele.includes("preview")
+              ? { responseModalities: ["TEXT", "IMAGE"] }
+              : { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: ratioImage(format) } },
+          }),
+        });
+        console.info("Gemini image", modele, r.status);
+        if (!r.ok) {
+          erreurs.push(`${modele} ${r.status}`);
+          continue;
+        }
+        const json = (await r.json()) as { candidates?: { content?: { parts?: { inlineData?: { mimeType?: string; data?: string } }[] } }[] };
+        const part = json.candidates?.[0]?.content?.parts?.find((x) => x.inlineData?.data);
+        if (part?.inlineData?.data) return { mime: part.inlineData.mimeType ?? "image/png", base64: part.inlineData.data, moteur: "Gemini" };
+        erreurs.push(`${modele} : pas d'image`);
+      } catch {
+        erreurs.push(`${modele} trop lent`);
+      }
+    }
+  }
+  return null;
+}
+
 export async function genererImage(prompt: string, plateforme: string | null) {
   const cle = cleNvidia();
-  if (!cle) throw new Error("Clé NVIDIA absente des variables Vercel.");
   const format = formatImage(plateforme);
   const erreurs: string[] = [];
-  for (const modele of [process.env.NVIDIA_MODELE_IMAGE, ...MODELES_IMAGE].filter((m): m is string => Boolean(m))) {
+  for (const modele of cle ? [process.env.NVIDIA_MODELE_IMAGE, ...MODELES_IMAGE].filter((m): m is string => Boolean(m)) : []) {
     let r: Response;
     try {
       r = await fetch(IMAGE_URL + modele, {
@@ -423,8 +462,11 @@ export async function genererImage(prompt: string, plateforme: string | null) {
     };
     const base64 = json.artifacts?.[0]?.base64 ?? json.image;
     const refus = json.artifacts?.[0]?.finishReason === "CONTENT_FILTERED" || json.finish_reason === "CONTENT_FILTERED";
-    if (base64 && !refus) return { mime: "image/jpeg", base64 };
+    if (base64 && !refus) return { mime: "image/jpeg", base64, moteur: "NVIDIA FLUX" };
     erreurs.push(`${modele.split("/")[1]} : image refusée par le filtre`);
   }
+  if (!cle) erreurs.push("clé NVIDIA absente");
+  const gemini = await imageGemini(prompt, format, erreurs);
+  if (gemini) return gemini;
   throw new Error(`Création d'image impossible (${erreurs.join(", ")}).`);
 }
