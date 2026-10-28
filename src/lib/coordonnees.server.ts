@@ -131,8 +131,11 @@ async function rechercheTavily(
 }
 
 // « plus_tard » : recherche web non configurée ou indisponible : on réessaiera.
+// web = false : site seul (la recherche web, limitée à 1 000 par mois, est
+// gardée pour plus tard).
 export async function trouverCoordonnees(
   p: ProspectACompleter,
+  web = true,
 ): Promise<Coordonnees | "plus_tard"> {
   const pays = p.pays ?? "FR";
   // 1. Site déjà connu. Un e-mail trouvé sans téléphone est gardé : on
@@ -148,6 +151,7 @@ export async function trouverCoordonnees(
   }
 
   // 2. Recherche web.
+  if (!web) return duSite ?? "plus_tard";
   const cle = process.env.TAVILY_API_KEY;
   if (!cle) return duSite ?? "plus_tard";
   const resultats = await rechercheTavily(requeteRecherche(p, pays), cle, pays);

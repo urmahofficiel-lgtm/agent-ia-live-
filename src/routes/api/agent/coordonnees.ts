@@ -7,14 +7,17 @@ import {
 } from "@/lib/coordonnees.server";
 
 // Coordonnées des prospects : appelé toutes les heures de 7 h à 20 h par
-// pg_cron, 2 prospects à la fois (offre gratuite Tavily : 1 000 recherches
-// par mois).
+// pg_cron. Le site connu d'un prospect est lu sans compter ; la recherche web
+// reste limitée à 2 prospects par passage (offre gratuite Tavily : 1 000
+// recherches par mois).
 // Cherche le téléphone (et l'e-mail) des prospects qui n'en ont pas, par
 // petits lots. Rien n'est envoyé à personne : on complète seulement la fiche.
 const BUDGET = 180_000;
-const LOT = 1;
+const LOT = 4;
+const RECHERCHES_WEB = 2;
+const PAR_PASSAGE = 12;
 
-async function completer(secret: string, limite = 2) {
+async function completer(secret: string, limite = PAR_PASSAGE) {
   const debut = Date.now();
   const sb = clientMoteur();
   const { data, error } = await sb.rpc("agent_coordonnees_a_chercher", {
@@ -25,10 +28,19 @@ async function completer(secret: string, limite = 2) {
   const liste = (data ?? []) as (ProspectACompleter & { user_id: string })[];
   let trouves = 0;
   let reportes = 0;
+  // Recherche web : les prospects sans site d'abord, dans la limite du passage.
+  let web = RECHERCHES_WEB;
+  const avecWeb = new Set(liste.filter((p) => !p.site).slice(0, web).map((p) => p.id));
+  web -= avecWeb.size;
   for (let i = 0; i < liste.length && Date.now() - debut < BUDGET; i += LOT) {
     await Promise.all(
       liste.slice(i, i + LOT).map(async (p) => {
-        const c = await trouverCoordonnees(p).catch(() => "plus_tard" as const);
+        let c = await trouverCoordonnees(p, avecWeb.has(p.id)).catch(() => "plus_tard" as const);
+        // Site sans résultat : recherche web s'il en reste pour ce passage.
+        if (c === "plus_tard" && p.site && web > 0) {
+          web--;
+          c = await trouverCoordonnees(p).catch(() => "plus_tard" as const);
+        }
         if (c === "plus_tard") {
           reportes++;
           return;
@@ -56,10 +68,11 @@ async function completer(secret: string, limite = 2) {
   };
 }
 
-// Gros lot à la demande : { limite: 1 à 20 } (par défaut 2, comme le planning).
+// Lot à la demande : { limite: 1 à 20 } (par défaut 12 ; le planning envoie 2,
+// relevé à 12 : seule la recherche web est limitée).
 const lireLimite = (corps: unknown) => {
   const n = Number((corps as { limite?: unknown } | null)?.limite);
-  return Number.isInteger(n) && n >= 1 && n <= 20 ? n : 2;
+  return Number.isInteger(n) && n >= 1 && n <= 20 ? Math.max(n, PAR_PASSAGE) : PAR_PASSAGE;
 };
 
 export const Route = createFileRoute("/api/agent/coordonnees")({
