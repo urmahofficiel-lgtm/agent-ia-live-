@@ -8,13 +8,13 @@ import {
 
 // Coordonnées des prospects : appelé toutes les heures de 7 h à 20 h par
 // pg_cron. Le site connu d'un prospect est lu sans compter ; la recherche web
-// reste limitée à 2 prospects par passage (offre gratuite Tavily : 1 000
-// recherches par mois).
+// est limitée à 6 prospects par passage (choix de Younes le 31/10/2026 ;
+// l'offre gratuite Tavily compte 1 000 recherches par mois).
 // Cherche le téléphone (et l'e-mail) des prospects qui n'en ont pas, par
 // petits lots. Rien n'est envoyé à personne : on complète seulement la fiche.
 const BUDGET = 180_000;
 const LOT = 4;
-const RECHERCHES_WEB = 2;
+const RECHERCHES_WEB = 6;
 const PAR_PASSAGE = 12;
 
 async function completer(secret: string, limite = PAR_PASSAGE) {
