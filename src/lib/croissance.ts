@@ -17,19 +17,23 @@ export const estSansPub = (consigne: string | null | undefined) => Boolean(consi
 // TikTok en photos avec musique, LinkedIn en document) ou vidéo ; `essai` :
 // Reel Instagram montré d'abord aux non-abonnés (Trial Reel), publié sur le
 // profil s'il marche.
+// Relevé du 31/10/2026 (Apify + statistiques) : sur TikTok, les carrousels
+// font ≈ 1 150 vues contre ≈ 250 pour les vidéos montées ; chez les
+// concurrents, le cas chiffré « tu le chiffres à combien ? » fait 20 000 à
+// 120 000 vues. 8 posts sur 14 sont donc des carrousels.
 export const PILIERS_CROISSANCE = [
   {
     id: "erreur",
-    poids: 3,
+    poids: 2,
     sansPub: true,
-    format: "video",
-    essai: true,
+    format: "carrousel",
+    essai: false,
     consigne:
       "Erreur qui coûte cher à la clientèle visée (argent, temps, client perdu) : la situation, pourquoi ça coûte, comment l'éviter.",
   },
   {
     id: "astuce",
-    poids: 3,
+    poids: 4,
     sansPub: true,
     format: "carrousel",
     essai: false,
@@ -37,8 +41,17 @@ export const PILIERS_CROISSANCE = [
       "Astuce de pro ou check-list à enregistrer : 4 à 6 points concrets, directement applicables par la clientèle visée.",
   },
   {
-    id: "pov",
+    id: "chiffrage",
     poids: 2,
+    sansPub: true,
+    format: "carrousel",
+    essai: false,
+    consigne:
+      "Cas de chiffrage concret pour un seul métier de la clientèle visée (ex. salle de bain de 5 m² avec douche à l'italienne, toiture de 100 m², T3 de 65 m² en peinture) : le chantier en une ligne, puis les postes du devis ligne par ligne avec les quantités, sans aucun prix ; dernière diapo : « Tu le chiffres à combien, toi ? »",
+  },
+  {
+    id: "pov",
+    poids: 1,
     sansPub: true,
     format: "video",
     essai: true,
@@ -53,15 +66,6 @@ export const PILIERS_CROISSANCE = [
     essai: false,
     consigne:
       "Actualité du métier expliquée simplement : ce qui change concrètement pour la clientèle visée et ce qu'elle doit faire (d'après la veille, sans chiffre inventé).",
-  },
-  {
-    id: "debat",
-    poids: 1,
-    sansPub: true,
-    format: "video",
-    essai: true,
-    consigne:
-      "Question qui divise la profession (un choix, une habitude, une opinion) : les deux camps en une phrase chacun, puis l'avis demandé en commentaire.",
   },
   {
     id: "demo",
@@ -247,7 +251,7 @@ const BANQUE: { titre: string; pilier: PilierCroissance; consigne: string }[] = 
   { titre: "3 erreurs qui font perdre un client au premier rendez-vous", pilier: "erreur", consigne: "Les erreurs les plus courantes au premier contact avec un client, et ce qu'il faut faire à la place." },
   { titre: "La check-list avant d'envoyer un devis", pilier: "astuce", consigne: "Les points à vérifier avant d'envoyer un devis pour ne pas perdre de marge ni de temps." },
   { titre: "POV : le client qui veut un prix au téléphone", pilier: "pov", consigne: "La scène qu'on vit tous, et la bonne réponse à donner sans se brader." },
-  { titre: "Devis gratuit ou payant : vous faites quoi ?", pilier: "debat", consigne: "Les deux camps en une phrase chacun, puis l'avis demandé en commentaire." },
+  { titre: "Salle de bain de 5 m² : tu la chiffres à combien ?", pilier: "chiffrage", consigne: "Douche à l'italienne, faïence, WC suspendu : les postes du devis ligne par ligne, sans prix, puis la question en commentaire." },
   { titre: "Comment relancer un client qui ne répond plus", pilier: "astuce", consigne: "Une méthode simple de relance, en 3 messages, sans paraître insistant." },
   { titre: "L'erreur qui fait exploser les impayés", pilier: "erreur", consigne: "Ce qui laisse traîner les paiements et les réflexes qui font payer à l'heure." },
   { titre: "POV : la fin de journée passée à faire les papiers", pilier: "pov", consigne: "Le soir au bureau après le chantier, et comment s'en sortir plus vite." },
