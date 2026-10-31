@@ -15,5 +15,7 @@ describe("veille BTP Ecosystem", () => {
     expect(VEILLE_BTP).toMatch(/JAMAIS « 100 % conforme/);
     expect(VEILLE_BTP).toMatch(/PAS d'avis clients/);
     expect(VEILLE_BTP).toMatch(/en paiement annuel/);
+    expect(VEILLE_BTP).toMatch(/OFFRE DU MOMENT/);
+    expect(VEILLE_BTP).toMatch(/Ne promets jamais un résultat/);
   });
 });
