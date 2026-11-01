@@ -28,6 +28,7 @@ import { Route as SuppressionDonneesRouteImport } from './routes/suppression-don
 import { Route as TachesRouteImport } from './routes/taches'
 import { Route as DesinscriptionJetonRouteImport } from './routes/desinscription/$jeton'
 import { Route as LCodeRouteImport } from './routes/l/$code'
+import { Route as ApiAgentCommentairesRouteImport } from './routes/api/agent/commentaires'
 import { Route as ApiAgentCoordonneesRouteImport } from './routes/api/agent/coordonnees'
 import { Route as ApiAgentDoublageRouteImport } from './routes/api/agent/doublage'
 import { Route as ApiAgentEmailsRouteImport } from './routes/api/agent/emails'
@@ -141,6 +142,11 @@ const LCodeRoute = LCodeRouteImport.update({
   path: '/l/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentCommentairesRoute = ApiAgentCommentairesRouteImport.update({
+  id: '/api/agent/commentaires',
+  path: '/api/agent/commentaires',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentCoordonneesRoute = ApiAgentCoordonneesRouteImport.update({
   id: '/api/agent/coordonnees',
   path: '/api/agent/coordonnees',
@@ -247,6 +253,7 @@ export interface FileRoutesByFullPath {
   '/taches': typeof TachesRoute
   '/desinscription/$jeton': typeof DesinscriptionJetonRoute
   '/l/$code': typeof LCodeRoute
+  '/api/agent/commentaires': typeof ApiAgentCommentairesRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
@@ -285,6 +292,7 @@ export interface FileRoutesByTo {
   '/taches': typeof TachesRoute
   '/desinscription/$jeton': typeof DesinscriptionJetonRoute
   '/l/$code': typeof LCodeRoute
+  '/api/agent/commentaires': typeof ApiAgentCommentairesRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
@@ -324,6 +332,7 @@ export interface FileRoutesById {
   '/taches': typeof TachesRoute
   '/desinscription/$jeton': typeof DesinscriptionJetonRoute
   '/l/$code': typeof LCodeRoute
+  '/api/agent/commentaires': typeof ApiAgentCommentairesRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
@@ -364,6 +373,7 @@ export interface FileRouteTypes {
     | '/taches'
     | '/desinscription/$jeton'
     | '/l/$code'
+    | '/api/agent/commentaires'
     | '/api/agent/coordonnees'
     | '/api/agent/doublage'
     | '/api/agent/emails'
@@ -402,6 +412,7 @@ export interface FileRouteTypes {
     | '/taches'
     | '/desinscription/$jeton'
     | '/l/$code'
+    | '/api/agent/commentaires'
     | '/api/agent/coordonnees'
     | '/api/agent/doublage'
     | '/api/agent/emails'
@@ -440,6 +451,7 @@ export interface FileRouteTypes {
     | '/taches'
     | '/desinscription/$jeton'
     | '/l/$code'
+    | '/api/agent/commentaires'
     | '/api/agent/coordonnees'
     | '/api/agent/doublage'
     | '/api/agent/emails'
@@ -479,6 +491,7 @@ export interface RootRouteChildren {
   TachesRoute: typeof TachesRoute
   DesinscriptionJetonRoute: typeof DesinscriptionJetonRoute
   LCodeRoute: typeof LCodeRoute
+  ApiAgentCommentairesRoute: typeof ApiAgentCommentairesRoute
   ApiAgentCoordonneesRoute: typeof ApiAgentCoordonneesRoute
   ApiAgentDoublageRoute: typeof ApiAgentDoublageRoute
   ApiAgentEmailsRoute: typeof ApiAgentEmailsRoute
@@ -633,6 +646,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/commentaires': {
+      id: '/api/agent/commentaires'
+      path: '/api/agent/commentaires'
+      fullPath: '/api/agent/commentaires'
+      preLoaderRoute: typeof ApiAgentCommentairesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/coordonnees': {
       id: '/api/agent/coordonnees'
       path: '/api/agent/coordonnees'
@@ -775,6 +795,7 @@ const rootRouteChildren: RootRouteChildren = {
   TachesRoute: TachesRoute,
   DesinscriptionJetonRoute: DesinscriptionJetonRoute,
   LCodeRoute: LCodeRoute,
+  ApiAgentCommentairesRoute: ApiAgentCommentairesRoute,
   ApiAgentCoordonneesRoute: ApiAgentCoordonneesRoute,
   ApiAgentDoublageRoute: ApiAgentDoublageRoute,
   ApiAgentEmailsRoute: ApiAgentEmailsRoute,

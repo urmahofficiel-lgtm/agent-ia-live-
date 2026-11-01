@@ -197,6 +197,14 @@ export async function repondreCommentaire(postId: string, accountId: string, com
   });
 }
 
+// Like d'un commentaire (Facebook, LinkedIn… ; TikTok ne le permet pas).
+export async function aimerCommentaire(postId: string, accountId: string, commentId: string) {
+  await appel(`/inbox/comments/${encodeURIComponent(postId)}/${encodeURIComponent(commentId)}/like`, {
+    method: "POST",
+    body: JSON.stringify({ accountId }),
+  });
+}
+
 export async function envoyerMessage(conversationId: string, accountId: string, texte: string) {
   await appel(`/inbox/conversations/${encodeURIComponent(conversationId)}/messages`, {
     method: "POST",
