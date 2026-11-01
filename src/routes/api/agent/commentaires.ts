@@ -46,7 +46,9 @@ async function traiter(secret: string) {
       // IA lente ou saturée : rien n'est noté, nouvel essai au passage suivant.
       const brut = await demanderIA(consigneReponse({ plateforme: c.platform, auteur, texte: c.message, post: c.post }, compte.contexte), {
         maxTokens: 300,
-        delaiTotal: 90_000,
+        // Temps restant du passage (NVIDIA souvent lent : Gemini d'abord).
+        delaiTotal: Math.max(30_000, Math.min(170_000, BUDGET - (Date.now() - debut))),
+        gemini: "d'abord",
       }).catch((e) => {
         bilan.ia.push(e instanceof Error ? e.message : String(e));
         return null;
