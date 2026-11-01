@@ -17,7 +17,7 @@ async function traiter(secret: string) {
   const sb = clientMoteur();
   const { data, error } = await sb.rpc("agent_reponses_auto", { p_secret: secret });
   if (error) throw new Error(error.message);
-  const bilan = { lus: 0, reponses: 0, likes: 0, ignores: 0, echecs: 0, lecture: [] as string[] };
+  const bilan = { lus: 0, reponses: 0, likes: 0, ignores: 0, echecs: 0, lecture: [] as string[], ia: [] as string[] };
   for (const compte of (data ?? []) as Compte[]) {
     const deja = new Set(compte.deja ?? []);
     const nouveaux = (
@@ -43,13 +43,17 @@ async function traiter(secret: string) {
           p_texte: c.message,
           p_reponse: reponse,
         });
+      // IA lente ou saturée : rien n'est noté, nouvel essai au passage suivant.
+      const brut = await demanderIA(consigneReponse({ plateforme: c.platform, auteur, texte: c.message, post: c.post }, compte.contexte), {
+        maxTokens: 300,
+        delaiTotal: 90_000,
+      }).catch((e) => {
+        bilan.ia.push(e instanceof Error ? e.message : String(e));
+        return null;
+      });
+      if (brut === null) continue;
       try {
-        const decision = lireDecision(
-          await demanderIA(consigneReponse({ plateforme: c.platform, auteur, texte: c.message, post: c.post }, compte.contexte), {
-            maxTokens: 300,
-            delaiTotal: 60_000,
-          }),
-        );
+        const decision = lireDecision(brut);
         // Like impossible sur ce réseau (TikTok) : rien à faire.
         if (decision.action === "liker" && !LIKE_POSSIBLE.has(c.platform)) decision.action = "ignorer";
         if (decision.action === "ignorer") {
@@ -67,7 +71,7 @@ async function traiter(secret: string) {
         }
         await noter(decision.action, decision.texte || null);
       } catch (e) {
-        // Noté en échec : pas de nouvel essai à chaque passage.
+        // Refus du réseau : noté en échec, pas de nouvel essai à chaque passage.
         bilan.echecs++;
         const m = e instanceof Error ? e.message : String(e);
         console.warn("commentaire", c.id, m);
