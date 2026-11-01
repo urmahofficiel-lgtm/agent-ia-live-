@@ -5,8 +5,9 @@
 
 export type DecisionCommentaire = { action: "repondre" | "liker" | "ignorer"; texte: string };
 
-// Réseaux où l'API permet de liker un commentaire (Zernio) ; TikTok non.
-export const LIKE_POSSIBLE = new Set(["facebook", "linkedin", "x", "twitter", "bluesky", "reddit"]);
+// Réseaux où l'API permet de liker un commentaire (Zernio ; TikTok : comptes
+// reliés par l'application TikTok Business, d'après sa page « Inbox »).
+export const LIKE_POSSIBLE = new Set(["tiktok", "facebook", "linkedin", "x", "twitter", "bluesky", "reddit"]);
 
 export function consigneReponse(c: { plateforme: string; auteur: string; texte: string; post: string }, contexte: string | null) {
   const tutoie = c.plateforme === "tiktok" || c.plateforme === "instagram";

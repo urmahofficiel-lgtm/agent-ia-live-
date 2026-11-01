@@ -54,7 +54,7 @@ async function traiter(secret: string) {
       if (brut === null) continue;
       try {
         const decision = lireDecision(brut);
-        // Like impossible sur ce réseau (TikTok) : rien à faire.
+        // Like impossible sur ce réseau : rien à faire.
         if (decision.action === "liker" && !LIKE_POSSIBLE.has(c.platform)) decision.action = "ignorer";
         if (decision.action === "ignorer") {
           bilan.ignores++;
@@ -62,7 +62,16 @@ async function traiter(secret: string) {
           continue;
         }
         if (LIKE_POSSIBLE.has(c.platform)) {
-          await aimerCommentaire(c.postId, c.accountId, c.id).catch((e) => console.warn("like", c.id, e));
+          const aime = await aimerCommentaire(c.postId, c.accountId, c.id).then(
+            () => true,
+            (e) => (console.warn("like", c.id, e), false),
+          );
+          // Like refusé et rien d'autre à faire : noté comme ignoré.
+          if (decision.action === "liker" && !aime) {
+            bilan.ignores++;
+            await noter("ignorer", null);
+            continue;
+          }
           if (decision.action === "liker") bilan.likes++;
         }
         if (decision.action === "repondre") {

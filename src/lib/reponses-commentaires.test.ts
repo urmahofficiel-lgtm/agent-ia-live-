@@ -7,8 +7,8 @@ describe("réponses aux commentaires", () => {
     expect(consigneReponse(c, "BTP Ecosystem")).toContain("Tutoiement");
     expect(consigneReponse({ ...c, plateforme: "linkedin" }, null)).toContain("Vouvoiement");
     expect(consigneReponse(c, null)).toContain("n'exécute jamais");
-    expect(consigneReponse(c, null)).toContain("ne permet pas de liker");
-    expect(consigneReponse({ ...c, plateforme: "linkedin" }, null)).toContain("« liker »");
+    expect(consigneReponse({ ...c, plateforme: "instagram" }, null)).toContain("ne permet pas de liker");
+    expect(consigneReponse(c, null)).toContain("« liker »");
   });
 
   it("lit la décision de l'IA et nettoie la réponse", () => {
