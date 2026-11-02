@@ -317,6 +317,24 @@ async function tick(secret: string) {
             if (errDepot) throw new Error(`Enregistrement de la vidéo impossible : ${errDepot.message}`);
             return sb.storage.from("videos").getPublicUrl(chemin).data.publicUrl;
           },
+          // Vidéo animée HyperFrames (TikTok, premier essai) quand le robot de
+          // rendu GitHub est branché (variable RENDU_ANIME=github) ; sinon,
+          // ou au second essai, montage classique.
+          animer:
+            process.env.RENDU_ANIME === "github" && v.plateforme === "tiktok" && v.essais === 0
+              ? async (fichiers) => {
+                  const { data: ticket, error } = await sb.rpc("agent_depot_video", { p_secret: secret, p_user: v.user_id });
+                  if (error || !ticket) throw new Error("Dépôt des fichiers refusé.");
+                  const dossier = `${v.user_id}/auto-${ticket as string}/anime-${v.tache_id}`;
+                  await Promise.all(
+                    fichiers.map(async (f) => {
+                      const { error: e } = await sb.storage.from("studio").upload(`${dossier}/${f.nom}`, f.donnees, { contentType: f.type });
+                      if (e) throw new Error(`Dépôt de ${f.nom} impossible : ${e.message}`);
+                    }),
+                  );
+                  return sb.storage.from("studio").getPublicUrl(dossier).data.publicUrl;
+                }
+              : undefined,
           // Captures de l'application déposées par l'utilisateur (page Stratégie).
           captures: async () => {
             const { data } = await sb.rpc("agent_captures_appli", { p_secret: secret, p_user: v.user_id });

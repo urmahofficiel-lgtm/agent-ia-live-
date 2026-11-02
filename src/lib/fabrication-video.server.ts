@@ -1,7 +1,9 @@
 import { PLATEFORMES } from "./plateformes";
 import { demanderIA, genererImage } from "./ia.server";
 import { choisirCaptures, consigneScript, durees, imposerScenesProduit, lireScript, normaliserScript, scriptDeSecours } from "./video";
-import { monterVideo } from "./video.server";
+import { extensionImage, monterVideo } from "./video.server";
+import type { PlanAnime } from "./hyperframes";
+import { MUSIQUE_FOND_BASE64 } from "./generes/musique.server";
 import { voixConfiguree, voixOff } from "./voix.server";
 import { tonVoix } from "./marches";
 import { estJournee } from "./journee";
@@ -21,7 +23,31 @@ export type AtelierVideo = {
   etat: (champs: Record<string, unknown>) => PromiseLike<unknown>;
   deposer: (mp4: Buffer) => Promise<string>;
   captures?: () => PromiseLike<string[]>;
+  // Vidéo animée HyperFrames : dépose les images et les sons de la vidéo et
+  // rend l'adresse de leur dossier ; le robot de rendu (GitHub Actions) écrit
+  // la page animée et la filme.
+  animer?: (fichiers: FichierAnime[]) => Promise<string>;
 };
+
+export type FichierAnime = { nom: string; donnees: Buffer; type: string };
+
+// Voix Gemini en PCM brut (16 bits, 24 kHz, mono) : en-tête WAV pour le navigateur.
+export function wavDepuisPcm(pcm: Buffer, frequence = 24_000) {
+  const entete = Buffer.alloc(44);
+  entete.write("RIFF", 0);
+  entete.writeUInt32LE(36 + pcm.length, 4);
+  entete.write("WAVEfmt ", 8);
+  entete.writeUInt32LE(16, 16);
+  entete.writeUInt16LE(1, 20);
+  entete.writeUInt16LE(1, 22);
+  entete.writeUInt32LE(frequence, 24);
+  entete.writeUInt32LE(frequence * 2, 28);
+  entete.writeUInt16LE(2, 32);
+  entete.writeUInt16LE(16, 34);
+  entete.write("data", 36);
+  entete.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([entete, pcm]);
+}
 
 // Télécharge les captures de l'application (stockage du projet), celles qui
 // ne répondent pas sont ignorées.
@@ -50,7 +76,7 @@ export async function fabriquerVideo(
   t: SujetVideo,
   contexte: string | null,
   siteMarque: string | null,
-  { journal, etat, deposer, captures: liensCaptures }: AtelierVideo,
+  { journal, etat, deposer, captures: liensCaptures, animer }: AtelierVideo,
   style: StyleVideo = "classique",
 ) {
   if (estJournee(t.consigne)) style = "journee";
@@ -170,6 +196,44 @@ export async function fabriquerVideo(
   });
   const nbClips = medias.filter((m) => m.clip).length;
   await journal("info", `Scènes prêtes : ${medias.filter((m) => m.cadre).length} vue(s) du produit, ${nbClips} séquence(s) filmée(s), ${medias.length - nbClips - medias.filter((m) => m.cadre).length} image(s).`);
+
+  // Vidéo animée : la page est déposée, le robot de rendu la filme (10 à 20
+  // min). En cas de problème, montage classique tout de suite.
+  if (animer) {
+    try {
+      await journal("action", "✨ Préparation de la vidéo animée (HyperFrames)…");
+      const images: FichierAnime[] = medias.map((m, i) => {
+        const ext = extensionImage(m.image);
+        return { nom: `s${i}.${ext}`, donnees: m.image ?? Buffer.alloc(0), type: ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg" };
+      });
+      const audio: FichierAnime[] = [{ nom: "musique.m4a", donnees: Buffer.from(MUSIQUE_FOND_BASE64, "base64"), type: "audio/mp4" }];
+      if (voix) audio.push({ nom: "voix.wav", donnees: voix.format === "pcm" ? wavDepuisPcm(voix.donnees) : voix.donnees, type: "audio/wav" });
+      const plan: PlanAnime = {
+        scenes: script.scenes.map((s, i) => ({ texte_ecran: s.texte_ecran, voix: s.voix, duree: d[i], image: images[i].nom, produit: Boolean(medias[i].cadre), repere: s.repere || undefined })),
+        voix: voix ? "voix.wav" : null,
+        musique: "musique.m4a",
+        marque: contexte?.match(/Marque\s*:\s*(.+)/)?.[1]?.trim() || "",
+        accent: accent ?? (site ? await couleurDuSite(site).catch(() => null) : null),
+        fin: contexte?.match(/Appel à l'action\s*:\s*(.+)/)?.[1]?.trim().slice(0, 70) || null,
+      };
+      const fichiers = [...images, ...audio];
+      const base = await animer(fichiers);
+      await etat({
+        brouillon: t.brouillon || script.legende,
+        video_script: script,
+        video_etat: "a_rendre",
+        video_debut: new Date().toISOString(),
+        // Le robot écrit la page animée à partir de ce plan (compositionAnimee).
+        video_rendu: { base, fichiers: fichiers.map((f) => f.nom), plan },
+        video_style: "anime",
+        video_erreur: null,
+      });
+      await journal("info", "🎞️ Vidéo animée envoyée au studio de rendu : prête d'ici 10 à 20 minutes.");
+      return "";
+    } catch (err) {
+      await journal("erreur", `Vidéo animée impossible (${err instanceof Error ? err.message.slice(0, 120) : "erreur"}) : montage classique à la place.`);
+    }
+  }
 
   await journal("action", "✂️ Montage de la vidéo (zoom, textes, voix)…");
   const mp4 = await monterVideo(
