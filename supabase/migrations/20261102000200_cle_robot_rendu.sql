@@ -41,7 +41,6 @@ begin
   if v_user is null then
     raise exception 'vidéo non attendue';
   end if;
-  delete from prive.depots_video where expire < now();
   insert into prive.depots_video (jeton, user_id) values (v_jeton, v_user);
   return v_jeton;
 end;
