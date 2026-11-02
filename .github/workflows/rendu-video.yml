@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      AGENT_TICK_SECRET: ${{ secrets.AGENT_TICK_SECRET }}
+      RENDU_VIDEO_CLE: ${{ secrets.RENDU_VIDEO_CLE }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

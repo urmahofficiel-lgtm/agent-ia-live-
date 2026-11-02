@@ -16,7 +16,8 @@ import { compositionAnimee, dureeTotale } from "../src/lib/hyperframes.ts";
 const ICI = path.dirname(fileURLToPath(import.meta.url));
 const URL_SB = process.env.SUPABASE_URL || "https://idabdhnsciymoauyogmj.supabase.co";
 const CLE = process.env.SUPABASE_PUBLISHABLE_KEY || "sb_publishable_VvarkoTJdJPMo9CIdSuZOw_o6p_kiff";
-const SECRET = process.env.AGENT_TICK_SECRET ?? "";
+// Clé propre au robot (secret GitHub RENDU_VIDEO_CLE), limitée à sa file.
+const CLE_ROBOT = process.env.RENDU_VIDEO_CLE ?? "";
 const HYPERFRAMES = "hyperframes@0.9.5";
 const entetes = { apikey: CLE, Authorization: `Bearer ${CLE}` };
 
@@ -24,15 +25,14 @@ async function rpc(nom, corps) {
   const r = await fetch(`${URL_SB}/rest/v1/rpc/${nom}`, {
     method: "POST",
     headers: { ...entetes, "Content-Type": "application/json" },
-    body: JSON.stringify({ p_secret: SECRET, ...corps }),
+    body: JSON.stringify({ p_cle: CLE_ROBOT, ...corps }),
   });
   const texte = await r.text();
   if (!r.ok) throw new Error(`${nom} : ${r.status} ${texte.slice(0, 200)}`);
   return texte ? JSON.parse(texte) : null;
 }
 
-const maj = (tache, resultat, niveau, message) =>
-  rpc("agent_maj_tache", { p_tache_id: tache, p_statut: null, p_resultat: resultat, p_niveau: niveau, p_message: message });
+const fini = (tache, url, erreur, message) => rpc("robot_rendu_fini", { p_tache: tache, p_url: url, p_erreur: erreur, p_message: message });
 
 async function telecharger(url, fichier) {
   const r = await fetch(url, { signal: AbortSignal.timeout(60_000) });
@@ -58,7 +58,7 @@ async function rendre(t) {
     if (r.status !== 0) throw new Error(`Rendu HyperFrames en échec : ${(r.stderr || r.stdout || "").slice(-400)}`);
     const mp4 = readFileSync(sortie);
     // Dépôt avec un ticket à usage unique, comme le moteur.
-    const ticket = await rpc("agent_depot_video", { p_user: t.user_id });
+    const ticket = await rpc("robot_rendu_depot", { p_tache: t.tache_id });
     const chemin = `${t.user_id}/auto-${ticket}/${t.tache_id}-${Date.now()}.mp4`;
     const d = await fetch(`${URL_SB}/storage/v1/object/videos/${chemin}`, {
       method: "POST",
@@ -67,10 +67,10 @@ async function rendre(t) {
     });
     if (!d.ok) throw new Error(`Dépôt du MP4 refusé : ${d.status} ${(await d.text()).slice(0, 200)}`);
     const video_url = `${URL_SB}/storage/v1/object/public/videos/${chemin}`;
-    await maj(
+    await fini(
       t.tache_id,
-      { video_url, video_etat: "prete", video_le: new Date().toISOString(), video_erreur: null },
-      "info",
+      video_url,
+      null,
       `✅ Vidéo animée prête (${Math.round(dureeTotale(plan))} s, ${(statSync(sortie).size / 1e6).toFixed(1)} Mo).`,
     );
     console.log("rendue", t.tache_id, video_url);
@@ -79,11 +79,11 @@ async function rendre(t) {
   }
 }
 
-if (!SECRET) {
-  console.error("AGENT_TICK_SECRET manquant (secret du dépôt GitHub).");
+if (!CLE_ROBOT) {
+  console.error("RENDU_VIDEO_CLE manquant (secret du dépôt GitHub).");
   process.exit(1);
 }
-const file = (await rpc("agent_rendus_a_faire", {})) ?? [];
+const file = (await rpc("robot_rendus_a_faire", {})) ?? [];
 if (process.argv.includes("--compter")) {
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `a_rendre=${file.length}\n`);
   console.log(`${file.length} vidéo(s) à rendre`);
@@ -96,6 +96,6 @@ for (const t of file) {
     const m = e instanceof Error ? e.message : String(e);
     console.error("échec", t.tache_id, m);
     // Retour en file du moteur : montage classique au prochain passage.
-    await maj(t.tache_id, { video_etat: null, video_erreur: m.slice(0, 300) }, "erreur", `Vidéo animée non rendue (${m.slice(0, 120)}) : montage classique au prochain passage.`).catch(() => {});
+    await fini(t.tache_id, null, m.slice(0, 300), `Vidéo animée non rendue (${m.slice(0, 120)}) : montage classique au prochain passage.`).catch(() => {});
   }
 }
