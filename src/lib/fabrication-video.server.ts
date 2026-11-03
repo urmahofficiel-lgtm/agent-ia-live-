@@ -80,6 +80,9 @@ export async function fabriquerVideo(
   style: StyleVideo = "classique",
 ) {
   if (estJournee(t.consigne)) style = "journee";
+  // Vidéo animée HyperFrames demandée : elle passe avant les styles Studio et
+  // conversation, qui ont leur propre montage (script de style « face caméra »).
+  if (animer && (style === "studio" || style === "conversation")) style = "ugc";
   if (style === "studio") {
     try {
       return await fabriquerStudio(t, contexte, { journal, etat, deposer, captures: liensCaptures });
