@@ -74,7 +74,7 @@ export function compositionAnimee(plan: PlanAnime) {
     if (s.produit) {
       elements.push(
         `<div id="fond-${i}" class="clip scene" data-start="${t}" data-duration="${d}"><img class="flou" src="${echapper(s.image)}" alt=""></div>`,
-        `<div id="tel-${i}" class="clip telephone" data-start="${t}" data-duration="${d}"><img src="${echapper(s.image)}" alt=""></div>`,
+        `<div id="tel-${i}" class="clip telephone${derniere ? " petit" : ""}" data-start="${t}" data-duration="${d}"><img src="${echapper(s.image)}" alt=""></div>`,
       );
       animations.push(
         `tl.fromTo("#tel-${i}", { yPercent: 40, rotation: ${4 * sens}, opacity: 0 }, { yPercent: 0, rotation: 0, opacity: 1, duration: 0.6, ease: "back.out(1.3)" }, ${r2(t + 0.05)});`,
@@ -107,7 +107,7 @@ export function compositionAnimee(plan: PlanAnime) {
     decouperSousTitres(s.voix, t, d).forEach((p, j) => {
       const id = `st-${i}-${j}`;
       const mots = p.mots.map((m, k) => `<span id="${id}-${k}" class="mot">${echapper(m.mot)}</span>`).join(" ");
-      elements.push(`<div id="${id}" class="clip sous-titre${s.produit ? " bas" : ""}" data-start="${p.debut}" data-duration="${p.duree}">${mots}</div>`);
+      elements.push(`<div id="${id}" class="clip sous-titre${derniere ? " fin" : s.produit ? " bas" : ""}" data-start="${p.debut}" data-duration="${p.duree}">${mots}</div>`);
       animations.push(`tl.fromTo("#${id}", { scale: 0.85, y: 20 }, { scale: 1, y: 0, duration: 0.16, ease: "back.out(2.5)" }, ${p.debut});`);
       p.mots.forEach((m, k) =>
         animations.push(`tl.fromTo("#${id}-${k}", { color: "#ffffff" }, { color: "${accent}", scale: 1.08, duration: 0.08, ease: "power1.out" }, ${m.debut});`, `tl.to("#${id}-${k}", { scale: 1, duration: 0.12 }, ${r2(m.debut + 0.1)});`),
@@ -152,6 +152,8 @@ html, body { width: 1080px; height: 1920px; overflow: hidden; background: var(--
 .repere { display: inline-block; background: var(--accent); color: #0d1320; font-weight: 800; font-size: 46px; padding: 8px 26px; border-radius: 14px; }
 .sous-titre { left: 50px; right: 50px; top: 1330px; text-align: center; font-weight: 800; font-size: 92px; line-height: 1.08; letter-spacing: -0.02em; -webkit-text-stroke: 9px #0d1320; paint-order: stroke fill; text-shadow: 0 8px 24px rgba(0,0,0,.6); }
 .sous-titre.bas { top: 1650px; font-size: 80px; }
+.sous-titre.fin { top: 1390px; font-size: 76px; }
+.telephone.petit { left: 300px; top: 400px; width: 480px; height: 880px; border-radius: 56px; border-width: 12px; }
 .mot { display: inline-block; margin: 0 0.14em; }
 .marque { left: 0; right: 0; bottom: 120px; text-align: center; }
 .marque .nom { display: inline-block; background: var(--accent); color: #0d1320; font-weight: 800; font-size: 70px; padding: 14px 40px; border-radius: 20px; letter-spacing: -0.02em; }
