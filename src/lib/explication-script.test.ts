@@ -24,10 +24,28 @@ describe("script Explication", () => {
         plan({ type: "dictee", texte: "Salle de bain 6 m²" }, 8),
       ],
     });
-    const s = lireExplication(`voici ${json}`, 1)!;
+    const s = lireExplication(`voici ${json}`, 1, "plans 1 2 3 4 5 6 7 8")!;
     expect(s.mot).toBe("DEVIS");
     expect(s.plans.map((p) => p.visuel.type)).toEqual(["chiffre", "capture", "liste", "devis", "bouton", "dictee"]);
     expect(lireExplication("{}", 0)).toBeNull();
+  });
+
+  it("refuse les chiffres inventés et les garanties", () => {
+    const sources = "Essai gratuit 14 jours. 1 analyse offerte par mois.";
+    const json = JSON.stringify({
+      mot: "OFFRE",
+      plans: [
+        plan({ type: "chiffre", valeur: "100%", legende: "fiabilité garantie" }, 1),
+        plan({ type: "chiffre", valeur: "+50%" }, 1),
+        plan({ type: "chiffre", valeur: "14 J" }, 1),
+        plan({ type: "liste", items: ["Synthèse", "Risques"] }, 1),
+        plan({ type: "devis", lignes: [["Faïence", "18 m²"], ["Douche", "1 u"]] }, 1),
+        plan({ type: "bouton", texte: "Tester" }, 1),
+        plan({ type: "dictee", texte: "Salle de bain 6 m²" }, 1),
+      ],
+    });
+    const s = lireExplication(json, 0, sources)!;
+    expect(s.plans.map((p) => p.visuel.type)).toEqual(["chiffre", "liste", "devis", "bouton", "dictee"]);
   });
 
   it("cale les plans sur la voix", () => {

@@ -32,6 +32,7 @@ Chaque plan :
   {"type":"bouton","texte":"Générer le devis"} ;
 ${captures ? `  {"type":"capture"} : une vraie capture de l'application (${captures} disponible(s)), à utiliser pour montrer le produit.` : "  (pas de capture d'écran disponible : n'utilise pas le type capture)"}
 Varie les visuels, 8 à 11 plans au total.
+Règles strictes : tutoiement partout (titres compris) ; n'écris un chiffre, un pourcentage, une durée, un nombre de pages ou un prix QUE s'il figure mot pour mot dans la fiche ou le texte de la publication ; jamais de promesse ni de garantie (« garanti », « 100 % », « zéro erreur ») ; n'invente aucun résultat client. Les quantités d'un exemple de devis ou d'une dictée sont permises.
 "mot" : le mot à commenter pour recevoir le lien (un mot, MAJUSCULES, lié au sujet, ex. DEVIS, FACTURE, CHANTIER).
 "legende" : la légende TikTok (2 phrases + 3 hashtags métier), qui finit par « Commente <mot> 👇 ».
 Réponds uniquement en JSON : {"plans":[{"titre1":"…","titre2":"…","phrase":"…","visuel":{…}}],"mot":"…","legende":"…"}`;
@@ -71,7 +72,18 @@ function lireVisuel(v: unknown): VisuelExplication | null {
   }
 }
 
-export function lireExplication(reponse: string, captures: number): ScriptExplication | null {
+// Garde-fou : chiffres absents des sources, garanties et « 100 % » sont refusés
+// (sauf dans les exemples de devis, de dictée et de SMS).
+const PROMESSE = /garanti|100\s*%|z[ée]ro\s+(erreur|risque|oubli)|sans\s+risque/i;
+export function texteInvente(texte: string, sources: string) {
+  if (PROMESSE.test(texte)) return true;
+  const connus = new Set(sources.match(/\d+/g) ?? []);
+  return (texte.match(/\d+/g) ?? []).some((n) => !connus.has(n));
+}
+const texteVerifie = (v: VisuelExplication) =>
+  v.type === "chiffre" ? `${v.valeur} ${v.legende ?? ""}` : v.type === "liste" ? v.items.join(" ") : v.type === "bouton" ? v.texte : "";
+
+export function lireExplication(reponse: string, captures: number, sources = ""): ScriptExplication | null {
   const debut = reponse.indexOf("{");
   const fin = reponse.lastIndexOf("}");
   if (debut === -1 || fin <= debut) return null;
@@ -85,13 +97,15 @@ export function lireExplication(reponse: string, captures: number): ScriptExplic
       const t2 = court(o.titre2, 18).toUpperCase();
       const phrase = court(o.phrase, 110);
       if (!visuel || !t1 || !t2 || !phrase) return [];
+      if (texteInvente(`${t1} ${t2} ${phrase.replace(/\*/g, "")} ${texteVerifie(visuel)}`, sources)) return [];
       // Plus de captures demandées que disponibles : le plan est écarté.
       if (visuel.type === "capture" && n++ >= captures) return [];
       return [{ titre: [t1, t2], phrase, visuel }];
     });
     const mot = (court(j.mot, 12).toUpperCase().match(/[A-ZÀ-Ÿ0-9]+/)?.[0] ?? "INFO").slice(0, 12);
     if (plans.length < 5) return null;
-    return { plans: plans.slice(0, 11), mot, legende: court(j.legende, 600) };
+    const legende = court(j.legende, 600);
+    return { plans: plans.slice(0, 11), mot, legende: texteInvente(legende, sources) ? "" : legende };
   } catch {
     return null;
   }

@@ -340,8 +340,10 @@ async function fabriquerExplication(
       gemini: "d'abord",
     }),
     captures.length,
+    // Sources des chiffres permis : fiche de la marque et texte de la publication.
+    [contexte, t.titre, t.consigne, t.brouillon].filter(Boolean).join("\n"),
   );
-  if (!script) throw new Error("script illisible");
+  if (!script) throw new Error("script illisible ou chiffres non vérifiés");
   const plans = [
     ...script.plans,
     { titre: ["UNE ASTUCE", "PAR JOUR"] as [string, string], phrase: phraseFinale(script.mot), visuel: { type: "appel" as const, mot: script.mot, detail: "on te répond avec le lien" } },
