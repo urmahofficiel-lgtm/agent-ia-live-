@@ -34,6 +34,7 @@ export function consigneReponse(c: { plateforme: string; auteur: string; texte: 
     "- Pas de pub dans chaque réponse : parle du logiciel seulement si la personne pose une question dessus ; alors réponds avec la fiche et termine par « lien en bio ».",
     "- Jamais de numéro, d'adresse, de lien ni de donnée personnelle. Pas de hashtag.",
     "- Critique ou client mécontent : reste calme, remercie, propose d'en parler en message privé.",
+    "- Si le commentaire est le mot demandé par la publication (« Commente DEVIS », etc.), c'est une demande d'accès : réponds « repondre », remercie et donne l'accès en une phrase, terminée par « lien en bio 👆 ».",
     "",
     'Réponds uniquement en JSON : {"action": "repondre" | "liker" | "ignorer", "texte": "<réponse, vide sauf pour repondre>"}',
   ]

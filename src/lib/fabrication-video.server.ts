@@ -3,6 +3,8 @@ import { demanderIA, genererImage } from "./ia.server";
 import { choisirCaptures, consigneScript, durees, imposerScenesProduit, lireScript, normaliserScript, scriptDeSecours } from "./video";
 import { extensionImage, monterVideo } from "./video.server";
 import type { PlanAnime } from "./hyperframes";
+import type { Explication } from "./explication";
+import { consigneExplication, dureesSurVoix, lireExplication, phraseFinale, texteVoix } from "./explication-script";
 import { MUSIQUE_FOND_BASE64 } from "./generes/musique.server";
 import { voixConfiguree, voixOff } from "./voix.server";
 import { tonVoix } from "./marches";
@@ -124,6 +126,16 @@ export async function fabriquerVideo(
   if (ecransAppli.length) await journal("info", `📱 ${ecransAppli.length} capture(s) de votre application pour montrer le produit.`);
   else if (capturesSite.length) await journal("info", `🖥️ ${capturesSite.length} visuel(s) de votre site récupéré(s) pour montrer le produit.`);
   const produitVisible = ecransAppli.length > 0 || capturesSite.length > 0;
+
+  // Vidéo « Explication » (format « une astuce par jour », sans visage) quand
+  // le rendu HyperFrames est branché ; sinon ou en cas d'échec, la suite.
+  if (animer) {
+    try {
+      if (await fabriquerExplication(t, contexte, ecransAppli, accent ?? (site ? await couleurDuSite(site).catch(() => null) : null), { journal, etat, animer })) return "";
+    } catch (err) {
+      await journal("info", `Format Explication impossible (${err instanceof Error ? err.message.slice(0, 120) : "erreur"}) : vidéo animée classique à la place.`);
+    }
+  }
 
   await journal("action", `🎬 Écriture du script vidéo${style === "classique" ? "" : ` (style ${nomStyleVideo(style)})`} : « ${t.titre} »`);
   // Budget serré : la fonction entière doit tenir sous les 5 minutes de Vercel.
@@ -307,4 +319,73 @@ async function fabriquerConversation(
   });
   await journal("info", `✅ Vidéo conversation prête (${Math.round(minutage(script.messages).total)} s, ${(mp4.length / 1e6).toFixed(1)} Mo).`);
   return video_url;
+}
+
+// Vidéo « Explication » : script en plans courts, voix off, captures de
+// l'application ; la page est filmée par le robot de rendu (HyperFrames).
+async function fabriquerExplication(
+  t: SujetVideo,
+  contexte: string | null,
+  captures: Buffer[],
+  accent: string | null,
+  { journal, etat, animer }: Pick<AtelierVideo, "journal" | "etat"> & { animer: NonNullable<AtelierVideo["animer"]> },
+) {
+  if (!voixConfiguree()) throw new Error("voix off indisponible");
+  await journal("action", `🎬 Écriture du script « Explication » (un plan toutes les 2 à 3 s) : « ${t.titre} »`);
+  const script = lireExplication(
+    await demanderIA(consigneExplication(t, contexte, captures.length, t.marche), {
+      systeme: "Tu es scénariste de vidéos courtes pour les réseaux sociaux. Tu réponds uniquement en JSON valide.",
+      maxTokens: 2500,
+      delaiTotal: 90_000,
+      gemini: "d'abord",
+    }),
+    captures.length,
+  );
+  if (!script) throw new Error("script illisible");
+  const plans = [
+    ...script.plans,
+    { titre: ["UNE ASTUCE", "PAR JOUR"] as [string, string], phrase: phraseFinale(script.mot), visuel: { type: "appel" as const, mot: script.mot, detail: "on te répond avec le lien" } },
+  ];
+  await journal("info", `Script : ${plans.length} plans — « ${plans[0].titre.join(" ")} »`);
+  await journal("action", "🎙️ Enregistrement de la voix off (Gemini)…");
+  const voix = await voixOff(texteVoix(plans), tonVoix(t.marche, true, false));
+  if (!voix) throw new Error("voix off impossible");
+  const durees = dureesSurVoix(plans.map((p) => p.phrase), voix.duree);
+  // Captures de l'application, dans l'ordre des plans qui en demandent une.
+  const fichiers: FichierAnime[] = [
+    { nom: "musique.m4a", donnees: Buffer.from(MUSIQUE_FOND_BASE64, "base64"), type: "audio/mp4" },
+    { nom: "voix.wav", donnees: voix.format === "pcm" ? wavDepuisPcm(voix.donnees) : voix.donnees, type: "audio/wav" },
+  ];
+  let k = 0;
+  const plansFinaux = plans.map((p, i) => {
+    if (p.visuel.type !== "capture") return { ...p, duree: durees[i] };
+    const image = captures[k];
+    const ext = extensionImage(image);
+    const nom = `capture${k++}.${ext}`;
+    fichiers.push({ nom, donnees: image, type: ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg" });
+    return { ...p, duree: durees[i], visuel: { ...p.visuel, image: nom } };
+  });
+  const plan: Explication & { kind: "explication" } = {
+    kind: "explication",
+    plans: plansFinaux,
+    marque: contexte?.match(/Marque\s*:\s*(.+)/)?.[1]?.trim() || "",
+    serie: "une astuce par jour",
+    accent,
+    voix: "voix.wav",
+    musique: "musique.m4a",
+  };
+  const base = await animer(fichiers);
+  // La légende de la publication rappelle le mot à commenter.
+  const brouillon = t.brouillon || script.legende;
+  await etat({
+    brouillon: /commente/i.test(brouillon) ? brouillon : `${brouillon}\n\nCommente ${script.mot} 👇`,
+    video_script: script,
+    video_etat: "a_rendre",
+    video_debut: new Date().toISOString(),
+    video_rendu: { base, fichiers: fichiers.map((f) => f.nom), plan },
+    video_style: "explication",
+    video_erreur: null,
+  });
+  await journal("info", "🎞️ Vidéo « Explication » envoyée au studio de rendu : prête d'ici quelques minutes.");
+  return true;
 }

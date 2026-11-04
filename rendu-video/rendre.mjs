@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { compositionAnimee, dureeTotale } from "../src/lib/hyperframes.ts";
+import { compositionExplication, dureeExplication } from "../src/lib/explication.ts";
 
 const ICI = path.dirname(fileURLToPath(import.meta.url));
 const URL_SB = process.env.SUPABASE_URL || "https://idabdhnsciymoauyogmj.supabase.co";
@@ -42,7 +43,8 @@ async function telecharger(url, fichier) {
 
 async function rendre(t) {
   const { base, fichiers, plan } = t.rendu ?? {};
-  if (!base || !Array.isArray(fichiers) || !plan?.scenes?.length) throw new Error("Plan de la vidéo incomplet.");
+  const explication = plan?.kind === "explication";
+  if (!base || !Array.isArray(fichiers) || !(explication ? plan?.plans?.length : plan?.scenes?.length)) throw new Error("Plan de la vidéo incomplet.");
   const dossier = mkdtempSync(path.join(tmpdir(), "anime-"));
   try {
     // Seuls des noms simples (s0.jpg, voix.wav…) : jamais de chemin.
@@ -50,8 +52,8 @@ async function rendre(t) {
       if (!/^[\w.-]+$/.test(nom)) throw new Error(`Nom de fichier refusé : ${nom}`);
       await telecharger(`${base}/${nom}`, path.join(dossier, nom));
     }
-    for (const nom of ["gsap.min.js", "InterDisplay-SemiBold.otf", "InterDisplay-ExtraBold.otf"]) copyFileSync(path.join(ICI, nom), path.join(dossier, nom));
-    writeFileSync(path.join(dossier, "index.html"), compositionAnimee(plan));
+    for (const nom of ["gsap.min.js", "InterDisplay-SemiBold.otf", "InterDisplay-ExtraBold.otf", "Anton-Regular.woff2"]) copyFileSync(path.join(ICI, nom), path.join(dossier, nom));
+    writeFileSync(path.join(dossier, "index.html"), explication ? compositionExplication(plan) : compositionAnimee(plan));
     writeFileSync(path.join(dossier, "package.json"), JSON.stringify({ name: "anime", private: true, type: "module" }));
     const sortie = path.join(dossier, "video.mp4");
     const r = spawnSync("npx", ["--yes", HYPERFRAMES, "render", dossier, "-o", sortie, "--quiet"], { encoding: "utf8", timeout: 15 * 60_000 });
@@ -71,7 +73,7 @@ async function rendre(t) {
       t.tache_id,
       video_url,
       null,
-      `✅ Vidéo animée prête (${Math.round(dureeTotale(plan))} s, ${(statSync(sortie).size / 1e6).toFixed(1)} Mo).`,
+      `✅ Vidéo ${explication ? "« Explication »" : "animée"} prête (${Math.round(explication ? dureeExplication(plan) : dureeTotale(plan))} s, ${(statSync(sortie).size / 1e6).toFixed(1)} Mo).`,
     );
     console.log("rendue", t.tache_id, video_url);
   } finally {

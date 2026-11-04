@@ -58,6 +58,10 @@ function visuel(v: VisuelExplication, id: string, t: number, d: number, anim: st
   const a = (s: string) => anim.push(s);
   switch (v.type) {
     case "capture": {
+      if (!v.largeur || !v.hauteur) {
+        a(`tl.fromTo("#${id}-img", { scale: 1.08 }, { scale: 1, duration: ${r2(Math.min(d, 2.5))}, ease: "power2.out" }, ${t});`);
+        return `<div class="capture"><img id="${id}-img" class="couvre" src="${ech(v.image)}" style="object-position:50% ${Math.round((v.focus?.y ?? 0) * 100)}%" alt=""></div>`;
+      }
       const p = placementCapture(v);
       a(`tl.fromTo("#${id}-img", { scale: 1.06 }, { scale: 1, duration: ${r2(Math.min(d, 2.5))}, ease: "power2.out" }, ${t});`);
       if (p.cadre) a(`tl.fromTo("#${id}-cadre", { scale: 1.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.3, ease: "back.out(2)" }, ${r2(t + 0.35)});`);
@@ -168,6 +172,7 @@ html, body { width: 1080px; height: 1920px; overflow: hidden; background: var(--
 .progression { left: 0; top: 0; width: 1080px; height: 10px; background: var(--accent); transform-origin: left center; }
 .capture { position: relative; width: 940px; height: 760px; border-radius: 32px; overflow: hidden; background: #fff; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
 .capture img { position: absolute; transform-origin: center; }
+.capture img.couvre { inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .cadre { position: absolute; border: 8px solid var(--accent); border-radius: 18px; box-shadow: 0 0 0 9999px rgba(13,17,23,.35); }
 .chiffre { text-align: center; }
 .valeur { font-family: "Anton", sans-serif; font-size: 300px; line-height: 1; color: var(--accent); }
