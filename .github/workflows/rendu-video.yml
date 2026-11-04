@@ -29,9 +29,19 @@ jobs:
       - name: Vidéos à rendre
         id: file
         run: node --experimental-strip-types rendu-video/rendre.mjs --compter
+      # FFmpeg : binaire statique (rapide, sans dépendre des miroirs apt qui
+      # bloquent parfois), apt en secours ; jamais plus de 6 minutes.
       - name: FFmpeg
         if: steps.file.outputs.a_rendre != '0'
-        run: command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+        timeout-minutes: 6
+        run: |
+          command -v ffmpeg && exit 0
+          if curl -fsSL --max-time 120 https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o /tmp/ffmpeg.tar.xz; then
+            tar -xJf /tmp/ffmpeg.tar.xz -C /tmp && sudo cp /tmp/ffmpeg-*-static/ffmpeg /tmp/ffmpeg-*-static/ffprobe /usr/local/bin/
+          else
+            sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          fi
+          ffmpeg -version | head -1
       - name: Rendu
         if: steps.file.outputs.a_rendre != '0'
         run: node --experimental-strip-types rendu-video/rendre.mjs
