@@ -4,7 +4,7 @@ import { choisirCaptures, consigneScript, durees, imposerScenesProduit, lireScri
 import { extensionImage, monterVideo } from "./video.server";
 import type { PlanAnime } from "./hyperframes";
 import type { Explication } from "./explication";
-import { consigneExplication, dureesSurVoix, lireExplication, phraseFinale, texteVoix } from "./explication-script";
+import { consigneDescriptionCapture, consigneExplication, descriptionDuNom, dureesSurVoix, lireExplication, phraseFinale, texteVoix } from "./explication-script";
 import { MUSIQUE_FOND_BASE64 } from "./generes/musique.server";
 import { voixConfiguree, voixOff } from "./voix.server";
 import { tonVoix } from "./marches";
@@ -29,7 +29,45 @@ export type AtelierVideo = {
   // rend l'adresse de leur dossier ; le robot de rendu (GitHub Actions) écrit
   // la page animée et la filme.
   animer?: (fichiers: FichierAnime[]) => Promise<string>;
+  // Captures de l'application avec leur description (vidéos « Explication »),
+  // et enregistrement d'une description faite par l'IA.
+  capturesDecrites?: () => Promise<{ nom: string; lien: string; description: string | null }[]>;
+  decrireCapture?: (nom: string, description: string) => PromiseLike<unknown>;
 };
+
+type Ecran = { description: string; image: () => Promise<Buffer | null> };
+
+// Écrans décrits pour la vidéo « Explication » : les captures sans
+// description sont regardées une fois par l'IA (en parallèle, 45 s au plus),
+// la description est gardée ; sinon, celle tirée du nom du fichier.
+async function ecransDecrits(atelier: Pick<AtelierVideo, "capturesDecrites" | "decrireCapture">): Promise<Ecran[]> {
+  const liste = ((await atelier.capturesDecrites?.().catch(() => [])) ?? []).slice(0, 12);
+  const cache = new Map<string, Promise<Buffer | null>>();
+  const image = (lien: string) => {
+    if (!cache.has(lien)) cache.set(lien, telechargerCaptures([lien]).then((l) => l[0] ?? null));
+    return cache.get(lien)!;
+  };
+  return Promise.all(
+    liste.map(async (c) => {
+      let description = c.description;
+      if (!description) {
+        const img = await image(c.lien);
+        description = img
+          ? await demanderIA(consigneDescriptionCapture(), {
+              images: [{ mime: extensionImage(img) === "png" ? "image/png" : "image/jpeg", donnees: img.toString("base64") }],
+              maxTokens: 120,
+              delaiTotal: 45_000,
+            })
+              .then((r) => r.replace(/\s+/g, " ").replace(/^["«\s]+|["»\s]+$/g, "").slice(0, 200))
+              .catch(() => null)
+          : null;
+        if (description && description.length >= 3) await Promise.resolve(atelier.decrireCapture?.(c.nom, description)).catch(() => {});
+        else description = descriptionDuNom(c.nom);
+      }
+      return { description, image: () => image(c.lien) };
+    }),
+  );
+}
 
 export type FichierAnime = { nom: string; donnees: Buffer; type: string };
 
@@ -78,7 +116,7 @@ export async function fabriquerVideo(
   t: SujetVideo,
   contexte: string | null,
   siteMarque: string | null,
-  { journal, etat, deposer, captures: liensCaptures, animer }: AtelierVideo,
+  { journal, etat, deposer, captures: liensCaptures, animer, capturesDecrites, decrireCapture }: AtelierVideo,
   style: StyleVideo = "classique",
 ) {
   if (estJournee(t.consigne)) style = "journee";
@@ -131,7 +169,11 @@ export async function fabriquerVideo(
   // le rendu HyperFrames est branché ; sinon ou en cas d'échec, la suite.
   if (animer) {
     try {
-      if (await fabriquerExplication(t, contexte, ecransAppli, accent ?? (site ? await couleurDuSite(site).catch(() => null) : null), { journal, etat, animer })) return "";
+      // Écrans décrits si l'atelier les fournit, sinon les captures déjà choisies.
+      const ecrans: Ecran[] = capturesDecrites
+        ? await ecransDecrits({ capturesDecrites, decrireCapture })
+        : ecransAppli.map((img, i) => ({ description: `Écran de l'application n° ${i + 1}`, image: async () => img }));
+      if (await fabriquerExplication(t, contexte, ecrans, accent ?? (site ? await couleurDuSite(site).catch(() => null) : null), { journal, etat, animer })) return "";
     } catch (err) {
       await journal("info", `Format Explication impossible (${err instanceof Error ? err.message.slice(0, 120) : "erreur"}) : vidéo animée classique à la place.`);
     }
@@ -326,20 +368,20 @@ async function fabriquerConversation(
 async function fabriquerExplication(
   t: SujetVideo,
   contexte: string | null,
-  captures: Buffer[],
+  ecrans: Ecran[],
   accent: string | null,
   { journal, etat, animer }: Pick<AtelierVideo, "journal" | "etat"> & { animer: NonNullable<AtelierVideo["animer"]> },
 ) {
   if (!voixConfiguree()) throw new Error("voix off indisponible");
   await journal("action", `🎬 Écriture du script « Explication » (un plan toutes les 2 à 3 s) : « ${t.titre} »`);
   const script = lireExplication(
-    await demanderIA(consigneExplication(t, contexte, captures.length, t.marche), {
+    await demanderIA(consigneExplication(t, contexte, ecrans.map((e) => e.description), t.marche), {
       systeme: "Tu es scénariste de vidéos courtes pour les réseaux sociaux. Tu réponds uniquement en JSON valide.",
       maxTokens: 2500,
       delaiTotal: 90_000,
       gemini: "d'abord",
     }),
-    captures.length,
+    ecrans.length,
     // Sources des chiffres permis : fiche de la marque et texte de la publication.
     [contexte, t.titre, t.consigne, t.brouillon].filter(Boolean).join("\n"),
   );
@@ -358,15 +400,20 @@ async function fabriquerExplication(
     { nom: "musique.m4a", donnees: Buffer.from(MUSIQUE_FOND_BASE64, "base64"), type: "audio/mp4" },
     { nom: "voix.wav", donnees: voix.format === "pcm" ? wavDepuisPcm(voix.donnees) : voix.donnees, type: "audio/wav" },
   ];
-  let k = 0;
-  const plansFinaux = plans.map((p, i) => {
-    if (p.visuel.type !== "capture") return { ...p, duree: durees[i] };
-    const image = captures[k];
-    const ext = extensionImage(image);
-    const nom = `capture${k++}.${ext}`;
-    fichiers.push({ nom, donnees: image, type: ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg" });
-    return { ...p, duree: durees[i], visuel: { ...p.visuel, image: nom } };
-  });
+  // Écran choisi par l'IA (« #n ») : téléchargé et déposé ; introuvable, le
+  // plan montre un gros titre à la place.
+  const plansFinaux = await Promise.all(
+    plans.map(async (p, i) => {
+      if (p.visuel.type !== "capture") return { ...p, duree: durees[i] };
+      const n = Number(p.visuel.image.slice(1));
+      const image = await ecrans[n - 1]?.image().catch(() => null);
+      if (!image) return { ...p, duree: durees[i], visuel: { type: "chiffre" as const, valeur: p.titre[1].slice(0, 8) } };
+      const ext = extensionImage(image);
+      const nom = `ecran${n}.${ext}`;
+      fichiers.push({ nom, donnees: image, type: ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg" });
+      return { ...p, duree: durees[i], visuel: { ...p.visuel, image: nom } };
+    }),
+  );
   const plan: Explication & { kind: "explication" } = {
     kind: "explication",
     plans: plansFinaux,

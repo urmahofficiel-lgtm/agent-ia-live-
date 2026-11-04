@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { consigneExplication, dureesSurVoix, lireExplication, texteVoix } from "./explication-script";
+import { consigneExplication, descriptionDuNom, dureesSurVoix, lireExplication, texteVoix } from "./explication-script";
 
 const plan = (visuel: object, i = 0) => ({ titre1: `TITRE ${i}`, titre2: "FORT", phrase: `Phrase *clé* numéro ${i}`, visuel });
 
 describe("script Explication", () => {
   it("demande des plans courts et interdit les captures absentes", () => {
-    expect(consigneExplication({ titre: "Devis", consigne: "" }, "Marque : BTP Ecosystem", 0)).toContain("n'utilise pas le type capture");
-    expect(consigneExplication({ titre: "Devis", consigne: "" }, null, 3)).toContain("3 disponible(s)");
+    expect(consigneExplication({ titre: "Devis", consigne: "" }, "Marque : BTP Ecosystem", [])).toContain("n'utilise pas le type capture");
+    expect(consigneExplication({ titre: "Devis", consigne: "" }, null, ["Écran Devis IA", "Écran Métré IA"])).toContain("2. Écran Métré IA");
   });
 
   it("lit la réponse, écarte les plans invalides et les captures en trop", () => {
@@ -15,7 +15,9 @@ describe("script Explication", () => {
       legende: "Ton devis. Commente DEVIS 👇",
       plans: [
         plan({ type: "chiffre", valeur: "2 min" }, 1),
-        plan({ type: "capture" }, 2),
+        plan({ type: "capture", numero: 1 }, 2),
+        plan({ type: "capture", numero: 1 }, 3),
+        plan({ type: "capture", numero: 4 }, 3),
         plan({ type: "capture" }, 3),
         plan({ type: "liste", items: ["a", "b"] }, 4),
         plan({ type: "inconnu" }, 5),
@@ -27,6 +29,7 @@ describe("script Explication", () => {
     const s = lireExplication(`voici ${json}`, 1, "plans 1 2 3 4 5 6 7 8")!;
     expect(s.mot).toBe("DEVIS");
     expect(s.plans.map((p) => p.visuel.type)).toEqual(["chiffre", "capture", "liste", "devis", "bouton", "dictee"]);
+    expect(s.plans[1].visuel).toMatchObject({ type: "capture", image: "#1" });
     expect(lireExplication("{}", 0)).toBeNull();
   });
 
@@ -46,6 +49,10 @@ describe("script Explication", () => {
     });
     const s = lireExplication(json, 0, sources)!;
     expect(s.plans.map((p) => p.visuel.type)).toEqual(["chiffre", "liste", "devis", "bouton", "dictee"]);
+  });
+
+  it("tire une description du nom du fichier", () => {
+    expect(descriptionDuNom("u/auto-x/03-metre-ia.jpg")).toBe("metre ia");
   });
 
   it("cale les plans sur la voix", () => {

@@ -335,6 +335,17 @@ async function tick(secret: string) {
                   return sb.storage.from("studio").getPublicUrl(dossier).data.publicUrl;
                 }
               : undefined,
+          // Captures décrites pour les vidéos « Explication » (description
+          // faite une fois par l'IA, gardée en base).
+          capturesDecrites: async () => {
+            const { data } = await sb.rpc("agent_captures_decrites", { p_secret: secret, p_user: v.user_id });
+            return ((data ?? []) as { nom: string; description: string | null }[]).map((c) => ({
+              ...c,
+              lien: sb.storage.from("captures").getPublicUrl(c.nom).data.publicUrl,
+            }));
+          },
+          decrireCapture: (nom, description) =>
+            sb.rpc("agent_decrire_capture", { p_secret: secret, p_user: v.user_id, p_nom: nom, p_description: description }),
           // Captures de l'application déposées par l'utilisateur (page Stratégie).
           captures: async () => {
             const { data } = await sb.rpc("agent_captures_appli", { p_secret: secret, p_user: v.user_id });

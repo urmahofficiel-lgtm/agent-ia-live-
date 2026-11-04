@@ -12,7 +12,7 @@ const TYPES = ["chiffre", "liste", "dictee", "sms", "devis", "bouton", "capture"
 export function consigneExplication(
   t: { titre: string; consigne: string; brouillon?: string | null },
   contexte: string | null,
-  captures: number,
+  captures: string[],
   marche?: string | null,
 ) {
   const regles = reglesMarche(marche);
@@ -30,7 +30,11 @@ Chaque plan :
   {"type":"sms","contact":"Client · Salle de bain","message":"…","reponse":"…"} ;
   {"type":"devis","lignes":[["Poste","quantité"],…]} (3 à 6 lignes, quantités sans prix) ;
   {"type":"bouton","texte":"Générer le devis"} ;
-${captures ? `  {"type":"capture"} : une vraie capture de l'application (${captures} disponible(s)), à utiliser pour montrer le produit.` : "  (pas de capture d'écran disponible : n'utilise pas le type capture)"}
+${
+    captures.length
+      ? `  {"type":"capture","numero":N} : une vraie capture de l'application, à utiliser pour montrer le produit. Écrans disponibles :\n${captures.map((c, i) => `    ${i + 1}. ${c}`).join("\n")}\n  Choisis l'écran qui montre EXACTEMENT ce que dit la phrase (sinon prends un autre type de visuel) ; chaque écran une seule fois.`
+      : "  (pas de capture d'écran disponible : n'utilise pas le type capture)"
+  }
 Varie les visuels, 8 à 11 plans au total.
 Règles strictes : tutoiement partout (titres compris) ; n'écris un chiffre, un pourcentage, une durée, un nombre de pages ou un prix QUE s'il figure mot pour mot dans la fiche ou le texte de la publication ; jamais de promesse ni de garantie (« garanti », « 100 % », « zéro erreur ») ; n'invente aucun résultat client. Les quantités d'un exemple de devis ou d'une dictée sont permises.
 "mot" : le mot à commenter pour recevoir le lien (un mot, MAJUSCULES, lié au sujet, ex. DEVIS, FACTURE, CHANTIER).
@@ -65,8 +69,11 @@ function lireVisuel(v: unknown): VisuelExplication | null {
     }
     case "bouton":
       return court(o.texte, 24) ? { type, texte: court(o.texte, 24) } : null;
-    case "capture":
-      return { type, image: "", largeur: 0, hauteur: 0 };
+    case "capture": {
+      // Numéro de l'écran choisi, résolu plus tard en fichier (« #n »).
+      const n = Number(o.numero);
+      return Number.isInteger(n) && n >= 1 ? { type, image: `#${n}`, largeur: 0, hauteur: 0 } : null;
+    }
     default:
       return null;
   }
@@ -89,7 +96,7 @@ export function lireExplication(reponse: string, captures: number, sources = "")
   if (debut === -1 || fin <= debut) return null;
   try {
     const j = JSON.parse(reponse.slice(debut, fin + 1)) as { plans?: unknown[]; mot?: unknown; legende?: unknown };
-    let n = 0;
+    const vus = new Set<string>();
     const plans = (j.plans ?? []).flatMap((p): PlanEcrit[] => {
       const o = (p ?? {}) as Record<string, unknown>;
       const visuel = lireVisuel(o.visuel);
@@ -98,8 +105,8 @@ export function lireExplication(reponse: string, captures: number, sources = "")
       const phrase = court(o.phrase, 110);
       if (!visuel || !t1 || !t2 || !phrase) return [];
       if (texteInvente(`${t1} ${t2} ${phrase.replace(/\*/g, "")} ${texteVerifie(visuel)}`, sources)) return [];
-      // Plus de captures demandées que disponibles : le plan est écarté.
-      if (visuel.type === "capture" && n++ >= captures) return [];
+      // Écran inexistant ou déjà montré : le plan est écarté.
+      if (visuel.type === "capture" && (Number(visuel.image.slice(1)) > captures || vus.has(visuel.image) || !vus.add(visuel.image))) return [];
       return [{ titre: [t1, t2], phrase, visuel }];
     });
     const mot = (court(j.mot, 12).toUpperCase().match(/[A-ZÀ-Ÿ0-9]+/)?.[0] ?? "INFO").slice(0, 12);
@@ -122,3 +129,10 @@ export function dureesSurVoix(phrases: string[], dureeVoix: number) {
   const somme = poids.reduce((a, b) => a + b, 0);
   return poids.map((p, i) => Math.round((Math.max(1.8, (p / somme) * dureeVoix) + (i === phrases.length - 1 ? 1.2 : 0)) * 100) / 100);
 }
+
+// Description de secours tirée du nom du fichier (« 03-metre-ia.jpg » → « metre ia »).
+export const descriptionDuNom = (nom: string) =>
+  (nom.split("/").pop() ?? nom).replace(/\.[a-z0-9]+$/i, "").replace(/^\d+[-_ ]*/, "").replace(/[-_]+/g, " ").trim() || "écran de l'application";
+
+export const consigneDescriptionCapture = () =>
+  "Cette image est une capture d'écran de l'application de la marque. Décris en une phrase courte (15 mots au plus) l'écran et ce qu'on y fait, en commençant par son nom (ex. « Écran Devis IA : dicter le chantier puis générer le devis »). Réponds uniquement par la phrase.";
