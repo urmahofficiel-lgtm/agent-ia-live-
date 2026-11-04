@@ -305,7 +305,7 @@ async function tick(secret: string) {
         await maj(v.tache_id, null, { essais_video: v.essais + 1 }, "action", `🎬 Création automatique ${tiktok ? "de la vidéo TikTok" : "du Reel"} pour « ${v.titre} »`);
         // TikTok : style « face caméra » plutôt que classique.
         const style = styleVideoPour(v.plateforme, (await styles(v.tache_id)).video, v.tache_id);
-        await fabriquerVideo({ id: v.tache_id, plateforme: v.plateforme, titre: v.titre, consigne: v.consigne, brouillon: v.brouillon, marche: v.marche }, avecVeille(v.contexte), v.site, {
+        const video = await fabriquerVideo({ id: v.tache_id, plateforme: v.plateforme, titre: v.titre, consigne: v.consigne, brouillon: v.brouillon, marche: v.marche }, avecVeille(v.contexte), v.site, {
           journal: (niveau, msg) => maj(v.tache_id, null, null, niveau, msg),
           etat,
           deposer: async (mp4) => {
@@ -341,6 +341,9 @@ async function tick(secret: string) {
             return ((data ?? []) as string[]).map((nom) => sb.storage.from("captures").getPublicUrl(nom).data.publicUrl);
           },
         }, style);
+        // Vidéo animée préparée (lien vide) : le robot de rendu GitHub est
+        // réveillé tout de suite, sans attendre son passage programmé.
+        if (video === "") await reveillerRobotRendu().catch((e) => console.warn("robot de rendu", e instanceof Error ? e.message : e));
         traitees++;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "erreur";
@@ -370,3 +373,17 @@ export const Route = createFileRoute("/api/agent/tick")({
     },
   },
 });
+
+// Lance le robot de rendu des vidéos animées (GitHub Actions) avec le jeton
+// GITHUB_RENDU_TOKEN (limité au dépôt, permission Actions seulement).
+async function reveillerRobotRendu() {
+  const jeton = process.env.GITHUB_RENDU_TOKEN;
+  if (!jeton) return;
+  const r = await fetch("https://api.github.com/repos/urmahofficiel-lgtm/agent-ia-live-/actions/workflows/rendu-video.yml/dispatches", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${jeton}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
+    body: JSON.stringify({ ref: "main" }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!r.ok) throw new Error(`GitHub ${r.status}`);
+}
