@@ -18,7 +18,7 @@ export function urlAttributions(depuis: string, limite = 100) {
 
 // Majors et leurs filiales : pas notre clientèle (TPE et PME du bâtiment).
 const GRANDS_GROUPES =
-  /\b(vinci|eiffage|bouygues|colas|spie|nge|fayat|razel|eurovia|sogea|demathieu|cegelec|engie|veolia|suez|dalkia|equans|ineo|axians|sade|guintoli|gtm|dodin|campenon|lagrange|leon grosse|léon grosse|rabot dutilleul|ramery|cardinal edifice|giraudon|screg|sacer|via ?france|eurogem|bateg)\b/i;
+  /\b(vinci|eiffage|bouygues|colas|spie|nge|fayat|razel|eurovia|sogea|demathieu|cegelec|engie|veolia|suez|dalkia|equans|ineo|axians|sade|guintoli|gtm|dodin|campenon|lagrange|leon grosse|léon grosse|rabot dutilleul|ramery|cardinal edifice|giraudon|screg|sacer|via ?france|eurogem|bateg|tk elevator|thyssen|otis|schindler|kone|santerne|actemium|omexom|citeos)\b/i;
 
 const propre = (s: unknown) => (typeof s === "string" ? s.replace(/\s+/g, " ").trim() : "");
 
