@@ -97,7 +97,7 @@ export function consigneMessage(p: ProspectARediger, canal: Canal): string {
     /plomb|[ée]lectric|ma[çc]on|b[âa]timent|couvr|peintr|menuis|chauffag|travaux|march[ée]s? publics?/i.test(p.categorie ?? "")
       ? [
           "- Accroche : l'analyse d'appels d'offres par IA. L'entreprise dépose le PDF d'un CCTP, d'un DPGF ou d'un DCE et obtient en quelques minutes la synthèse du marché, les risques (pénalités, délais, assurances) et la liste des pièces à fournir, chaque point avec sa page. C'est gratuit : 1 analyse offerte chaque mois, sans carte bancaire. Relie-la au métier du destinataire (par exemple le CCTP de son lot).",
-          "- Proposition finale : essayer gratuitement sur son prochain dossier d'appel d'offres (page : https://www.btp-ecosystem.com/fonctionnalites/appels-offres-ia).",
+          "- Proposition finale : essayer gratuitement sur son prochain dossier d'appel d'offres (page : https://www.btp-ecosystem.com/fonctionnalites/appels-offres-ia?utm_source=email ; recopie l'adresse telle quelle).",
         ]
       : []),
     // Prospects « marchés publics » (BOAMP) : ils répondent déjà aux appels

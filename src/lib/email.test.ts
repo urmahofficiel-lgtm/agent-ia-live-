@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   adresseValide,
+  avecSource,
   composerEmail,
   corpsSansDoublons,
   documentJoint,
@@ -119,5 +120,14 @@ describe("agent e-mail", () => {
     const m = composerEmail({ objet: "x", texte, marque: "BTP Ecosystem", site: null, jeton, signature: g });
     expect(m.texte).not.toContain("STOP");
     expect(m.html).toContain("Se désinscrire en 1 clic");
+  });
+});
+
+describe("source des liens", () => {
+  it("marque les liens du site, pas les autres", () => {
+    expect(avecSource("https://www.btp-ecosystem.com", "email")).toBe("https://www.btp-ecosystem.com/?utm_source=email");
+    expect(avecSource("https://btp-ecosystem.com/x?utm_source=tiktok", "email")).toBe("https://btp-ecosystem.com/x?utm_source=tiktok");
+    expect(avecSource("https://www.linkedin.com/in/x", "email")).toBe("https://www.linkedin.com/in/x");
+    expect(avecSource("pas une adresse", "email")).toBe("pas une adresse");
   });
 });

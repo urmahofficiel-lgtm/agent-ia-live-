@@ -88,6 +88,19 @@ export function signatureMarque(
   return pourBtp ? SIGNATURE_BTP : null;
 }
 
+// Lien vers btp-ecosystem.com marqué de sa source (?utm_source=), pour savoir
+// sur le site d'où viennent les inscrits. Les autres sites restent tels quels.
+export function avecSource(url: string, source: string): string {
+  try {
+    const u = new URL(url);
+    if (!/(^|\.)btp-ecosystem\.com$/i.test(u.hostname) || u.searchParams.has("utm_source")) return url;
+    u.searchParams.set("utm_source", source);
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 const telephoneLien = (t: string) => `tel:+33${t.replace(/\D/g, "").replace(/^0/, "")}`;
 
 function signatureTexte(g: SignatureEmail): string {
@@ -109,7 +122,7 @@ function signatureHtml(g: SignatureEmail): string {
   const contacts = [
     g.telephone && lien(telephoneLien(g.telephone), g.telephone, "#111111"),
     g.email && lien(`mailto:${g.email}`, g.email, "#111111"),
-    g.site && lien(g.site, g.site.replace(/^https?:\/\/(www\.)?/, ""), "#111111"),
+    g.site && lien(avecSource(g.site, "email"), g.site.replace(/^https?:\/\/(www\.)?/, ""), "#111111"),
   ].filter(Boolean);
   const logo = g.logo
     ? `<td width="76" valign="top" style="padding-right:16px"><img src="${echapper(g.logo)}" width="64" height="64" alt="${echapper(g.entreprise)}" style="display:block;border-radius:14px;border:0" /></td>`
