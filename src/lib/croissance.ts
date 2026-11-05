@@ -115,23 +115,31 @@ export function melangeCroissance(jour: string, k: number): PilierCroissance[] {
 // Posts par jour au plus : au-delà, chaque post de plus fait baisser la
 // portée des autres (LinkedIn : 105 vues par post à 2 posts par semaine, 4 à
 // 16 par semaine).
+// Décision du 05/11/2026 (statistiques : Facebook 0 réaction sur 10 posts,
+// LinkedIn 3 à 15 vues) : Facebook arrêté, LinkedIn 2 posts par semaine
+// (mardi et jeudi), l'effort va sur TikTok.
 export const MAX_PAR_JOUR_CROISSANCE: Record<string, number> = {
   linkedin: 1,
   instagram: 2,
-  facebook: 1,
-  facebook_groupe: 1,
+  facebook: 0,
+  facebook_groupe: 0,
   tiktok: 3,
 };
+export const JOURS_LINKEDIN = [2, 4]; // mardi, jeudi
+
+// TikTok : les carrousels font 800 à 1 200 vues, toutes les vidéos plafonnent
+// à 250 (relevé du 05/11/2026) ; une vidéo un jour sur deux, carrousels sinon.
+export const videoTiktokPermise = (jour: string) => Math.floor(Date.parse(`${jour}T00:00:00Z`) / 86_400_000) % 2 === 0;
 
 // Réseaux où le carrousel existe (Instagram, TikTok en photos, LinkedIn en
 // document PDF).
 export const RESEAUX_CARROUSEL = ["instagram", "tiktok", "linkedin"];
 
 // Ce que le pilote enregistre avec la tâche (format, Trial Reel, pilier).
-export function resultatCroissance(id: string, plateforme: string) {
+export function resultatCroissance(id: string, plateforme: string, forcerCarrousel = false) {
   const p = pilier(id);
   if (!p) return {};
-  const carrousel = p.format === "carrousel" && RESEAUX_CARROUSEL.includes(plateforme);
+  const carrousel = (forcerCarrousel || p.format === "carrousel") && RESEAUX_CARROUSEL.includes(plateforme);
   return {
     pilier: p.id,
     // Le carrousel remplace la vidéo : la file des vidéos l'ignore.

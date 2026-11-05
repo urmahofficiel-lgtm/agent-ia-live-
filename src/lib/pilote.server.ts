@@ -77,7 +77,7 @@ export async function planifierJournees(
       const enCroissance = strategie ? strategie === "croissance" : croissance === true;
       const plan = planDuJour(
         canaux,
-        enCroissance && !strategie ? rythmeCroissance(u.rythme, canaux.map((c) => c.plateforme)) : u.rythme,
+        enCroissance && !strategie ? rythmeCroissance(u.rythme, canaux.map((c) => c.plateforme), u.jour) : u.rythme,
         normaliserCreneaux(u.creneaux),
         u.jour,
       );

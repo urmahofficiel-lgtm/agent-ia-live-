@@ -374,10 +374,22 @@ describe("mode croissance", () => {
       instagram: 2,
       tiktok: 3,
       linkedin: 1,
-      facebook: 1,
+      facebook: 0,
     });
     // Un rythme plus bas que le plafond est gardé.
     expect(rythmeCroissance({ tiktok: 1 }, ["tiktok"])).toEqual({ tiktok: 1 });
+    // LinkedIn le mardi et le jeudi seulement (05/11/2026 = jeudi).
+    expect(rythmeCroissance({ linkedin: 2 }, ["linkedin"], "2026-11-05")).toEqual({ linkedin: 1 });
+    expect(rythmeCroissance({ linkedin: 2 }, ["linkedin"], "2026-11-06")).toEqual({ linkedin: 0 });
+  });
+
+  it("n'écrit rien pour un réseau à 0 et met TikTok en carrousels", () => {
+    const plan = planDuJour(["facebook", "tiktok"], { facebook: 0, tiktok: 3 }, ["08:30", "12:30", "18:30"], "2026-11-06", new Date("2026-11-06T03:00:00Z"));
+    expect(plan.creneaux.every((c) => c.plateforme === "tiktok")).toBe(true);
+    const sujets = plan.heures.map((_, i) => ({ titre: `Sujet ${i}`, consigne: "" }));
+    const taches = tachesDuJour(plan.creneaux, sujets, ["pov", "demo", "astuce"], true);
+    const videos = taches.filter((t) => t.resultat?.format !== "carrousel");
+    expect(videos.length).toBeLessThanOrEqual(1);
   });
 
   it("consigne : quotidien de la clientèle, accroche courte, sans jargon", () => {

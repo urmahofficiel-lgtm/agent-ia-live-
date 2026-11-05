@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { PLATEFORMES } from "./plateformes";
 import { MARCHE_DEFAUT, langueDuJour, marcheDe, type Canal } from "./marches";
-import { MAX_PAR_JOUR_CROISSANCE, PILIERS_CROISSANCE, consigneCroissance, jargonDans, resultatCroissance } from "./croissance";
+import { JOURS_LINKEDIN, MAX_PAR_JOUR_CROISSANCE, PILIERS_CROISSANCE, consigneCroissance, jargonDans, pilier, resultatCroissance, videoTiktokPermise } from "./croissance";
 
 // Pilote automatique : chaque jour, l'agent planifie seul N publications par
 // réseau connecté, aux créneaux choisis (heure de Paris). Logique pure,
@@ -42,9 +42,16 @@ export function postsParJour(rythme: unknown, plateforme: string) {
 
 // Mode croissance : le rythme choisi, plafonné réseau par réseau (au-delà,
 // chaque post de plus fait baisser la portée des autres).
-export function rythmeCroissance(rythme: unknown, plateformes: string[]): Rythme {
+// 0 = pas de post ce jour-là (Facebook arrêté, LinkedIn hors mardi et jeudi).
+export function rythmeCroissance(rythme: unknown, plateformes: string[], jour?: string): Rythme {
+  const semaine = jour ? new Date(`${jour}T12:00:00Z`).getUTCDay() : null;
   return Object.fromEntries(
-    plateformes.map((p) => [p, Math.min(postsParJour(rythme, p), MAX_PAR_JOUR_CROISSANCE[p] ?? RYTHME_MAX)]),
+    plateformes.map((p) => [
+      p,
+      p === "linkedin" && semaine !== null && !JOURS_LINKEDIN.includes(semaine)
+        ? 0
+        : Math.min(postsParJour(rythme, p), MAX_PAR_JOUR_CROISSANCE[p] ?? RYTHME_MAX),
+    ]),
   );
 }
 
@@ -227,6 +234,8 @@ export function planDuJour(
     .filter((c) => {
       const cle = `${c.plateforme}|${c.marche}`;
       if (vus.has(cle) || !estPilotable(c.plateforme)) return false;
+      // Réseau mis à 0 post ce jour-là (mode croissance).
+      if (rythme && typeof rythme === "object" && (rythme as Rythme)[c.plateforme] === 0) return false;
       vus.add(cle);
       return true;
     });
@@ -433,17 +442,26 @@ export function tachesDuJour(
   // tâche, avec sa catégorie, pour comparer les résultats ensuite.
   strategie: string | null = null,
 ) {
-  return creneaux.map((c) => {
+  // Mode croissance : Instagram en carrousels seulement ; TikTok en carrousels,
+  // avec une vidéo au plus un jour sur deux (décision du 05/11/2026).
+  let videosTiktok = 0;
+  const gardes = croissance
+    ? creneaux.filter((c) => c.plateforme !== "instagram" || pilier(categories[c.sujet])?.format === "carrousel")
+    : creneaux;
+  return gardes.map((c) => {
     const s = sujets[c.sujet];
     const categorie = categories[c.sujet];
     if (croissance) {
+      const jour = new Date(c.quand).toISOString().slice(0, 10);
+      const video = c.plateforme === "tiktok" && pilier(categorie)?.format === "video" && videoTiktokPermise(jour) && videosTiktok++ === 0;
+      const forcer = c.plateforme === "tiktok" && !video;
       return {
         plateforme: c.plateforme,
         marche: c.marche,
         titre: s.titre,
         consigne: `${s.consigne}\n\n${consigneCroissance(categorie)}\n${REGLES_PILOTE}`,
         planifiee_pour: c.quand,
-        resultat: { ...resultatCroissance(categorie, c.plateforme), ...(strategie && { strategie }) },
+        resultat: { ...resultatCroissance(categorie, c.plateforme, forcer), ...(strategie && { strategie }) },
       };
     }
     const type = CATEGORIES_SUJET.find((x) => x.id === categorie);
