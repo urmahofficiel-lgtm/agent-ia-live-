@@ -388,7 +388,7 @@ describe("mode croissance", () => {
     expect(plan.creneaux.every((c) => c.plateforme === "tiktok")).toBe(true);
     const sujets = plan.heures.map((_, i) => ({ titre: `Sujet ${i}`, consigne: "" }));
     const taches = tachesDuJour(plan.creneaux, sujets, ["pov", "demo", "astuce"], true);
-    const videos = taches.filter((t) => t.resultat?.format !== "carrousel");
+    const videos = taches.filter((t) => (t.resultat as { format?: string } | undefined)?.format !== "carrousel");
     expect(videos.length).toBeLessThanOrEqual(1);
   });
 
