@@ -32,6 +32,7 @@ import { Route as ApiAgentCommentairesRouteImport } from './routes/api/agent/com
 import { Route as ApiAgentCoordonneesRouteImport } from './routes/api/agent/coordonnees'
 import { Route as ApiAgentDoublageRouteImport } from './routes/api/agent/doublage'
 import { Route as ApiAgentEmailsRouteImport } from './routes/api/agent/emails'
+import { Route as ApiAgentMarchesRouteImport } from './routes/api/agent/marches'
 import { Route as ApiAgentStatsRouteImport } from './routes/api/agent/stats'
 import { Route as ApiAgentTickRouteImport } from './routes/api/agent/tick'
 import { Route as ApiAgentVeilleRouteImport } from './routes/api/agent/veille'
@@ -162,6 +163,11 @@ const ApiAgentEmailsRoute = ApiAgentEmailsRouteImport.update({
   path: '/api/agent/emails',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentMarchesRoute = ApiAgentMarchesRouteImport.update({
+  id: '/api/agent/marches',
+  path: '/api/agent/marches',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentStatsRoute = ApiAgentStatsRouteImport.update({
   id: '/api/agent/stats',
   path: '/api/agent/stats',
@@ -257,6 +263,7 @@ export interface FileRoutesByFullPath {
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
+  '/api/agent/marches': typeof ApiAgentMarchesRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/agent/veille': typeof ApiAgentVeilleRoute
@@ -296,6 +303,7 @@ export interface FileRoutesByTo {
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
+  '/api/agent/marches': typeof ApiAgentMarchesRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/agent/veille': typeof ApiAgentVeilleRoute
@@ -336,6 +344,7 @@ export interface FileRoutesById {
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
+  '/api/agent/marches': typeof ApiAgentMarchesRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
   '/api/agent/tick': typeof ApiAgentTickRoute
   '/api/agent/veille': typeof ApiAgentVeilleRoute
@@ -377,6 +386,7 @@ export interface FileRouteTypes {
     | '/api/agent/coordonnees'
     | '/api/agent/doublage'
     | '/api/agent/emails'
+    | '/api/agent/marches'
     | '/api/agent/stats'
     | '/api/agent/tick'
     | '/api/agent/veille'
@@ -416,6 +426,7 @@ export interface FileRouteTypes {
     | '/api/agent/coordonnees'
     | '/api/agent/doublage'
     | '/api/agent/emails'
+    | '/api/agent/marches'
     | '/api/agent/stats'
     | '/api/agent/tick'
     | '/api/agent/veille'
@@ -455,6 +466,7 @@ export interface FileRouteTypes {
     | '/api/agent/coordonnees'
     | '/api/agent/doublage'
     | '/api/agent/emails'
+    | '/api/agent/marches'
     | '/api/agent/stats'
     | '/api/agent/tick'
     | '/api/agent/veille'
@@ -495,6 +507,7 @@ export interface RootRouteChildren {
   ApiAgentCoordonneesRoute: typeof ApiAgentCoordonneesRoute
   ApiAgentDoublageRoute: typeof ApiAgentDoublageRoute
   ApiAgentEmailsRoute: typeof ApiAgentEmailsRoute
+  ApiAgentMarchesRoute: typeof ApiAgentMarchesRoute
   ApiAgentStatsRoute: typeof ApiAgentStatsRoute
   ApiAgentTickRoute: typeof ApiAgentTickRoute
   ApiAgentVeilleRoute: typeof ApiAgentVeilleRoute
@@ -674,6 +687,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentEmailsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/marches': {
+      id: '/api/agent/marches'
+      path: '/api/agent/marches'
+      fullPath: '/api/agent/marches'
+      preLoaderRoute: typeof ApiAgentMarchesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/stats': {
       id: '/api/agent/stats'
       path: '/api/agent/stats'
@@ -799,6 +819,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAgentCoordonneesRoute: ApiAgentCoordonneesRoute,
   ApiAgentDoublageRoute: ApiAgentDoublageRoute,
   ApiAgentEmailsRoute: ApiAgentEmailsRoute,
+  ApiAgentMarchesRoute: ApiAgentMarchesRoute,
   ApiAgentStatsRoute: ApiAgentStatsRoute,
   ApiAgentTickRoute: ApiAgentTickRoute,
   ApiAgentVeilleRoute: ApiAgentVeilleRoute,

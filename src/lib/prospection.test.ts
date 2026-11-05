@@ -113,6 +113,15 @@ describe("consigne : architectes", () => {
   });
 });
 
+describe("consigne : marchés publics", () => {
+  it("félicite pour le marché remporté et propose l'analyse d'appel d'offres", () => {
+    const p = { ...prospect, categorie: "Entreprises de travaux (marchés publics)", contexte: "Marque : BTP Ecosystem\nOffre : logiciel", infos: "Marché public remporté (BOAMP, 04/11/2026) : « Rénovation école »" };
+    const c = consigneMessage(p, "email");
+    expect(c).toContain("félicite sobrement");
+    expect(c).toContain("1 analyse offerte chaque mois");
+  });
+});
+
 describe("suivi de campagne", () => {
   it("compte les prospects du métier visé, par étape", () => {
     const p = (statut: string, categorie: string, email: string | null, email_invalide = false) => ({

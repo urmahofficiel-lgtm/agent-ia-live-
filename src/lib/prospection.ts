@@ -94,10 +94,17 @@ export function consigneMessage(p: ProspectARediger, canal: Canal): string {
     // Artisans et entreprises du bâtiment : l'analyse d'appels d'offres,
     // gratuite, comme porte d'entrée (accord du fondateur, 26/10/2026).
     ...(/btp[\s-]?ecosystem/i.test(nomDeLaMarque(p.contexte) ?? "") &&
-    /plomb|[ée]lectric|ma[çc]on|b[âa]timent|couvr|peintr|menuis|chauffag/i.test(p.categorie ?? "")
+    /plomb|[ée]lectric|ma[çc]on|b[âa]timent|couvr|peintr|menuis|chauffag|travaux|march[ée]s? publics?/i.test(p.categorie ?? "")
       ? [
           "- Accroche : l'analyse d'appels d'offres par IA. L'entreprise dépose le PDF d'un CCTP, d'un DPGF ou d'un DCE et obtient en quelques minutes la synthèse du marché, les risques (pénalités, délais, assurances) et la liste des pièces à fournir, chaque point avec sa page. C'est gratuit : 1 analyse offerte chaque mois, sans carte bancaire. Relie-la au métier du destinataire (par exemple le CCTP de son lot).",
           "- Proposition finale : essayer gratuitement sur son prochain dossier d'appel d'offres (page : https://www.btp-ecosystem.com/fonctionnalites/appels-offres-ia).",
+        ]
+      : []),
+    // Prospects « marchés publics » (BOAMP) : ils répondent déjà aux appels
+    // d'offres ; le marché remporté rend le message personnel.
+    ...(/march[ée] public remport/i.test(p.infos ?? "")
+      ? [
+          "- Ouverture : félicite sobrement l'entreprise pour le marché public cité dans la fiche officielle (cite son objet en quelques mots, sans flatterie), puis enchaîne : puisqu'elle répond aux appels d'offres, l'analyse IA du prochain dossier lui fera gagner du temps. Ne prétends pas connaître le montant ni les détails du marché.",
         ]
       : []),
     "- Si la fiche officielle indique « certifiée RGE », mentionne-le en une demi-phrase (fait officiel) et relie l'offre aux chantiers de rénovation énergétique ; sinon, ne parle pas de RGE.",
