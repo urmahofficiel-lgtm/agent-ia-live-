@@ -29,6 +29,7 @@ import { Route as TachesRouteImport } from './routes/taches'
 import { Route as DesinscriptionJetonRouteImport } from './routes/desinscription/$jeton'
 import { Route as LCodeRouteImport } from './routes/l/$code'
 import { Route as ApiAgentCommentairesRouteImport } from './routes/api/agent/commentaires'
+import { Route as ApiAgentConcurrentsRouteImport } from './routes/api/agent/concurrents'
 import { Route as ApiAgentCoordonneesRouteImport } from './routes/api/agent/coordonnees'
 import { Route as ApiAgentDoublageRouteImport } from './routes/api/agent/doublage'
 import { Route as ApiAgentEmailsRouteImport } from './routes/api/agent/emails'
@@ -149,6 +150,11 @@ const ApiAgentCommentairesRoute = ApiAgentCommentairesRouteImport.update({
   path: '/api/agent/commentaires',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentConcurrentsRoute = ApiAgentConcurrentsRouteImport.update({
+  id: '/api/agent/concurrents',
+  path: '/api/agent/concurrents',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentCoordonneesRoute = ApiAgentCoordonneesRouteImport.update({
   id: '/api/agent/coordonnees',
   path: '/api/agent/coordonnees',
@@ -266,6 +272,7 @@ export interface FileRoutesByFullPath {
   '/desinscription/$jeton': typeof DesinscriptionJetonRoute
   '/l/$code': typeof LCodeRoute
   '/api/agent/commentaires': typeof ApiAgentCommentairesRoute
+  '/api/agent/concurrents': typeof ApiAgentConcurrentsRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
@@ -307,6 +314,7 @@ export interface FileRoutesByTo {
   '/desinscription/$jeton': typeof DesinscriptionJetonRoute
   '/l/$code': typeof LCodeRoute
   '/api/agent/commentaires': typeof ApiAgentCommentairesRoute
+  '/api/agent/concurrents': typeof ApiAgentConcurrentsRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
@@ -349,6 +357,7 @@ export interface FileRoutesById {
   '/desinscription/$jeton': typeof DesinscriptionJetonRoute
   '/l/$code': typeof LCodeRoute
   '/api/agent/commentaires': typeof ApiAgentCommentairesRoute
+  '/api/agent/concurrents': typeof ApiAgentConcurrentsRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
@@ -392,6 +401,7 @@ export interface FileRouteTypes {
     | '/desinscription/$jeton'
     | '/l/$code'
     | '/api/agent/commentaires'
+    | '/api/agent/concurrents'
     | '/api/agent/coordonnees'
     | '/api/agent/doublage'
     | '/api/agent/emails'
@@ -433,6 +443,7 @@ export interface FileRouteTypes {
     | '/desinscription/$jeton'
     | '/l/$code'
     | '/api/agent/commentaires'
+    | '/api/agent/concurrents'
     | '/api/agent/coordonnees'
     | '/api/agent/doublage'
     | '/api/agent/emails'
@@ -474,6 +485,7 @@ export interface FileRouteTypes {
     | '/desinscription/$jeton'
     | '/l/$code'
     | '/api/agent/commentaires'
+    | '/api/agent/concurrents'
     | '/api/agent/coordonnees'
     | '/api/agent/doublage'
     | '/api/agent/emails'
@@ -516,6 +528,7 @@ export interface RootRouteChildren {
   DesinscriptionJetonRoute: typeof DesinscriptionJetonRoute
   LCodeRoute: typeof LCodeRoute
   ApiAgentCommentairesRoute: typeof ApiAgentCommentairesRoute
+  ApiAgentConcurrentsRoute: typeof ApiAgentConcurrentsRoute
   ApiAgentCoordonneesRoute: typeof ApiAgentCoordonneesRoute
   ApiAgentDoublageRoute: typeof ApiAgentDoublageRoute
   ApiAgentEmailsRoute: typeof ApiAgentEmailsRoute
@@ -679,6 +692,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentCommentairesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/concurrents': {
+      id: '/api/agent/concurrents'
+      path: '/api/agent/concurrents'
+      fullPath: '/api/agent/concurrents'
+      preLoaderRoute: typeof ApiAgentConcurrentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/coordonnees': {
       id: '/api/agent/coordonnees'
       path: '/api/agent/coordonnees'
@@ -836,6 +856,7 @@ const rootRouteChildren: RootRouteChildren = {
   DesinscriptionJetonRoute: DesinscriptionJetonRoute,
   LCodeRoute: LCodeRoute,
   ApiAgentCommentairesRoute: ApiAgentCommentairesRoute,
+  ApiAgentConcurrentsRoute: ApiAgentConcurrentsRoute,
   ApiAgentCoordonneesRoute: ApiAgentCoordonneesRoute,
   ApiAgentDoublageRoute: ApiAgentDoublageRoute,
   ApiAgentEmailsRoute: ApiAgentEmailsRoute,
