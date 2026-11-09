@@ -44,6 +44,24 @@ describe("lirePage", () => {
 });
 
 describe("visuelsDePage", () => {
+  it("prend les visuels officiels déclarés en données structurées, le vertical d'abord", async () => {
+    const { visuelsDePage } = await import("./site");
+    const ld = JSON.stringify({
+      "@context": "https://schema.org",
+      "@graph": [
+        { "@type": "Organization", image: "https://www.x.com/equipe.jpg" },
+        { "@type": "SoftwareApplication", image: ["https://www.x.com/og-image.jpg", "/images/partage/demo-carre.jpg", "/images/partage/demo-vertical.jpg"] },
+      ],
+    });
+    const html = `<head><meta property="og:image" content="https://www.x.com/og-image.jpg"/><script type="application/ld+json">${ld}</script><script type="application/ld+json">{cassé</script></head>`;
+    const v = visuelsDePage(html, new URL("https://www.x.com/"));
+    expect(v.map((x) => [x.url, x.source])).toEqual([
+      ["https://www.x.com/images/partage/demo-vertical.jpg", "img"],
+      ["https://www.x.com/images/partage/demo-carre.jpg", "img"],
+      ["https://www.x.com/og-image.jpg", "og"],
+    ]);
+  });
+
   it("met les captures du produit en tête, verticales d'abord, et ignore les petites images", async () => {
     const { visuelsDePage } = await import("./site");
     const html = `<head><meta property="og:image" content="https://www.x.com/og-image.png"/><link rel="apple-touch-icon" href="/icon-192.png"/></head>
