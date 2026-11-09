@@ -114,6 +114,36 @@ export type VisuelSite = { url: string; alt: string; largeur: number; hauteur: n
 const MOTS_PRODUIT = /screen|capture|dashboard|tableau de bord|mockup|app|interface|écran|ecran|smartphone|mobile|tablette|tablet|produit|product|demo/i;
 const MOTS_A_EVITER = /logo|avatar|pixel|tracking|sprite|badge|flag|drapeau|emoji|spinner/i;
 
+// Adresses des images déclarées dans les blocs JSON-LD de la page, pour les
+// nœuds qui décrivent le produit. JSON illisible : ignoré.
+const TYPES_PRODUIT = /^(SoftwareApplication|WebApplication|MobileApplication|Product|Service)$/;
+export function visuelsDeclares(html: string): string[] {
+  const urls: string[] = [];
+  const lire = (x: unknown) => {
+    if (typeof x === "string") urls.push(x);
+    else if (Array.isArray(x)) x.forEach(lire);
+    else if (x && typeof x === "object") lire((x as Record<string, unknown>).url ?? (x as Record<string, unknown>).contentUrl);
+  };
+  const visiter = (n: unknown) => {
+    if (Array.isArray(n)) return n.forEach(visiter);
+    if (!n || typeof n !== "object") return;
+    const o = n as Record<string, unknown>;
+    if ([o["@type"]].flat().some((t) => typeof t === "string" && TYPES_PRODUIT.test(t))) {
+      lire(o.image);
+      lire(o.screenshot);
+    }
+    visiter(o["@graph"]);
+  };
+  for (const m of html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      visiter(JSON.parse(m[1]));
+    } catch {
+      /* bloc illisible : on passe au suivant */
+    }
+  }
+  return urls.slice(0, 8);
+}
+
 // Images utiles d'une page, les plus parlantes d'abord : captures du produit
 // (verticales en tête, idéales pour une vidéo 9:16), puis image de partage,
 // puis logo.
@@ -149,6 +179,12 @@ export function visuelsDePage(html: string, base: URL): VisuelSite[] {
   }
   const og = absolu(meta(html, "og:image") || meta(html, "twitter:image"));
   if (og) ajouter({ url: og, alt: meta(html, "og:title"), largeur: Number(meta(html, "og:image:width")) || 1200, hauteur: Number(meta(html, "og:image:height")) || 630, source: "og" }, 5);
+  // Visuels officiels du produit déclarés par le site (données structurées
+  // schema.org : `image` ou `screenshot` d'un logiciel ou d'un produit).
+  for (const url of visuelsDeclares(html)) {
+    const u = absolu(url);
+    if (u && !MOTS_A_EVITER.test(u)) ajouter({ url: u, alt: "", largeur: 0, hauteur: 0, source: "img" }, /vertical|portrait|mobile|story/i.test(u) ? 11 : 8);
+  }
   for (const m of html.matchAll(/<link\b[^>]*rel=["'][^"']*(apple-touch-icon|icon)[^"']*["'][^>]*>/gi)) {
     const url = absolu(attribut(m[0], "href"));
     if (url) ajouter({ url, alt: "logo", largeur: 0, hauteur: 0, source: "icone" }, 0);
