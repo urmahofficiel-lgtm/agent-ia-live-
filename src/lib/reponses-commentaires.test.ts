@@ -11,6 +11,17 @@ describe("réponses aux commentaires", () => {
     expect(consigneReponse(c, null)).toContain("« liker »");
   });
 
+  it("LinkedIn : suit le tutoiement du post et renvoie vers le premier commentaire", () => {
+    const c = { plateforme: "linkedin", auteur: "Marc", texte: "GUIDE", post: "Tu perds des heures sur tes devis ? Commente « GUIDE »." };
+    const t = consigneReponse(c, null);
+    expect(t).toContain("Tutoiement");
+    expect(t).toContain("le lien est dans le premier commentaire");
+    expect(t).not.toContain("lien en bio 👆");
+    expect(consigneReponse({ ...c, post: "Vous perdez des heures sur vos devis ?" }, null)).toContain("Vouvoiement");
+    // Hors LinkedIn, le mot demandé renvoie toujours au lien en bio.
+    expect(consigneReponse({ ...c, plateforme: "tiktok" }, null)).toContain("lien en bio 👆");
+  });
+
   it("lit la décision de l'IA et nettoie la réponse", () => {
     expect(lireDecision('{"action": "repondre", "texte": "Merci ! Tu comptes combien de jours ? #btp https://x.fr"}')).toEqual({
       action: "repondre",

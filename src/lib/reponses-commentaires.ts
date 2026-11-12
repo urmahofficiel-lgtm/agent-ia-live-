@@ -9,8 +9,13 @@ export type DecisionCommentaire = { action: "repondre" | "liker" | "ignorer"; te
 // reliés par l'application TikTok Business, d'après sa page « Inbox »).
 export const LIKE_POSSIBLE = new Set(["tiktok", "facebook", "linkedin", "x", "twitter", "bluesky", "reddit"]);
 
+// Notre publication tutoie-t-elle (tu, ton, ta, tes, t'…) ?
+const POST_TUTOIE = /\b(tu|toi|ton|ta|tes)\b|\bt['’]/i;
+
 export function consigneReponse(c: { plateforme: string; auteur: string; texte: string; post: string }, contexte: string | null) {
-  const tutoie = c.plateforme === "tiktok" || c.plateforme === "instagram";
+  // On tutoie sur TikTok et Instagram, et partout où notre publication tutoie
+  // elle-même (posts LinkedIn « guide gratuit » écrits au tutoiement).
+  const tutoie = c.plateforme === "tiktok" || c.plateforme === "instagram" || POST_TUTOIE.test(c.post);
   return [
     "Tu gères les commentaires des réseaux sociaux de cette marque. Un internaute vient de commenter une de nos publications.",
     contexte ? `Fiche de la marque :\n${contexte.slice(0, 2500)}` : "",
@@ -34,7 +39,7 @@ export function consigneReponse(c: { plateforme: string; auteur: string; texte: 
     "- Pas de pub dans chaque réponse : parle du logiciel seulement si la personne pose une question dessus ; alors réponds avec la fiche et termine par « lien en bio ».",
     "- Jamais de numéro, d'adresse, de lien ni de donnée personnelle. Pas de hashtag.",
     "- Critique ou client mécontent : reste calme, remercie, propose d'en parler en message privé.",
-    "- Si le commentaire est le mot demandé par la publication (« Commente DEVIS », etc.), c'est une demande d'accès : réponds « repondre », remercie et donne l'accès en une phrase, terminée par « lien en bio 👆 ».",
+    `- Si le commentaire est le mot demandé par la publication (« Commente DEVIS », etc.), c'est une demande d'accès : réponds « repondre », remercie et donne l'accès en une phrase, terminée par « ${c.plateforme === "linkedin" ? "le lien est dans le premier commentaire 👆" : "lien en bio 👆"} ».`,
     "",
     'Réponds uniquement en JSON : {"action": "repondre" | "liker" | "ignorer", "texte": "<réponse, vide sauf pour repondre>"}',
   ]
