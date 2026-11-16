@@ -25,3 +25,4 @@ Fichiers sources : visuels dans `public/linkedin/`, générateur dans le carnet 
 ## Journal des contrôles
 | Date | Post | Vues | J'aime | Commentaires (dont mot) | Réponses et lien en 1er commentaire OK ? | Enseignement | Changement à tester ensuite |
 |---|---|---|---|---|---|---|---|
+| 2026-11-16 | Guide IA (LinkedIn 13/11) + carrousel TikTok 13/11 + Instagram | LinkedIn 11 · TikTok 658 · Insta n/d | LinkedIn 0 · TikTok 12 (3 partages) · Insta 0 | LinkedIn 1 comm., 0 mot GUIDE · TikTok 0 · Insta 0 | Lien en 1er commentaire LinkedIn publié OK ; aucune réponse à envoyer | Le carrousel guide fait ~60x le LinkedIn (658 vs 11 vues) : le format cadeau marche surtout sur TikTok, LinkedIn reste minuscule | Sur le prochain carrousel TikTok, ajouter « commente GUIDE » dans la 1re diapo et vérifier le lien en bio |
