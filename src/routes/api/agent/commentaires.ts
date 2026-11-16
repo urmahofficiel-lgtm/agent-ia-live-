@@ -17,7 +17,7 @@ async function traiter(secret: string) {
   const sb = clientMoteur();
   const { data, error } = await sb.rpc("agent_reponses_auto", { p_secret: secret });
   if (error) throw new Error(error.message);
-  const bilan = { lus: 0, reponses: 0, likes: 0, ignores: 0, echecs: 0, lecture: [] as string[], ia: [] as string[] };
+  const bilan = { lus: 0, reponses: 0, likes: 0, ignores: 0, aValider: 0, echecs: 0, lecture: [] as string[], ia: [] as string[] };
   for (const compte of (data ?? []) as Compte[]) {
     const deja = new Set(compte.deja ?? []);
     const nouveaux = (
@@ -58,6 +58,13 @@ async function traiter(secret: string) {
         const decision = lireDecision(brut);
         // Like impossible sur ce réseau : rien à faire.
         if (decision.action === "liker" && !LIKE_POSSIBLE.has(c.platform)) decision.action = "ignorer";
+        // Question précise : rien n'est publié, la réponse proposée attend
+        // l'utilisateur dans le journal.
+        if (decision.action === "a_valider") {
+          bilan.aValider++;
+          await noter("a_valider", decision.texte || null);
+          continue;
+        }
         if (decision.action === "ignorer") {
           bilan.ignores++;
           await noter("ignorer", null);

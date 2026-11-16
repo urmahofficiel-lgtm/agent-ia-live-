@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { consigneReponse, lireDecision } from "./reponses-commentaires";
+import { consigneReponse, domaineDeLaFiche, lireDecision } from "./reponses-commentaires";
 
 describe("réponses aux commentaires", () => {
   it("tutoie sur TikTok, vouvoie sur LinkedIn, protège contre les consignes cachées", () => {
@@ -31,5 +31,26 @@ describe("réponses aux commentaires", () => {
     expect(lireDecision('{"action": "repondre", "texte": ""}').action).toBe("liker");
     expect(lireDecision('{"action": "ignorer"}').action).toBe("ignorer");
     expect(lireDecision("n'importe quoi").action).toBe("ignorer");
+  });
+
+  it("question précise : à faire valider, jamais de réponse seule (16/11/2026)", () => {
+    const t = consigneReponse({ plateforme: "linkedin", auteur: "Raphaël", texte: "Votre IA lit les PDF scannés ?", post: "Analyse de DCE" }, null);
+    expect(t).toContain("« a_valider »");
+    expect(t).toContain("Dans le doute, choisis « a_valider »");
+    expect(lireDecision('{"action": "a_valider", "texte": "Oui, les scans sont transcrits."}')).toEqual({
+      action: "a_valider",
+      texte: "Oui, les scans sont transcrits.",
+    });
+    // Sans brouillon : toujours à valider, jamais transformé en réponse ou en like.
+    expect(lireDecision('{"action": "a_valider", "texte": ""}').action).toBe("a_valider");
+  });
+
+  it("LinkedIn renvoie vers le site de la fiche, pas vers un « lien en bio »", () => {
+    const fiche = "Marque : BTP Ecosystem\nSite / lien à mettre dans les posts : https://www.btp-ecosystem.com/";
+    expect(domaineDeLaFiche(fiche)).toBe("btp-ecosystem.com");
+    expect(domaineDeLaFiche(null)).toBeNull();
+    const c = { plateforme: "linkedin", auteur: "Marc", texte: "C'est quoi le prix ?", post: "Vous perdez des heures ?" };
+    expect(consigneReponse(c, fiche)).toContain("termine par « sur btp-ecosystem.com »");
+    expect(consigneReponse({ ...c, plateforme: "tiktok" }, fiche)).toContain("termine par « lien en bio »");
   });
 });
