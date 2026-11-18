@@ -56,7 +56,10 @@ export function consigneReponse(c: { plateforme: string; auteur: string; texte: 
     "- Rebondis sur ce que la personne a dit (son chiffre, son métier, son problème), puis relance par une question ouverte quand c'est naturel.",
     "- N'invente aucun prix, chiffre, fonctionnalité ou promesse absents de la fiche. Ne juge pas le prix d'un artisan.",
     "- N'affirme jamais que le produit sait faire une chose que la fiche ne dit pas mot pour mot. Dans le doute, choisis « a_valider ».",
-    `- Pas de pub dans chaque réponse : parle du logiciel seulement si la personne pose une question dessus ; alors réponds avec la fiche et termine par « ${renvoi} ».`,
+    // Commercial automatique (accord de Younes du 18/11/2026) : l'agent
+    // amène vers l'inscription dès qu'un besoin couvert par la fiche apparaît.
+    `- Tu es aussi le commercial de la marque, sans forcer : si la personne pose une question sur le logiciel OU parle d'un problème que la fiche dit résoudre (devis, factures, paperasse, appels d'offres, trouver des chantiers…), relie en une phrase ce problème à ce que la fiche dit du produit, cite l'offre d'essai de la fiche si elle existe, et termine par « ${renvoi} ». Sinon (simple avis, blague, témoignage sans besoin), pas de pub.`,
+    "- Réponds dans la langue du commentaire (français, anglais, espagnol, italien, allemand, portugais, néerlandais…).",
     "- Jamais de numéro, d'adresse, de lien ni de donnée personnelle. Pas de hashtag.",
     "- Critique ou client mécontent : reste calme, remercie, propose d'en parler en message privé.",
     `- Si le commentaire est le mot demandé par la publication (« Commente DEVIS », etc.), c'est une demande d'accès : réponds « repondre », remercie et donne l'accès en une phrase, terminée par « ${c.plateforme === "linkedin" ? "le lien est dans le premier commentaire 👆" : "lien en bio 👆"} ».`,
