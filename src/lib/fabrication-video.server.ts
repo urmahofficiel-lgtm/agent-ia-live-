@@ -6,6 +6,7 @@ import type { PlanAnime } from "./hyperframes";
 import type { Explication } from "./explication";
 import type { Decoupe } from "./decoupe";
 import { consigneHistoire, estHistoire, lireHistoire, planFinal } from "./decoupe-script";
+import { ficheDeConsigne } from "./histoires";
 import { rechercherHistoire } from "./histoire.server";
 import { photo as photoPexels } from "./pexels.server";
 import { consigneDescriptionCapture, consigneExplication, descriptionDuNom, dureesSurVoix, lireExplication, phraseFinale, texteVoix } from "./explication-script";
@@ -464,11 +465,17 @@ async function fabriquerHistoire(
   const marque = contexte?.match(/Marque\s*:\s*(.+)/)?.[1]?.trim() || "";
   if (!marque) throw new Error("nom de la marque introuvable dans la fiche");
   const site = siteMarque || contexte?.match(/Site \/ lien[^:]*: (\S+)/)?.[1] || "";
-  await journal("action", `📚 Recherche des faits de l'histoire : « ${t.titre} »`);
   const sujet = t.titre.replace(/^histoire\s*:\s*/i, "");
-  const sources = await rechercherHistoire(`${sujet} histoire construction`);
-  if (sources.length < 2) throw new Error("sources web introuvables pour cette histoire");
-  await journal("info", `🔎 ${sources.length} sources : ${sources.map((s) => new URL(s.url).hostname.replace(/^www\./, "")).join(", ")}`);
+  // Fiche de l'agent de recherche (Histoires du jour) si elle existe, sinon
+  // une recherche web rapide sur le titre.
+  const fiche = ficheDeConsigne(t.consigne);
+  let sources = fiche ? [{ titre: `Fiche de recherche : ${sujet}`, url: "fiche", texte: fiche }] : [];
+  if (!fiche) {
+    await journal("action", `📚 Recherche des faits de l'histoire : « ${t.titre} »`);
+    sources = await rechercherHistoire(`${sujet} histoire construction`);
+    if (sources.length < 2) throw new Error("sources web introuvables pour cette histoire");
+    await journal("info", `🔎 ${sources.length} sources : ${sources.map((s) => s.url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]).join(", ")}`);
+  }
   const textes = sources.map((s) => `${s.titre} ${s.texte}`).join("\n") + `\n${t.titre} ${t.consigne}`;
   const interdits = [marque, marque.replace(/\s+/g, ""), marque.split(/\s+/)[0]].filter((m) => m.length >= 3);
   await journal("action", `🎬 Écriture du script « Histoire » (papier découpé) : « ${t.titre} »`);
@@ -521,7 +528,8 @@ async function fabriquerHistoire(
   };
   const base = await animer(fichiers);
   await etat({
-    brouillon: t.brouillon || script.legende,
+    // La légende de l'histoire (sans la marque) passe avant le texte publicitaire.
+    brouillon: script.legende || t.brouillon,
     video_script: { ...script, sources: sources.map((s) => s.url) },
     video_etat: "a_rendre",
     video_debut: new Date().toISOString(),

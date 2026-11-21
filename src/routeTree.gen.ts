@@ -33,6 +33,7 @@ import { Route as ApiAgentConcurrentsRouteImport } from './routes/api/agent/conc
 import { Route as ApiAgentCoordonneesRouteImport } from './routes/api/agent/coordonnees'
 import { Route as ApiAgentDoublageRouteImport } from './routes/api/agent/doublage'
 import { Route as ApiAgentEmailsRouteImport } from './routes/api/agent/emails'
+import { Route as ApiAgentHistoiresRouteImport } from './routes/api/agent/histoires'
 import { Route as ApiAgentMarchesRouteImport } from './routes/api/agent/marches'
 import { Route as ApiAgentNouveautesRouteImport } from './routes/api/agent/nouveautes'
 import { Route as ApiAgentStatsRouteImport } from './routes/api/agent/stats'
@@ -170,6 +171,11 @@ const ApiAgentEmailsRoute = ApiAgentEmailsRouteImport.update({
   path: '/api/agent/emails',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentHistoiresRoute = ApiAgentHistoiresRouteImport.update({
+  id: '/api/agent/histoires',
+  path: '/api/agent/histoires',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentMarchesRoute = ApiAgentMarchesRouteImport.update({
   id: '/api/agent/marches',
   path: '/api/agent/marches',
@@ -276,6 +282,7 @@ export interface FileRoutesByFullPath {
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
+  '/api/agent/histoires': typeof ApiAgentHistoiresRoute
   '/api/agent/marches': typeof ApiAgentMarchesRoute
   '/api/agent/nouveautes': typeof ApiAgentNouveautesRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
@@ -318,6 +325,7 @@ export interface FileRoutesByTo {
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
+  '/api/agent/histoires': typeof ApiAgentHistoiresRoute
   '/api/agent/marches': typeof ApiAgentMarchesRoute
   '/api/agent/nouveautes': typeof ApiAgentNouveautesRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
@@ -361,6 +369,7 @@ export interface FileRoutesById {
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
+  '/api/agent/histoires': typeof ApiAgentHistoiresRoute
   '/api/agent/marches': typeof ApiAgentMarchesRoute
   '/api/agent/nouveautes': typeof ApiAgentNouveautesRoute
   '/api/agent/stats': typeof ApiAgentStatsRoute
@@ -405,6 +414,7 @@ export interface FileRouteTypes {
     | '/api/agent/coordonnees'
     | '/api/agent/doublage'
     | '/api/agent/emails'
+    | '/api/agent/histoires'
     | '/api/agent/marches'
     | '/api/agent/nouveautes'
     | '/api/agent/stats'
@@ -447,6 +457,7 @@ export interface FileRouteTypes {
     | '/api/agent/coordonnees'
     | '/api/agent/doublage'
     | '/api/agent/emails'
+    | '/api/agent/histoires'
     | '/api/agent/marches'
     | '/api/agent/nouveautes'
     | '/api/agent/stats'
@@ -489,6 +500,7 @@ export interface FileRouteTypes {
     | '/api/agent/coordonnees'
     | '/api/agent/doublage'
     | '/api/agent/emails'
+    | '/api/agent/histoires'
     | '/api/agent/marches'
     | '/api/agent/nouveautes'
     | '/api/agent/stats'
@@ -532,6 +544,7 @@ export interface RootRouteChildren {
   ApiAgentCoordonneesRoute: typeof ApiAgentCoordonneesRoute
   ApiAgentDoublageRoute: typeof ApiAgentDoublageRoute
   ApiAgentEmailsRoute: typeof ApiAgentEmailsRoute
+  ApiAgentHistoiresRoute: typeof ApiAgentHistoiresRoute
   ApiAgentMarchesRoute: typeof ApiAgentMarchesRoute
   ApiAgentNouveautesRoute: typeof ApiAgentNouveautesRoute
   ApiAgentStatsRoute: typeof ApiAgentStatsRoute
@@ -720,6 +733,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentEmailsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/histoires': {
+      id: '/api/agent/histoires'
+      path: '/api/agent/histoires'
+      fullPath: '/api/agent/histoires'
+      preLoaderRoute: typeof ApiAgentHistoiresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/marches': {
       id: '/api/agent/marches'
       path: '/api/agent/marches'
@@ -860,6 +880,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAgentCoordonneesRoute: ApiAgentCoordonneesRoute,
   ApiAgentDoublageRoute: ApiAgentDoublageRoute,
   ApiAgentEmailsRoute: ApiAgentEmailsRoute,
+  ApiAgentHistoiresRoute: ApiAgentHistoiresRoute,
   ApiAgentMarchesRoute: ApiAgentMarchesRoute,
   ApiAgentNouveautesRoute: ApiAgentNouveautesRoute,
   ApiAgentStatsRoute: ApiAgentStatsRoute,
