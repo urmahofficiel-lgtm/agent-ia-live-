@@ -5,7 +5,7 @@ import { extensionImage, monterVideo } from "./video.server";
 import type { PlanAnime } from "./hyperframes";
 import type { Explication } from "./explication";
 import type { Decoupe } from "./decoupe";
-import { consigneHistoire, consignePresentation, estDecoupe, estPresentation, lireHistoire, planFinal } from "./decoupe-script";
+import { consigneHistoire, consignePresentation, estDecoupe, estHistoire, lireHistoire, planFinal } from "./decoupe-script";
 import { ficheDeConsigne } from "./histoires";
 import { rechercherHistoire } from "./histoire.server";
 import { photo as photoPexels } from "./pexels.server";
@@ -124,14 +124,15 @@ export async function fabriquerVideo(
   { journal, etat, deposer, captures: liensCaptures, animer, capturesDecrites, decrireCapture }: AtelierVideo,
   style: StyleVideo = "classique",
 ) {
-  // Histoire vraie du monde de la construction, en papier découpé : format
-  // propre, rendu par le robot HyperFrames. En cas d'échec, rien n'est publié
-  // (pas de vidéo de marque à la place d'une histoire).
-  if (estDecoupe(t.consigne)) {
-    if (!animer) throw new Error("le rendu animé n'est pas disponible pour cet essai");
-    await fabriquerHistoire(t, contexte, siteMarque, { journal, etat, animer });
+  // Depuis le 21/11/2026 (choix de Younes), TOUTES les vidéos sont en papier
+  // découpé (rendu par le robot HyperFrames) : histoire vraie si la consigne
+  // le demande, sinon le sujet de la publication présenté par la marque.
+  // En cas d'échec, pas de retour à l'ancien style : l'erreur est remontée.
+  if (animer) {
+    await fabriquerHistoire(t, contexte, siteMarque, { journal, etat, animer }, estHistoire(t.consigne) ? "histoire" : "presentation");
     return "";
   }
+  if (estDecoupe(t.consigne)) throw new Error("le rendu animé n'est pas disponible pour cet essai");
   if (estJournee(t.consigne)) style = "journee";
   // Vidéo animée HyperFrames demandée : elle passe avant les styles Studio et
   // conversation, qui ont leur propre montage (script de style « face caméra »).
@@ -177,20 +178,6 @@ export async function fabriquerVideo(
   if (ecransAppli.length) await journal("info", `📱 ${ecransAppli.length} capture(s) de votre application pour montrer le produit.`);
   else if (capturesSite.length) await journal("info", `🖥️ ${capturesSite.length} visuel(s) de votre site récupéré(s) pour montrer le produit.`);
   const produitVisible = ecransAppli.length > 0 || capturesSite.length > 0;
-
-  // Vidéo « Explication » (format « une astuce par jour », sans visage) quand
-  // le rendu HyperFrames est branché ; sinon ou en cas d'échec, la suite.
-  if (animer) {
-    try {
-      // Écrans décrits si l'atelier les fournit, sinon les captures déjà choisies.
-      const ecrans: Ecran[] = capturesDecrites
-        ? await ecransDecrits({ capturesDecrites, decrireCapture })
-        : ecransAppli.map((img, i) => ({ description: `Écran de l'application n° ${i + 1}`, image: async () => img }));
-      if (await fabriquerExplication(t, contexte, ecrans, accent ?? (site ? await couleurDuSite(site).catch(() => null) : null), { journal, etat, animer })) return "";
-    } catch (err) {
-      await journal("info", `Format Explication impossible (${err instanceof Error ? err.message.slice(0, 120) : "erreur"}) : vidéo animée classique à la place.`);
-    }
-  }
 
   await journal("action", `🎬 Écriture du script vidéo${style === "classique" ? "" : ` (style ${nomStyleVideo(style)})`} : « ${t.titre} »`);
   // Budget serré : la fonction entière doit tenir sous les 5 minutes de Vercel.
@@ -266,44 +253,6 @@ export async function fabriquerVideo(
   });
   const nbClips = medias.filter((m) => m.clip).length;
   await journal("info", `Scènes prêtes : ${medias.filter((m) => m.cadre).length} vue(s) du produit, ${nbClips} séquence(s) filmée(s), ${medias.length - nbClips - medias.filter((m) => m.cadre).length} image(s).`);
-
-  // Vidéo animée : la page est déposée, le robot de rendu la filme (10 à 20
-  // min). En cas de problème, montage classique tout de suite.
-  if (animer) {
-    try {
-      await journal("action", "✨ Préparation de la vidéo animée (HyperFrames)…");
-      const images: FichierAnime[] = medias.map((m, i) => {
-        const ext = extensionImage(m.image);
-        return { nom: `s${i}.${ext}`, donnees: m.image ?? Buffer.alloc(0), type: ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg" };
-      });
-      const audio: FichierAnime[] = [{ nom: "musique.m4a", donnees: Buffer.from(MUSIQUE_FOND_BASE64, "base64"), type: "audio/mp4" }];
-      if (voix) audio.push({ nom: "voix.wav", donnees: voix.format === "pcm" ? wavDepuisPcm(voix.donnees) : voix.donnees, type: "audio/wav" });
-      const plan: PlanAnime = {
-        scenes: script.scenes.map((s, i) => ({ texte_ecran: s.texte_ecran, voix: s.voix, duree: d[i], image: images[i].nom, produit: Boolean(medias[i].cadre), repere: s.repere || undefined })),
-        voix: voix ? "voix.wav" : null,
-        musique: "musique.m4a",
-        marque: contexte?.match(/Marque\s*:\s*(.+)/)?.[1]?.trim() || "",
-        accent: accent ?? (site ? await couleurDuSite(site).catch(() => null) : null),
-        fin: contexte?.match(/Appel à l'action\s*:\s*(.+)/)?.[1]?.trim().slice(0, 70) || null,
-      };
-      const fichiers = [...images, ...audio];
-      const base = await animer(fichiers);
-      await etat({
-        brouillon: t.brouillon || script.legende,
-        video_script: script,
-        video_etat: "a_rendre",
-        video_debut: new Date().toISOString(),
-        // Le robot écrit la page animée à partir de ce plan (compositionAnimee).
-        video_rendu: { base, fichiers: fichiers.map((f) => f.nom), plan },
-        video_style: "anime",
-        video_erreur: null,
-      });
-      await journal("info", "🎞️ Vidéo animée envoyée au studio de rendu : prête d'ici 10 à 20 minutes.");
-      return "";
-    } catch (err) {
-      await journal("erreur", `Vidéo animée impossible (${err instanceof Error ? err.message.slice(0, 120) : "erreur"}) : montage classique à la place.`);
-    }
-  }
 
   await journal("action", "✂️ Montage de la vidéo (zoom, textes, voix)…");
   const mp4 = await monterVideo(
@@ -460,13 +409,14 @@ async function fabriquerHistoire(
   contexte: string | null,
   siteMarque: string | null,
   { journal, etat, animer }: Pick<AtelierVideo, "journal" | "etat"> & { animer: NonNullable<AtelierVideo["animer"]> },
+  mode: "histoire" | "presentation",
 ) {
   if (!voixConfiguree()) throw new Error("voix off indisponible");
   const marque = contexte?.match(/Marque\s*:\s*(.+)/)?.[1]?.trim() || "";
   if (!marque) throw new Error("nom de la marque introuvable dans la fiche");
   const site = siteMarque || contexte?.match(/Site \/ lien[^:]*: (\S+)/)?.[1] || "";
   const sujet = t.titre.replace(/^(histoire|présentation)\s*:\s*/i, "");
-  const presentation = estPresentation(t.consigne);
+  const presentation = mode === "presentation";
   let sources: { titre: string; url: string; texte: string }[];
   if (presentation) {
     // Présentation de la marque : la fiche de la marque est la seule source.
@@ -489,7 +439,11 @@ async function fabriquerHistoire(
   const interdits = presentation ? [] : [marque, marque.replace(/\s+/g, ""), marque.split(/\s+/)[0]].filter((m) => m.length >= 3);
   await journal("action", `🎬 Écriture du script « ${presentation ? "Présentation" : "Histoire"} » (papier découpé) : « ${t.titre} »`);
   const script = lireHistoire(
-    await demanderIA(presentation ? consignePresentation(sujet, contexte ?? "", marque) : consigneHistoire(sujet, sources, marque), {
+    await demanderIA(
+      presentation
+        ? consignePresentation([sujet, t.consigne, t.brouillon ? `Texte de la publication : ${t.brouillon.slice(0, 700)}` : ""].filter(Boolean).join("\n"), contexte ?? "", marque)
+        : consigneHistoire(sujet, sources, marque),
+      {
       systeme: "Tu es scénariste de vidéos courtes pour le bâtiment. Tu réponds uniquement en JSON valide.",
       maxTokens: 1500,
       // NVIDIA d'abord (60 % du temps pour son modèle encore actif) : Gemini
@@ -537,8 +491,9 @@ async function fabriquerHistoire(
   };
   const base = await animer(fichiers);
   await etat({
-    // La légende de l'histoire (sans la marque) passe avant le texte publicitaire.
-    brouillon: script.legende || t.brouillon,
+    // Histoire : sa légende (sans la marque) passe avant le texte publicitaire ;
+    // présentation : le texte déjà rédigé pour la publication reste.
+    brouillon: presentation ? t.brouillon || script.legende : script.legende || t.brouillon,
     video_script: { ...script, sources: sources.map((s) => s.url) },
     video_etat: "a_rendre",
     video_debut: new Date().toISOString(),

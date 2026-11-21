@@ -9,7 +9,6 @@ import type { PhotoStockee } from "@/lib/phototheque";
 import { fabriquerVideo } from "@/lib/fabrication-video.server";
 import { clientMoteur } from "@/lib/supabase-serveur";
 import { lireStyleImage, lireStyleVideo, styleVideoPour } from "@/lib/styles";
-import { estDecoupe } from "@/lib/decoupe-script";
 import { planifierJournees } from "@/lib/pilote.server";
 import { estEtranger, marcheDe } from "@/lib/marches";
 import { controlerPublication, type DejaPubliee } from "@/lib/controle-qualite";
@@ -322,7 +321,7 @@ async function tick(secret: string) {
           // rendu GitHub est branché (variable RENDU_ANIME=github) ; sinon,
           // ou au second essai, montage classique.
           animer:
-            process.env.RENDU_ANIME === "github" && v.plateforme === "tiktok" && (v.essais === 0 || estDecoupe(v.consigne))
+            process.env.RENDU_ANIME === "github"
               ? async (fichiers) => {
                   const { data: ticket, error } = await sb.rpc("agent_depot_video", { p_secret: secret, p_user: v.user_id });
                   if (error || !ticket) throw new Error("Dépôt des fichiers refusé.");
@@ -359,7 +358,9 @@ async function tick(secret: string) {
         traitees++;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "erreur";
-        await maj(v.tache_id, null, { video_etat: "echec", video_erreur: msg }, "erreur", `${v.plateforme === "tiktok" ? "Vidéo TikTok" : "Reel"} non créé${v.plateforme === "tiktok" ? "e" : ""} pour « ${v.titre} » : ${msg}`);
+        // Premier échec (IA saturée le plus souvent) : la vidéo repasse en file
+        // pour un second essai ; au second échec, elle s'arrête.
+        await maj(v.tache_id, null, { video_etat: v.essais === 0 ? null : "echec", video_erreur: msg }, "erreur", `${v.plateforme === "tiktok" ? "Vidéo TikTok" : "Reel"} non créé${v.plateforme === "tiktok" ? "e" : ""} pour « ${v.titre} » : ${msg}`);
       }
     }
   }
