@@ -16,6 +16,33 @@ COTE_MAX = 700  # taille de la découpe, bordure comprise
 BORDURE = 16
 
 
+def part_du_plus_gros_morceau(masque):
+    """Part du sujet tenue par son plus gros morceau d'un seul tenant (0 à 1).
+    Un détourage raté laisse des débris éparpillés : cette part est alors faible."""
+    petit = masque.copy()
+    petit.thumbnail((160, 160))
+    l, h = petit.size
+    px = petit.load()
+    vu = [[False] * h for _ in range(l)]
+    total, plus_gros = 0, 0
+    for x0 in range(l):
+        for y0 in range(h):
+            if vu[x0][y0] or px[x0, y0] < 128:
+                continue
+            pile, n = [(x0, y0)], 0
+            vu[x0][y0] = True
+            while pile:
+                x, y = pile.pop()
+                n += 1
+                for a, b in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                    if 0 <= a < l and 0 <= b < h and not vu[a][b] and px[a, b] >= 128:
+                        vu[a][b] = True
+                        pile.append((a, b))
+            total += n
+            plus_gros = max(plus_gros, n)
+    return plus_gros / total if total else 0.0
+
+
 def decouper(chemin_entree, chemin_sortie, session):
     from rembg import remove
 
@@ -30,6 +57,14 @@ def decouper(chemin_entree, chemin_sortie, session):
     # Un sujet fin (une tour, une grue) occupe peu de place : seul « rien » ou « tout » est refusé.
     if couverture < 0.01 or couverture > 0.97:
         return f"détourage inutilisable (couverture {couverture:.0%})"
+    # Sujet « fantôme » (à moitié transparent) : le modèle n'a pas su trancher.
+    h = alpha.histogram()
+    nette = sum(h[201:]) / max(1, sum(h[41:]))
+    if nette < 0.7:
+        return f"détourage flou ({nette:.0%} net)"
+    part = part_du_plus_gros_morceau(alpha.point(lambda v: 255 if v > 40 else 0))
+    if part < 0.8:
+        return f"détourage en morceaux ({part:.0%} d'un seul tenant)"
     sujet = sujet.crop(boite)
     k = (COTE_MAX - 2 * (BORDURE + 20)) / max(sujet.size)
     sujet = sujet.resize((max(1, int(sujet.width * k)), max(1, int(sujet.height * k))), Image.LANCZOS)

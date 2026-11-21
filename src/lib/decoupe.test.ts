@@ -156,3 +156,22 @@ describe("présentation de la marque (même style)", () => {
     expect(s?.plans[0].recherche_photo).toBe("builder smartphone");
   });
 });
+
+describe("coupures de journal propres (retours du 21/11)", () => {
+  const fiche = "Marque : BTP Ecosystem. Devis IA par la voix.";
+  const plan = (o: Record<string, unknown>) => ({ titre: "MARRE DE LA *PAPERASSE*", extrait: "Les devis du *soir* en retard.", phrase: "Tu en as *assez* ?", icones: ["Hammer"], ...o });
+  it("retire les astérisques du titre et de l'extrait, pas de la phrase", () => {
+    const s = lireHistoire(JSON.stringify({ plans: [plan({}), plan({}), plan({}), plan({}), plan({})], legende: "" }), fiche, []);
+    expect(s?.plans[0].titre).toBe("MARRE DE LA PAPERASSE");
+    expect(s?.plans[0].extrait).toBe("Les devis du soir en retard.");
+    expect(s?.plans[0].phrase).toBe("Tu en as *assez* ?");
+  });
+  it("refuse une coupure recopiée en anglais", async () => {
+    const { enAnglais } = await import("./decoupe-script");
+    expect(enAnglais("Construction started on March, and the building opened")).toBe(true);
+    expect(enAnglais("Le chantier démarre en mars et l'immeuble ouvre en mai.")).toBe(false);
+    const anglais = plan({ extrait: "Planning begins during the Race to the Sky competition" });
+    const s = lireHistoire(JSON.stringify({ plans: [plan({}), plan({}), plan({}), plan({}), plan({}), anglais], legende: "" }), fiche, []);
+    expect(s?.plans).toHaveLength(5);
+  });
+});

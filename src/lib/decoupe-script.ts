@@ -31,8 +31,8 @@ ${sources.slice(0, 4).map((s, i) => `[${i + 1}] ${s.titre} — ${s.texte.slice(0
 
 Structure : plan 1 = accroche qui arrête le défilement (le paradoxe, le chiffre ou l'exploit de l'histoire) ; puis le contexte, l'obstacle, le tournant, le résultat ; le dernier plan donne ce que ça nous apprend pour un chantier. Ne parle JAMAIS de « ${marque} » ni d'un produit, d'un logiciel ou d'une marque : l'appel à l'action est ajouté automatiquement après ton dernier plan.
 Chaque plan :
-- "titre" : titre de la coupure de journal, MAJUSCULES, 34 caractères au plus, 3 à 6 mots (le dernier mot sera surligné) ;
-- "extrait" : une phrase de la coupure, 95 caractères au plus ;
+- "titre" : titre de la coupure de journal EN FRANÇAIS, MAJUSCULES, 34 caractères au plus, 3 à 6 mots, sans astérisques (le dernier mot sera surligné) ;
+- "extrait" : une phrase de la coupure EN FRANÇAIS (traduis les sources étrangères), tutoiement, 95 caractères au plus, sans astérisques ;
 - "phrase" : la phrase dite par la voix off, 6 à 12 mots, tutoiement ou ton neutre, mets UN mot clé entre *astérisques* ;
 - "icones" : une ou deux icônes parmi : ${NOMS_ICONES_DECOUPE.join(", ")} ;
 - "photo" : 2 à 4 mots-clés EN ANGLAIS pour trouver sur Pexels une photo réelle d'UN seul sujet net, détouré ensuite sur fond kraft : de préférence le monument lui-même (ex. "Eiffel Tower", "Empire State Building"), sinon ce dont parle le plan (ex. "construction worker", "steel beam", "crane", "architect blueprint", "vintage radio"). Évite les paysages, les foules et les vues d'ensemble. Vide si rien ne s'y prête.
@@ -50,8 +50,8 @@ ${fiche.slice(0, 3000)}
 
 Structure : plan 1 = la douleur du chantier qui arrête le défilement (le devis du soir, la facture qui bloque, la paperasse) ; puis 3 à 4 plans, chacun UNE fonction réelle de la fiche montrée par un geste concret du chantier ; le dernier plan donne le bénéfice. L'appel à l'action final est ajouté automatiquement : ne l'écris pas.
 Chaque plan :
-- "titre" : titre de la coupure de journal, MAJUSCULES, 34 caractères au plus, 3 à 6 mots (le dernier mot sera surligné) ;
-- "extrait" : une phrase de la coupure, 95 caractères au plus ;
+- "titre" : titre de la coupure de journal EN FRANÇAIS, MAJUSCULES, 34 caractères au plus, 3 à 6 mots, sans astérisques (le dernier mot sera surligné) ;
+- "extrait" : une phrase de la coupure EN FRANÇAIS (traduis les sources étrangères), tutoiement, 95 caractères au plus, sans astérisques ;
 - "phrase" : la phrase dite par la voix off, 6 à 14 mots, tutoiement, ton direct de chantier ; mets UN mot clé entre *astérisques* ;
 - "icones" : une ou deux icônes parmi : ${NOMS_ICONES_DECOUPE.join(", ")} ;
 - "photo" : 2 à 4 mots-clés EN ANGLAIS pour trouver sur Pexels une photo réelle d'UN seul sujet net, détouré ensuite (ex. "construction worker smartphone", "builder tablet", "craftsman paperwork", "hard hat"). Évite les paysages et les foules.
@@ -59,6 +59,10 @@ Règles strictes : un chiffre n'apparaît QUE s'il figure dans la fiche ; pas de
 "legende" : légende TikTok, 2 phrases + une question + 3 hashtags métier (#btp #artisan #chantier), qui finit par « Lien en bio ».
 Réponds uniquement en JSON : {"plans":[{"titre":"…","extrait":"…","phrase":"…","icones":["…","…"],"photo":"…"}],"legende":"…"}`;
 }
+
+// Coupure recopiée d'une source anglaise (« Construction started on… ») : refusée.
+const MOTS_ANGLAIS = /\b(the|and|was|were|of the|during|started|completed|building|ahead|opened|officially)\b/gi;
+export const enAnglais = (t: string) => (t.match(MOTS_ANGLAIS) ?? []).length >= 2;
 
 export function lireHistoire(reponse: string, sources: string, interdits: string[] = []): ScriptHistoire | null {
   const debut = reponse.indexOf("{");
@@ -69,8 +73,10 @@ export function lireHistoire(reponse: string, sources: string, interdits: string
     const j = JSON.parse(reponse.slice(debut, fin + 1)) as { plans?: unknown[]; legende?: unknown };
     const plans = (j.plans ?? []).flatMap((p): PlanHistoire[] => {
       const o = (p ?? {}) as Record<string, unknown>;
-      const titre = court(o.titre, 36).toUpperCase();
-      const extrait = court(o.extrait, 100);
+      // Les astérisques ne servent qu'à la phrase dite : jamais dans le journal.
+      const titre = court(o.titre, 36).replace(/\*/g, "").toUpperCase();
+      const extrait = court(o.extrait, 100).replace(/\*/g, "");
+      if (enAnglais(extrait) || enAnglais(titre)) return [];
       const phrase = court(o.phrase, 120);
       const noms = (Array.isArray(o.icones) ? o.icones : []).map((x) => String(x)).filter((x) => NOMS_ICONES_DECOUPE.includes(x));
       if (!titre || !extrait || !phrase || !noms.length) return [];
