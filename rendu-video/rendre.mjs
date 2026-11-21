@@ -71,6 +71,17 @@ async function rendre(t) {
     const sortie = path.join(dossier, "video.mp4");
     const r = spawnSync("npx", ["--yes", HYPERFRAMES, "render", dossier, "-o", sortie, "--quiet"], { encoding: "utf8", timeout: 15 * 60_000 });
     if (r.status !== 0) throw new Error(`Rendu HyperFrames en échec : ${(r.stderr || r.stdout || "").slice(-400)}`);
+    // Compression (environ 4 fois plus léger, sans perte visible) : chaque vidéo
+    // est téléchargée plusieurs fois (TikTok, Instagram, YouTube…), et la bande
+    // passante de l'offre gratuite de Supabase est limitée.
+    const leger = path.join(dossier, "video-leger.mp4");
+    const c = spawnSync(
+      "ffmpeg",
+      ["-y", "-v", "error", "-i", sortie, "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-maxrate", "3M", "-bufsize", "6M", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", leger],
+      { encoding: "utf8", timeout: 5 * 60_000 },
+    );
+    if (c.status === 0 && existsSync(leger) && statSync(leger).size > 100_000 && statSync(leger).size < statSync(sortie).size) copyFileSync(leger, sortie);
+    else console.log("compression ignorée :", (c.stderr || "").slice(-200));
     const mp4 = readFileSync(sortie);
     // Dépôt avec un ticket à usage unique, comme le moteur.
     const ticket = await rpc("robot_rendu_depot", { p_tache: t.tache_id });
