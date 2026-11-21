@@ -9,6 +9,7 @@ import type { PhotoStockee } from "@/lib/phototheque";
 import { fabriquerVideo } from "@/lib/fabrication-video.server";
 import { clientMoteur } from "@/lib/supabase-serveur";
 import { lireStyleImage, lireStyleVideo, styleVideoPour } from "@/lib/styles";
+import { estHistoire } from "@/lib/decoupe-script";
 import { planifierJournees } from "@/lib/pilote.server";
 import { estEtranger, marcheDe } from "@/lib/marches";
 import { controlerPublication, type DejaPubliee } from "@/lib/controle-qualite";
@@ -321,7 +322,7 @@ async function tick(secret: string) {
           // rendu GitHub est branché (variable RENDU_ANIME=github) ; sinon,
           // ou au second essai, montage classique.
           animer:
-            process.env.RENDU_ANIME === "github" && v.plateforme === "tiktok" && v.essais === 0
+            process.env.RENDU_ANIME === "github" && v.plateforme === "tiktok" && (v.essais === 0 || estHistoire(v.consigne))
               ? async (fichiers) => {
                   const { data: ticket, error } = await sb.rpc("agent_depot_video", { p_secret: secret, p_user: v.user_id });
                   if (error || !ticket) throw new Error("Dépôt des fichiers refusé.");

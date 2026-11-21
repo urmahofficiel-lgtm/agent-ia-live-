@@ -13,6 +13,7 @@ export type PlanDecoupe = {
   extrait: string; // petit texte de la coupure
   phrase: string; // phrase dite par la voix ; le mot clé entre *astérisques*
   icones: [string, string?]; // noms dans ICONES_DECOUPE
+  photo?: string; // PNG détouré (contour blanc) dans le dossier de la vidéo, à la place d'une icône
   duree: number;
   carte?: CarteFinale; // dernier plan seulement : la seule mention de la marque
 };
@@ -29,6 +30,11 @@ export const IMAGES_PAR_SECONDE = 12;
 
 const ech = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const r2 = (n: number) => Math.round(n * 100) / 100;
+// Photos dont le détourage a échoué (ou absentes) : le plan retombe sur ses icônes.
+export const sansPhotosAbsentes = (e: Decoupe, presentes: ReadonlySet<string>): Decoupe => ({
+  ...e,
+  plans: e.plans.map((p) => (p.photo && !presentes.has(p.photo) ? { ...p, photo: undefined } : p)),
+});
 export const dureeDecoupe = (d: Decoupe) => r2(d.plans.reduce((s, p) => s + p.duree, 0));
 
 // Graine fixe : le rendu est identique à chaque fois.
@@ -103,14 +109,24 @@ export function compositionDecoupe(e: Decoupe): string {
       el.push(
         `<div id="${id}-clip" class="clip sticker journal" data-start="${deb}" data-duration="${d}" style="left:540px;top:430px;clip-path:${dechire(rnd)}"><div class="rubrique">${ech(e.rubrique || "Histoires de chantier")}</div><h2>${surligner(p.titre)}</h2><p>${ech(p.extrait)}</p></div>`,
         `<div id="${id}-scotch" class="clip sticker scotch" data-start="${deb}" data-duration="${d}" style="left:500px;top:150px"></div>`,
-        `<div id="${id}-i0" class="clip sticker blob" data-start="${deb}" data-duration="${d}" style="left:300px;top:880px">${icone(i1)}</div>`,
       );
       boil(anim, `#${id}-clip`, deb, d, 0, 0, -2.5 + a1 * 0.3, { p: 3, r: 0.5 }, 0, rnd);
       boil(anim, `#${id}-scotch`, deb, d, 0, 0, -4, { p: 2, r: 1 }, 0.08, rnd);
-      boil(anim, `#${id}-i0`, deb, d, 0, 0, 6, { p: 3, r: 0.8 }, 0.25, rnd);
-      if (i2) {
-        el.push(`<div id="${id}-i1" class="clip sticker blob b" data-start="${deb}" data-duration="${d}" style="left:770px;top:965px">${icone(i2)}</div>`);
-        boil(anim, `#${id}-i1`, deb, d, 0, 0, -7, { p: 3, r: 0.8 }, 0.5, rnd);
+      if (p.photo) {
+        // Photo détourée au centre, une petite icône à côté.
+        el.push(
+          `<div id="${id}-photo" class="clip sticker photo" data-start="${deb}" data-duration="${d}" style="left:400px;top:960px"><img src="${ech(p.photo)}" alt=""></div>`,
+          `<div id="${id}-i0" class="clip sticker blob petit" data-start="${deb}" data-duration="${d}" style="left:850px;top:1090px">${icone(i1)}</div>`,
+        );
+        boil(anim, `#${id}-photo`, deb, d, 0, 0, -3 + a1 * 0.4, { p: 3, r: 0.6 }, 0.25, rnd);
+        boil(anim, `#${id}-i0`, deb, d, 0, 0, 8, { p: 3, r: 0.8 }, 0.5, rnd);
+      } else {
+        el.push(`<div id="${id}-i0" class="clip sticker blob" data-start="${deb}" data-duration="${d}" style="left:300px;top:880px">${icone(i1)}</div>`);
+        boil(anim, `#${id}-i0`, deb, d, 0, 0, 6, { p: 3, r: 0.8 }, 0.25, rnd);
+        if (i2) {
+          el.push(`<div id="${id}-i1" class="clip sticker blob b" data-start="${deb}" data-duration="${d}" style="left:770px;top:965px">${icone(i2)}</div>`);
+          boil(anim, `#${id}-i1`, deb, d, 0, 0, -7, { p: 3, r: 0.8 }, 0.5, rnd);
+        }
       }
     }
     el.push(`<div id="${id}-phrase" class="clip sticker phrase" data-start="${deb}" data-duration="${d}" style="left:540px;top:1295px"><span>${motsCles(p.phrase)}</span></div>`);
@@ -147,6 +163,9 @@ html, body { width: 1080px; height: 1920px; overflow: hidden; background: #c9a87
 .blob { width: 400px; height: 400px; display: flex; align-items: center; justify-content: center; background: #f2843a; border-radius: 46% 54% 51% 49% / 55% 45% 55% 45%; border: 16px solid #fcfcf8; box-shadow: 0 14px 18px rgba(40,25,10,.35); }
 .blob.b { background: #ffd60a; border-radius: 52% 48% 44% 56% / 47% 55% 45% 53%; }
 .blob svg { width: 230px; height: 230px; }
+.blob.petit { width: 270px; height: 270px; border-width: 12px; }
+.blob.petit svg { width: 150px; height: 150px; }
+.photo img { display: block; max-width: 640px; max-height: 600px; }
 .scotch { width: 230px; height: 62px; background: rgba(255,236,160,.85); background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.35) 0 4px, transparent 4px 9px); }
 .phrase { width: 900px; text-align: center; }
 .phrase span { display: inline; background: #ffd60a; color: #141414; font-weight: 800; font-size: 66px; line-height: 1.5; text-transform: uppercase; padding: 8px 22px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }

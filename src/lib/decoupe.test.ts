@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compositionDecoupe, dureeDecoupe, type PlanDecoupe } from "./decoupe";
+import { compositionDecoupe, dureeDecoupe, sansPhotosAbsentes, type PlanDecoupe } from "./decoupe";
 import { NOMS_ICONES_DECOUPE } from "./decoupe-icones";
 import { consigneHistoire, estHistoire, lireHistoire, MARQUE_HISTOIRE, planFinal } from "./decoupe-script";
 
@@ -46,6 +46,21 @@ describe("compositionDecoupe", () => {
     expect(html).toContain('<audio id="voix" src="voix.wav"');
     expect(html).toContain('<audio id="musique" src="musique.m4a"');
   });
+  it("montre la photo détourée à la place des deux icônes", () => {
+    const h = compositionDecoupe({ plans: [{ ...plan(1), photo: "photo0.png" }] });
+    expect(h).toContain('<img src="photo0.png"');
+    expect(h).toContain('id="p0-i0" class="clip sticker blob petit"');
+    expect(h).not.toContain('id="p0-i1"');
+  });
+  it("retombe sur les icônes si la photo n'a pas pu être détourée", () => {
+    const e = { plans: [{ ...plan(1), photo: "photo0.png" }, { ...plan(2), photo: "photo1.png" }, plan(3)] };
+    const r = sansPhotosAbsentes(e, new Set(["photo1.png"]));
+    expect(r.plans.map((p) => p.photo)).toEqual([undefined, "photo1.png", undefined]);
+    const h = compositionDecoupe(r);
+    expect(h).toContain('<img src="photo1.png"');
+    expect(h).not.toContain("photo0.png");
+    expect(h).toContain('id="p0-i1"');
+  });
   it("garde une icône par défaut si le nom est inconnu", () => {
     const h = compositionDecoupe({ plans: [{ ...plan(1), icones: ["Inconnue"] }] });
     expect(h).toContain("<svg viewBox");
@@ -90,6 +105,12 @@ describe("lireHistoire", () => {
   });
   it("refuse une réponse illisible", () => {
     expect(lireHistoire("pas du json", SOURCES)).toBeNull();
+  });
+  it("lit les mots-clés de photo (lettres et espaces seulement)", () => {
+    const avec = { ...bon("PHOTO"), photo: "construction worker; <b>2</b>" };
+    const s = lireHistoire(reponse([...cinq.slice(0, 4), avec]), SOURCES);
+    expect(s?.plans[4].recherche_photo).toBe("construction worker bb");
+    expect(s?.plans[0].recherche_photo).toBeUndefined();
   });
   it("coupe à 7 plans au plus", () => {
     expect(lireHistoire(reponse([...cinq, bon("SIX"), bon("SEPT"), bon("HUIT")]), SOURCES)?.plans).toHaveLength(7);

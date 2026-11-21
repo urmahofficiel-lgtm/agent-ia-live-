@@ -42,6 +42,25 @@ jobs:
             sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
           fi
           ffmpeg -version | head -1
+      # Détourage des photos (vidéos « Histoire » en papier découpé) : rembg,
+      # local et gratuit ; le modèle (176 Mo) est gardé en cache entre deux passages.
+      - uses: actions/setup-python@v5
+        if: steps.file.outputs.a_rendre != '0'
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: rendu-video/requirements.txt
+      - uses: actions/cache@v4
+        if: steps.file.outputs.a_rendre != '0'
+        with:
+          path: .u2net-home
+          key: rembg-u2net-v1
+      - name: Détourage des photos (rembg)
+        if: steps.file.outputs.a_rendre != '0'
+        timeout-minutes: 8
+        run: pip install -r rendu-video/requirements.txt || echo "rembg indisponible : les vidéos garderont leurs icônes"
       - name: Rendu
         if: steps.file.outputs.a_rendre != '0'
+        env:
+          U2NET_HOME: ${{ github.workspace }}/.u2net-home
         run: node --experimental-strip-types rendu-video/rendre.mjs

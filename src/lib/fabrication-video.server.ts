@@ -7,6 +7,7 @@ import type { Explication } from "./explication";
 import type { Decoupe } from "./decoupe";
 import { consigneHistoire, estHistoire, lireHistoire, planFinal } from "./decoupe-script";
 import { rechercherHistoire } from "./histoire.server";
+import { photo as photoPexels } from "./pexels.server";
 import { consigneDescriptionCapture, consigneExplication, descriptionDuNom, dureesSurVoix, lireExplication, phraseFinale, texteVoix } from "./explication-script";
 import { MUSIQUE_FOND_BASE64 } from "./generes/musique.server";
 import { voixConfiguree, voixOff } from "./voix.server";
@@ -474,8 +475,8 @@ async function fabriquerHistoire(
   const script = lireHistoire(
     await demanderIA(consigneHistoire(sujet, sources, marque), {
       systeme: "Tu es scénariste de vidéos courtes sur l'histoire de la construction. Tu réponds uniquement en JSON valide.",
-      maxTokens: 2500,
-      delaiTotal: 90_000,
+      maxTokens: 1800,
+      delaiTotal: 100_000,
       gemini: "d'abord",
     }),
     textes,
@@ -493,9 +494,25 @@ async function fabriquerHistoire(
     { nom: "musique.m4a", donnees: Buffer.from(MUSIQUE_FOND_BASE64, "base64"), type: "audio/mp4" },
     { nom: "voix.wav", donnees: voix.format === "pcm" ? wavDepuisPcm(voix.donnees) : voix.donnees, type: "audio/wav" },
   ];
+  // Photos réelles (Pexels) : détourées par le robot de rendu (contour blanc) ;
+  // sans photo, le plan garde ses icônes.
+  const dejaVus = new Set<number>();
+  const photos = await Promise.all(
+    plans.map((p) => ("recherche_photo" in p && p.recherche_photo ? photoPexels(p.recherche_photo, "carre", dejaVus).catch(() => null) : null)),
+  );
+  let nbPhotos = 0;
+  const plansPhotos = plans.map((p, i) => {
+    const { recherche_photo: _r, ...reste } = p as typeof p & { recherche_photo?: string };
+    const img = photos[i];
+    if (!img) return { ...reste, duree: durees[i] };
+    nbPhotos++;
+    fichiers.push({ nom: `photo${i}.jpg`, donnees: img, type: "image/jpeg" });
+    return { ...reste, photo: `photo${i}.png`, duree: durees[i] };
+  });
+  if (nbPhotos) await journal("info", `📸 ${nbPhotos} photo(s) réelle(s) à détourer (contour blanc).`);
   const plan: Decoupe & { kind: "decoupe" } = {
     kind: "decoupe",
-    plans: plans.map((p, i) => ({ ...p, duree: durees[i] })),
+    plans: plansPhotos,
     rubrique: "Histoires de chantier",
     voix: "voix.wav",
     musique: "musique.m4a",

@@ -7,13 +7,13 @@
 //   node --experimental-strip-types rendu-video/rendre.mjs           rend la file
 //   node --experimental-strip-types rendu-video/rendre.mjs --compter écrit a_rendre=<n> (GitHub)
 import { spawnSync } from "node:child_process";
-import { appendFileSync, copyFileSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { compositionAnimee, dureeTotale } from "../src/lib/hyperframes.ts";
 import { compositionExplication, dureeExplication } from "../src/lib/explication.ts";
-import { compositionDecoupe, dureeDecoupe } from "../src/lib/decoupe.ts";
+import { compositionDecoupe, dureeDecoupe, sansPhotosAbsentes } from "../src/lib/decoupe.ts";
 
 const ICI = path.dirname(fileURLToPath(import.meta.url));
 const URL_SB = process.env.SUPABASE_URL || "https://idabdhnsciymoauyogmj.supabase.co";
@@ -55,7 +55,18 @@ async function rendre(t) {
       await telecharger(`${base}/${nom}`, path.join(dossier, nom));
     }
     for (const nom of ["gsap.min.js", "InterDisplay-SemiBold.otf", "InterDisplay-ExtraBold.otf", "Anton-Regular.woff2"]) copyFileSync(path.join(ICI, nom), path.join(dossier, nom));
-    writeFileSync(path.join(dossier, "index.html"), decoupe ? compositionDecoupe(plan) : explication ? compositionExplication(plan) : compositionAnimee(plan));
+    let composition = plan;
+    if (decoupe) {
+      // Photos « papier découpé » : détourage local (rembg) ; une photo ratée est
+      // simplement remplacée par les icônes du plan.
+      const jpgs = plan.plans.flatMap((p) => (p.photo ? [p.photo.replace(/\.png$/, ".jpg")] : []));
+      if (jpgs.length) {
+        const d = spawnSync("python3", [path.join(ICI, "decouper.py"), dossier, ...jpgs], { encoding: "utf8", timeout: 8 * 60_000 });
+        console.log((d.stdout || "").trim() || `détourage : ${d.error?.message ?? (d.stderr || "").slice(-200)}`);
+      }
+      composition = sansPhotosAbsentes(plan, new Set(plan.plans.flatMap((p) => (p.photo && existsSync(path.join(dossier, p.photo)) ? [p.photo] : []))));
+    }
+    writeFileSync(path.join(dossier, "index.html"), decoupe ? compositionDecoupe(composition) : explication ? compositionExplication(plan) : compositionAnimee(plan));
     writeFileSync(path.join(dossier, "package.json"), JSON.stringify({ name: "anime", private: true, type: "module" }));
     const sortie = path.join(dossier, "video.mp4");
     const r = spawnSync("npx", ["--yes", HYPERFRAMES, "render", dossier, "-o", sortie, "--quiet"], { encoding: "utf8", timeout: 15 * 60_000 });

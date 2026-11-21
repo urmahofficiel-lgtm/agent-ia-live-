@@ -9,3 +9,4 @@ dist
 !.env.example
 *.log
 brag-output*/
+.u2net-home

@@ -12,7 +12,7 @@ export const MARQUE_HISTOIRE = "Format vidéo : histoire vraie du monde de la co
 export const estHistoire = (consigne: string | null | undefined) => Boolean(consigne?.includes(MARQUE_HISTOIRE));
 
 export type Source = { titre: string; url: string; texte: string };
-export type PlanHistoire = Omit<PlanDecoupe, "duree" | "carte">;
+export type PlanHistoire = Omit<PlanDecoupe, "duree" | "carte" | "photo"> & { recherche_photo?: string };
 export type ScriptHistoire = { plans: PlanHistoire[]; legende: string };
 
 const court = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
@@ -22,17 +22,18 @@ export function consigneHistoire(sujet: string, sources: Source[], marque: strin
 Sujet : ${sujet}
 
 Sources (SEULE source de vérité : n'écris aucun fait, date, nombre ni nom qui n'y figure pas) :
-${sources.map((s, i) => `[${i + 1}] ${s.titre} — ${s.texte.slice(0, 1100)}`).join("\n\n")}
+${sources.slice(0, 4).map((s, i) => `[${i + 1}] ${s.titre} — ${s.texte.slice(0, 800)}`).join("\n\n")}
 
 Structure : plan 1 = accroche qui arrête le défilement (le paradoxe, le chiffre ou l'exploit de l'histoire) ; puis le contexte, l'obstacle, le tournant, le résultat ; le dernier plan donne ce que ça nous apprend pour un chantier. Ne parle JAMAIS de « ${marque} » ni d'un produit, d'un logiciel ou d'une marque : l'appel à l'action est ajouté automatiquement après ton dernier plan.
 Chaque plan :
 - "titre" : titre de la coupure de journal, MAJUSCULES, 34 caractères au plus, 3 à 6 mots (le dernier mot sera surligné) ;
 - "extrait" : une phrase de la coupure, 95 caractères au plus ;
 - "phrase" : la phrase dite par la voix off, 6 à 14 mots, tutoiement ou ton neutre, mets UN mot clé entre *astérisques* ;
-- "icones" : une ou deux icônes parmi : ${NOMS_ICONES_DECOUPE.join(", ")}.
+- "icones" : une ou deux icônes parmi : ${NOMS_ICONES_DECOUPE.join(", ")} ;
+- "photo" : 2 à 4 mots-clés EN ANGLAIS pour trouver sur Pexels une photo réelle d'UN seul sujet net, détouré ensuite sur fond kraft (ex. "construction worker", "steel beam", "crane", "architect blueprint", "radio antenna"). Évite les paysages, les foules et les vues d'ensemble. Vide si rien ne s'y prête.
 Règles strictes : un chiffre, une date ou une durée n'apparaît QUE s'il figure dans les sources ; si les sources se contredisent sur un chiffre, écris « environ » ou n'écris pas le chiffre ; aucune exagération (« le plus grand du monde ») sans source ; pas de promesse, pas de politique, pas de religion, pas d'insulte.
 "legende" : légende TikTok, 2 phrases qui donnent envie de réagir + une question + 3 hashtags (#construction #architecture #histoire), sans nom de marque ni lien.
-Réponds uniquement en JSON : {"plans":[{"titre":"…","extrait":"…","phrase":"…","icones":["…","…"]}],"legende":"…"}`;
+Réponds uniquement en JSON : {"plans":[{"titre":"…","extrait":"…","phrase":"…","icones":["…","…"],"photo":"…"}],"legende":"…"}`;
 }
 
 export function lireHistoire(reponse: string, sources: string, interdits: string[] = []): ScriptHistoire | null {
@@ -51,7 +52,8 @@ export function lireHistoire(reponse: string, sources: string, interdits: string
       if (!titre || !extrait || !phrase || !noms.length) return [];
       const tout = `${titre} ${extrait} ${phrase.replace(/\*/g, "")}`;
       if (texteInvente(tout, sources) || marqueDite(tout)) return [];
-      return [{ titre, extrait, phrase, icones: [noms[0], noms[1]] }];
+      const recherche_photo = court(o.photo, 40).replace(/[^A-Za-z ]/g, "").trim() || undefined;
+      return [{ titre, extrait, phrase, icones: [noms[0], noms[1]], recherche_photo }];
     });
     if (plans.length < 5) return null;
     const legende = court(j.legende, 600);
