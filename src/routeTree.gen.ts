@@ -51,6 +51,7 @@ import { Route as ApiResendWebhookRouteImport } from './routes/api/resend/webhoo
 import { Route as ApiStudioMontageAutoRouteImport } from './routes/api/studio/montage-auto'
 import { Route as ApiStudioTestRouteImport } from './routes/api/studio/test'
 import { Route as ApiVisuelsIdRouteImport } from './routes/api/visuels/$id'
+import { Route as ApiYoutubeRetourRouteImport } from './routes/api/youtube/retour'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -262,6 +263,11 @@ const ApiVisuelsIdRoute = ApiVisuelsIdRouteImport.update({
   path: '/api/visuels/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiYoutubeRetourRoute = ApiYoutubeRetourRouteImport.update({
+  id: '/api/youtube/retour',
+  path: '/api/youtube/retour',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -306,6 +312,7 @@ export interface FileRoutesByFullPath {
   '/api/studio/montage-auto': typeof ApiStudioMontageAutoRoute
   '/api/studio/test': typeof ApiStudioTestRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
+  '/api/youtube/retour': typeof ApiYoutubeRetourRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -350,6 +357,7 @@ export interface FileRoutesByTo {
   '/api/studio/montage-auto': typeof ApiStudioMontageAutoRoute
   '/api/studio/test': typeof ApiStudioTestRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
+  '/api/youtube/retour': typeof ApiYoutubeRetourRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -395,6 +403,7 @@ export interface FileRoutesById {
   '/api/studio/montage-auto': typeof ApiStudioMontageAutoRoute
   '/api/studio/test': typeof ApiStudioTestRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
+  '/api/youtube/retour': typeof ApiYoutubeRetourRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -441,6 +450,7 @@ export interface FileRouteTypes {
     | '/api/studio/montage-auto'
     | '/api/studio/test'
     | '/api/visuels/$id'
+    | '/api/youtube/retour'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -485,6 +495,7 @@ export interface FileRouteTypes {
     | '/api/studio/montage-auto'
     | '/api/studio/test'
     | '/api/visuels/$id'
+    | '/api/youtube/retour'
   id:
     | '__root__'
     | '/'
@@ -529,6 +540,7 @@ export interface FileRouteTypes {
     | '/api/studio/montage-auto'
     | '/api/studio/test'
     | '/api/visuels/$id'
+    | '/api/youtube/retour'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -574,6 +586,7 @@ export interface RootRouteChildren {
   ApiStudioMontageAutoRoute: typeof ApiStudioMontageAutoRoute
   ApiStudioTestRoute: typeof ApiStudioTestRoute
   ApiVisuelsIdRoute: typeof ApiVisuelsIdRoute
+  ApiYoutubeRetourRoute: typeof ApiYoutubeRetourRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -872,6 +885,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiVisuelsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/youtube/retour': {
+      id: '/api/youtube/retour'
+      path: '/api/youtube/retour'
+      fullPath: '/api/youtube/retour'
+      preLoaderRoute: typeof ApiYoutubeRetourRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -918,6 +938,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiStudioMontageAutoRoute: ApiStudioMontageAutoRoute,
   ApiStudioTestRoute: ApiStudioTestRoute,
   ApiVisuelsIdRoute: ApiVisuelsIdRoute,
+  ApiYoutubeRetourRoute: ApiYoutubeRetourRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

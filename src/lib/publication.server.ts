@@ -1,3 +1,4 @@
+import { publierYoutube, type IdentifiantsYoutube } from "./youtube.server";
 import { PLATEFORMES } from "./plateformes";
 import { nettoyerPost } from "./texte";
 import { clientMoteur } from "./supabase-serveur";
@@ -94,6 +95,15 @@ export async function publierAvecSuite(
   if (tacheId) texte = await suivreLiens(texte, plateforme, userId, tacheId);
   const images = extras.images ?? [];
   const commentaire = extras.premierCommentaire?.trim() || null;
+  if (compte.fournisseur === "youtube") {
+    const { data, error } = await clientMoteur().rpc("compte_jeton", {
+      p_secret: process.env.AGENT_TICK_SECRET ?? "",
+      p_user: userId,
+      p_externe: compte.compte_externe_id,
+    });
+    if (error || !data) throw new Error("Connexion introuvable : reconnectez la chaîne YouTube (page Comptes).");
+    return { id: await publierYoutube(JSON.parse(data as string) as IdentifiantsYoutube, texte, media), suite: rien };
+  }
   if (compte.fournisseur === "bluesky" || compte.fournisseur === "telegram" || compte.fournisseur === "linkedin") {
     const { data, error } = await clientMoteur().rpc("compte_jeton", {
       p_secret: process.env.AGENT_TICK_SECRET ?? "",

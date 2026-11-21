@@ -39,7 +39,7 @@ type Compte = {
   nom_utilisateur: string | null;
   compte_externe_id: string | null;
   fournisseur:
-    "zernio" | "meta" | "instagram" | "bluesky" | "telegram" | "linkedin";
+    "zernio" | "meta" | "instagram" | "bluesky" | "telegram" | "linkedin" | "youtube";
   cible_nom: string | null;
   // Langue et pays dans lesquels l'agent publie avec ce compte.
   marche: string;
@@ -344,7 +344,7 @@ function Comptes() {
       )}
 
       <p className="mb-2 text-xs text-doux">
-        Facebook, Instagram, Bluesky et Telegram : connexion directe, gratuite
+        Facebook, Instagram, YouTube, Bluesky et Telegram : connexion directe, gratuite
         et sans limite ; elle n'occupe pas de place chez Zernio. Instagram doit
         être un compte professionnel ou créateur (réglage gratuit dans l'app
         Instagram : Paramètres → Type de compte).
@@ -495,6 +495,8 @@ function libelleCompte(c: Compte) {
     return `${c.cible_nom ? `Page ${c.cible_nom}` : (c.nom_utilisateur ?? "Compte")} · via Zernio`;
   if (c.fournisseur === "linkedin")
     return `${c.nom_utilisateur ?? "Profil"} · profil perso, direct`;
+  if (c.fournisseur === "youtube")
+    return `${c.nom_utilisateur ?? "Chaîne"} · chaîne YouTube, direct`;
   return `${c.nom_utilisateur ?? c.compte_externe_id} · direct`;
 }
 

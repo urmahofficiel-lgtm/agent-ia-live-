@@ -74,6 +74,7 @@ import { publierSur, type CompteCible } from "./publication.server";
 import { sessionBluesky } from "./bluesky.server";
 import { verifierTelegram } from "./telegram.server";
 import { linkedinConfigure, urlConnexionLinkedin } from "./linkedin.server";
+import { urlConnexionYoutube, youtubeConfigure } from "./youtube.server";
 import {
   creerProfil,
   deconnecterCompte,
@@ -482,6 +483,11 @@ export const urlConnexion = createServerFn({ method: "POST" })
       ) {
         const { user } = await utilisateurDepuisJeton(data.jeton);
         return { ok: true, url: urlConnexionInstagram(user.id) };
+      }
+      // YouTube : chaîne en direct (API YouTube gratuite), sans place chez Zernio.
+      if (data.plateforme === "youtube" && data.via !== "zernio" && youtubeConfigure()) {
+        const { user } = await utilisateurDepuisJeton(data.jeton);
+        return { ok: true, url: urlConnexionYoutube(user.id) };
       }
       // LinkedIn : profil personnel en direct ; la page entreprise passe par Zernio.
       if (
