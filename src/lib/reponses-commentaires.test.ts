@@ -53,13 +53,10 @@ describe("réponses aux commentaires", () => {
     expect(consigneReponse(c, fiche)).toContain("termine par « sur btp-ecosystem.com »");
     expect(consigneReponse({ ...c, plateforme: "tiktok" }, fiche)).toContain("termine par « lien en bio »");
   });
-<<<<<<< HEAD
   it("commercial : relie un besoin au produit et répond dans la langue du commentaire (18/11/2026)", () => {
     const c = consigneReponse({ plateforme: "instagram", auteur: "a", texte: "¿Y los presupuestos?", post: "Devis" }, null);
     expect(c).toContain("commercial de la marque");
     expect(c).toContain("langue du commentaire");
     expect(c).toContain("lien en bio");
   });
-=======
->>>>>>> origin/main
 });

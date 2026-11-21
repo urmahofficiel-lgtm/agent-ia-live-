@@ -4,6 +4,9 @@ import { choisirCaptures, consigneScript, durees, imposerScenesProduit, lireScri
 import { extensionImage, monterVideo } from "./video.server";
 import type { PlanAnime } from "./hyperframes";
 import type { Explication } from "./explication";
+import type { Decoupe } from "./decoupe";
+import { consigneHistoire, estHistoire, lireHistoire, planFinal } from "./decoupe-script";
+import { rechercherHistoire } from "./histoire.server";
 import { consigneDescriptionCapture, consigneExplication, descriptionDuNom, dureesSurVoix, lireExplication, phraseFinale, texteVoix } from "./explication-script";
 import { MUSIQUE_FOND_BASE64 } from "./generes/musique.server";
 import { voixConfiguree, voixOff } from "./voix.server";
@@ -119,6 +122,14 @@ export async function fabriquerVideo(
   { journal, etat, deposer, captures: liensCaptures, animer, capturesDecrites, decrireCapture }: AtelierVideo,
   style: StyleVideo = "classique",
 ) {
+  // Histoire vraie du monde de la construction, en papier découpé : format
+  // propre, rendu par le robot HyperFrames. En cas d'échec, rien n'est publié
+  // (pas de vidéo de marque à la place d'une histoire).
+  if (estHistoire(t.consigne)) {
+    if (!animer) throw new Error("le rendu animé n'est pas disponible pour cet essai");
+    await fabriquerHistoire(t, contexte, siteMarque, { journal, etat, animer });
+    return "";
+  }
   if (estJournee(t.consigne)) style = "journee";
   // Vidéo animée HyperFrames demandée : elle passe avant les styles Studio et
   // conversation, qui ont leur propre montage (script de style « face caméra »).
@@ -437,4 +448,67 @@ async function fabriquerExplication(
   });
   await journal("info", "🎞️ Vidéo « Explication » envoyée au studio de rendu : prête d'ici quelques minutes.");
   return true;
+}
+
+// Vidéo « Histoire » en papier découpé : recherche web des faits, script en
+// plans courts, voix off, plan final avec la marque ; la page est filmée par
+// le robot de rendu (HyperFrames).
+async function fabriquerHistoire(
+  t: SujetVideo,
+  contexte: string | null,
+  siteMarque: string | null,
+  { journal, etat, animer }: Pick<AtelierVideo, "journal" | "etat"> & { animer: NonNullable<AtelierVideo["animer"]> },
+) {
+  if (!voixConfiguree()) throw new Error("voix off indisponible");
+  const marque = contexte?.match(/Marque\s*:\s*(.+)/)?.[1]?.trim() || "";
+  if (!marque) throw new Error("nom de la marque introuvable dans la fiche");
+  const site = siteMarque || contexte?.match(/Site \/ lien[^:]*: (\S+)/)?.[1] || "";
+  await journal("action", `📚 Recherche des faits de l'histoire : « ${t.titre} »`);
+  const sujet = t.titre.replace(/^histoire\s*:\s*/i, "");
+  const sources = await rechercherHistoire(`${sujet} histoire construction`);
+  if (sources.length < 2) throw new Error("sources web introuvables pour cette histoire");
+  await journal("info", `🔎 ${sources.length} sources : ${sources.map((s) => new URL(s.url).hostname.replace(/^www\./, "")).join(", ")}`);
+  const textes = sources.map((s) => `${s.titre} ${s.texte}`).join("\n") + `\n${t.titre} ${t.consigne}`;
+  const interdits = [marque, marque.replace(/\s+/g, ""), marque.split(/\s+/)[0]].filter((m) => m.length >= 3);
+  await journal("action", `🎬 Écriture du script « Histoire » (papier découpé) : « ${t.titre} »`);
+  const script = lireHistoire(
+    await demanderIA(consigneHistoire(sujet, sources, marque), {
+      systeme: "Tu es scénariste de vidéos courtes sur l'histoire de la construction. Tu réponds uniquement en JSON valide.",
+      maxTokens: 2500,
+      delaiTotal: 90_000,
+      gemini: "d'abord",
+    }),
+    textes,
+    interdits,
+  );
+  if (!script) throw new Error("script illisible, ou faits absents des sources");
+  const essai = /14 jours/i.test(contexte ?? "") ? "14 JOURS GRATUITS" : "ESSAI GRATUIT";
+  const plans = [...script.plans, planFinal(marque, site, essai)];
+  await journal("info", `Script : ${plans.length} plans — « ${plans[0].titre} »`);
+  await journal("action", "🎙️ Enregistrement de la voix off…");
+  const voix = await voixOff(texteVoix(plans), tonVoix(t.marche, true, false));
+  if (!voix) throw new Error("voix off impossible");
+  const durees = dureesSurVoix(plans.map((p) => p.phrase), voix.duree);
+  const fichiers: FichierAnime[] = [
+    { nom: "musique.m4a", donnees: Buffer.from(MUSIQUE_FOND_BASE64, "base64"), type: "audio/mp4" },
+    { nom: "voix.wav", donnees: voix.format === "pcm" ? wavDepuisPcm(voix.donnees) : voix.donnees, type: "audio/wav" },
+  ];
+  const plan: Decoupe & { kind: "decoupe" } = {
+    kind: "decoupe",
+    plans: plans.map((p, i) => ({ ...p, duree: durees[i] })),
+    rubrique: "Histoires de chantier",
+    voix: "voix.wav",
+    musique: "musique.m4a",
+  };
+  const base = await animer(fichiers);
+  await etat({
+    brouillon: t.brouillon || script.legende,
+    video_script: { ...script, sources: sources.map((s) => s.url) },
+    video_etat: "a_rendre",
+    video_debut: new Date().toISOString(),
+    video_rendu: { base, fichiers: fichiers.map((f) => f.nom), plan },
+    video_style: "histoire",
+    video_erreur: null,
+  });
+  await journal("info", "🎞️ Vidéo « Histoire » envoyée au studio de rendu : prête d'ici quelques minutes.");
 }
