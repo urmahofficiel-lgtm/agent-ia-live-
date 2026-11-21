@@ -134,3 +134,25 @@ describe("consigne et format", () => {
     expect(f.phrase).toContain("*BTP Ecosystem*");
   });
 });
+
+describe("présentation de la marque (même style)", () => {
+  it("reconnaît le format et le distingue de l'histoire", async () => {
+    const { estPresentation, estDecoupe, MARQUE_PRESENTATION, consignePresentation } = await import("./decoupe-script");
+    expect(estPresentation(`Présente la marque.\n${MARQUE_PRESENTATION}`)).toBe(true);
+    expect(estHistoire(`Présente la marque.\n${MARQUE_PRESENTATION}`)).toBe(false);
+    expect(estDecoupe(MARQUE_PRESENTATION)).toBe(true);
+    expect(estDecoupe(MARQUE_HISTOIRE)).toBe(true);
+    expect(estDecoupe("rien")).toBe(false);
+    const c = consignePresentation("Devis et factures", "Marque : BTP Ecosystem\nDevis IA par la voix.", "BTP Ecosystem");
+    expect(c).toContain("SEULE source de vérité");
+    expect(c).toContain("Devis IA par la voix.");
+    expect(c).toContain("Lien en bio");
+  });
+  it("garde la marque dans le script d'une présentation", () => {
+    const fiche = "Marque : BTP Ecosystem. Devis IA par la voix, factures Factur-X.";
+    const p = (t: string) => ({ titre: t, extrait: "Le devis par la voix.", phrase: "Avec *BTP Ecosystem*, tu dictes ton devis.", icones: ["Hammer"], photo: "builder smartphone" });
+    const s = lireHistoire(JSON.stringify({ plans: [p("UN"), p("DEUX"), p("TROIS"), p("QUATRE"), p("CINQ")], legende: "Lien en bio" }), fiche, []);
+    expect(s?.plans).toHaveLength(5);
+    expect(s?.plans[0].recherche_photo).toBe("builder smartphone");
+  });
+});

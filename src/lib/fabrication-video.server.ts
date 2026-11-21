@@ -5,7 +5,7 @@ import { extensionImage, monterVideo } from "./video.server";
 import type { PlanAnime } from "./hyperframes";
 import type { Explication } from "./explication";
 import type { Decoupe } from "./decoupe";
-import { consigneHistoire, estHistoire, lireHistoire, planFinal } from "./decoupe-script";
+import { consigneHistoire, consignePresentation, estDecoupe, estPresentation, lireHistoire, planFinal } from "./decoupe-script";
 import { ficheDeConsigne } from "./histoires";
 import { rechercherHistoire } from "./histoire.server";
 import { photo as photoPexels } from "./pexels.server";
@@ -127,7 +127,7 @@ export async function fabriquerVideo(
   // Histoire vraie du monde de la construction, en papier découpé : format
   // propre, rendu par le robot HyperFrames. En cas d'échec, rien n'est publié
   // (pas de vidéo de marque à la place d'une histoire).
-  if (estHistoire(t.consigne)) {
+  if (estDecoupe(t.consigne)) {
     if (!animer) throw new Error("le rendu animé n'est pas disponible pour cet essai");
     await fabriquerHistoire(t, contexte, siteMarque, { journal, etat, animer });
     return "";
@@ -465,23 +465,32 @@ async function fabriquerHistoire(
   const marque = contexte?.match(/Marque\s*:\s*(.+)/)?.[1]?.trim() || "";
   if (!marque) throw new Error("nom de la marque introuvable dans la fiche");
   const site = siteMarque || contexte?.match(/Site \/ lien[^:]*: (\S+)/)?.[1] || "";
-  const sujet = t.titre.replace(/^histoire\s*:\s*/i, "");
-  // Fiche de l'agent de recherche (Histoires du jour) si elle existe, sinon
-  // une recherche web rapide sur le titre.
-  const fiche = ficheDeConsigne(t.consigne);
-  let sources = fiche ? [{ titre: `Fiche de recherche : ${sujet}`, url: "fiche", texte: fiche }] : [];
-  if (!fiche) {
-    await journal("action", `📚 Recherche des faits de l'histoire : « ${t.titre} »`);
-    sources = await rechercherHistoire(`${sujet} histoire construction`);
-    if (sources.length < 2) throw new Error("sources web introuvables pour cette histoire");
-    await journal("info", `🔎 ${sources.length} sources : ${sources.map((s) => s.url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]).join(", ")}`);
+  const sujet = t.titre.replace(/^(histoire|présentation)\s*:\s*/i, "");
+  const presentation = estPresentation(t.consigne);
+  let sources: { titre: string; url: string; texte: string }[];
+  if (presentation) {
+    // Présentation de la marque : la fiche de la marque est la seule source.
+    if (!contexte) throw new Error("fiche de la marque vide");
+    sources = [{ titre: "Fiche de la marque", url: "fiche-marque", texte: contexte }];
+  } else {
+    // Fiche de l'agent de recherche (Histoires du jour) si elle existe, sinon
+    // une recherche web rapide sur le titre.
+    const fiche = ficheDeConsigne(t.consigne);
+    sources = fiche ? [{ titre: `Fiche de recherche : ${sujet}`, url: "fiche", texte: fiche }] : [];
+    if (!fiche) {
+      await journal("action", `📚 Recherche des faits de l'histoire : « ${t.titre} »`);
+      sources = await rechercherHistoire(`${sujet} histoire construction`);
+      if (sources.length < 2) throw new Error("sources web introuvables pour cette histoire");
+      await journal("info", `🔎 ${sources.length} sources : ${sources.map((s) => s.url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]).join(", ")}`);
+    }
   }
   const textes = sources.map((s) => `${s.titre} ${s.texte}`).join("\n") + `\n${t.titre} ${t.consigne}`;
-  const interdits = [marque, marque.replace(/\s+/g, ""), marque.split(/\s+/)[0]].filter((m) => m.length >= 3);
-  await journal("action", `🎬 Écriture du script « Histoire » (papier découpé) : « ${t.titre} »`);
+  // Histoire : la marque est interdite avant la dernière image ; présentation : permise.
+  const interdits = presentation ? [] : [marque, marque.replace(/\s+/g, ""), marque.split(/\s+/)[0]].filter((m) => m.length >= 3);
+  await journal("action", `🎬 Écriture du script « ${presentation ? "Présentation" : "Histoire"} » (papier découpé) : « ${t.titre} »`);
   const script = lireHistoire(
-    await demanderIA(consigneHistoire(sujet, sources, marque), {
-      systeme: "Tu es scénariste de vidéos courtes sur l'histoire de la construction. Tu réponds uniquement en JSON valide.",
+    await demanderIA(presentation ? consignePresentation(sujet, contexte ?? "", marque) : consigneHistoire(sujet, sources, marque), {
+      systeme: "Tu es scénariste de vidéos courtes pour le bâtiment. Tu réponds uniquement en JSON valide.",
       maxTokens: 1500,
       // NVIDIA d'abord (60 % du temps pour son modèle encore actif) : Gemini
       // répond souvent « surchargé » (503) et mangeait tout le délai.
@@ -522,7 +531,7 @@ async function fabriquerHistoire(
   const plan: Decoupe & { kind: "decoupe" } = {
     kind: "decoupe",
     plans: plansPhotos,
-    rubrique: "Histoires de chantier",
+    rubrique: presentation ? "Le journal du chantier" : "Histoires de chantier",
     voix: "voix.wav",
     musique: "musique.m4a",
   };
@@ -534,8 +543,8 @@ async function fabriquerHistoire(
     video_etat: "a_rendre",
     video_debut: new Date().toISOString(),
     video_rendu: { base, fichiers: fichiers.map((f) => f.nom), plan },
-    video_style: "histoire",
+    video_style: presentation ? "presentation" : "histoire",
     video_erreur: null,
   });
-  await journal("info", "🎞️ Vidéo « Histoire » envoyée au studio de rendu : prête d'ici quelques minutes.");
+  await journal("info", `🎞️ Vidéo « ${presentation ? "Présentation" : "Histoire"} » envoyée au studio de rendu : prête d'ici quelques minutes.`);
 }

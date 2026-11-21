@@ -11,6 +11,11 @@ import { texteInvente } from "./explication-script";
 export const MARQUE_HISTOIRE = "Format vidéo : histoire vraie du monde de la construction, en papier découpé.";
 export const estHistoire = (consigne: string | null | undefined) => Boolean(consigne?.includes(MARQUE_HISTOIRE));
 
+// Même style « papier découpé » pour présenter la marque elle-même.
+export const MARQUE_PRESENTATION = "Format vidéo : présentation de la marque en papier découpé.";
+export const estPresentation = (consigne: string | null | undefined) => Boolean(consigne?.includes(MARQUE_PRESENTATION));
+export const estDecoupe = (consigne: string | null | undefined) => estHistoire(consigne) || estPresentation(consigne);
+
 export type Source = { titre: string; url: string; texte: string };
 export type PlanHistoire = Omit<PlanDecoupe, "duree" | "carte" | "photo"> & { recherche_photo?: string };
 export type ScriptHistoire = { plans: PlanHistoire[]; legende: string };
@@ -33,6 +38,25 @@ Chaque plan :
 - "photo" : 2 à 4 mots-clés EN ANGLAIS pour trouver sur Pexels une photo réelle d'UN seul sujet net, détouré ensuite sur fond kraft (ex. "construction worker", "steel beam", "crane", "architect blueprint", "radio antenna"). Évite les paysages, les foules et les vues d'ensemble. Vide si rien ne s'y prête.
 Règles strictes : un chiffre, une date ou une durée n'apparaît QUE s'il figure dans les sources ; si les sources se contredisent sur un chiffre, écris « environ » ou n'écris pas le chiffre ; aucune exagération (« le plus grand du monde ») sans source ; pas de promesse, pas de politique, pas de religion, pas d'insulte.
 "legende" : légende TikTok, 2 phrases qui donnent envie de réagir + une question + 3 hashtags (#construction #architecture #histoire), sans nom de marque ni lien.
+Réponds uniquement en JSON : {"plans":[{"titre":"…","extrait":"…","phrase":"…","icones":["…","…"],"photo":"…"}],"legende":"…"}`;
+}
+
+export function consignePresentation(sujet: string, fiche: string, marque: string) {
+  return `Écris le script d'une vidéo TikTok verticale de 25 à 35 secondes qui présente « ${marque} » à des artisans, des PME du bâtiment et des architectes, en français. Format « papier découpé » : un plan toutes les 3 à 5 secondes, une coupure de journal, une photo détourée et une icône par plan.
+Sujet : ${sujet}
+
+Fiche de la marque (SEULE source de vérité : n'écris aucune fonction, aucun prix, aucun chiffre ni témoignage qui n'y figure pas) :
+${fiche.slice(0, 3000)}
+
+Structure : plan 1 = la douleur du chantier qui arrête le défilement (le devis du soir, la facture qui bloque, la paperasse) ; puis 3 à 4 plans, chacun UNE fonction réelle de la fiche montrée par un geste concret du chantier ; le dernier plan donne le bénéfice. L'appel à l'action final est ajouté automatiquement : ne l'écris pas.
+Chaque plan :
+- "titre" : titre de la coupure de journal, MAJUSCULES, 34 caractères au plus, 3 à 6 mots (le dernier mot sera surligné) ;
+- "extrait" : une phrase de la coupure, 95 caractères au plus ;
+- "phrase" : la phrase dite par la voix off, 6 à 14 mots, tutoiement, ton direct de chantier ; mets UN mot clé entre *astérisques* ;
+- "icones" : une ou deux icônes parmi : ${NOMS_ICONES_DECOUPE.join(", ")} ;
+- "photo" : 2 à 4 mots-clés EN ANGLAIS pour trouver sur Pexels une photo réelle d'UN seul sujet net, détouré ensuite (ex. "construction worker smartphone", "builder tablet", "craftsman paperwork", "hard hat"). Évite les paysages et les foules.
+Règles strictes : un chiffre n'apparaît QUE s'il figure dans la fiche ; pas de promesse (« garanti », « 100 % », « zéro erreur ») ; n'invente aucun client ni résultat.
+"legende" : légende TikTok, 2 phrases + une question + 3 hashtags métier (#btp #artisan #chantier), qui finit par « Lien en bio ».
 Réponds uniquement en JSON : {"plans":[{"titre":"…","extrait":"…","phrase":"…","icones":["…","…"],"photo":"…"}],"legende":"…"}`;
 }
 
