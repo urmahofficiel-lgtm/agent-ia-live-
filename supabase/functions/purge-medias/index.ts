@@ -6,6 +6,9 @@
 // montage ou un doublage prêt de moins de 30 jours, à la photothèque et à la
 // fiche de marque (voir prive.medias_a_purger).
 //
+// Depuis le 21/11/2026 (demande de Younes) : effacés dès 24 h après leur
+// création au lieu de 3 jours, pour rester dans l'offre gratuite de Supabase.
+//
 // Appelée chaque nuit par pg_cron, ou à la demande avec { avant, simuler }.
 // Garde-fou : jamais de fichier de moins de 24 h (un média en cours de
 // fabrication n'est pas encore relié à sa publication).
@@ -19,7 +22,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const JOUR_MS = 24 * 3600 * 1000;
-const DELAI_PAR_DEFAUT_JOURS = 3;
+const DELAI_PAR_DEFAUT_JOURS = 1;
 const TOURS_MAX = 12;
 
 async function secretsEgaux(a?: string | null, b?: string | null): Promise<boolean> {
