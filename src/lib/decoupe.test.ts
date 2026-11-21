@@ -175,3 +175,16 @@ describe("coupures de journal propres (retours du 21/11)", () => {
     expect(s?.plans).toHaveLength(5);
   });
 });
+
+describe("garde-fou de marque dans le script (21/11)", () => {
+  it("refuse un plan scabreux, garde les autres", async () => {
+    const { choquant } = await import("./decoupe-script");
+    expect(choquant("Selon Hérodote, le pharaon prostitue sa fille")).toBe(true);
+    expect(choquant("Des ouvriers qualifiés et non des esclaves")).toBe(false);
+    expect(choquant("Le viaduc de Millau domine la vallée")).toBe(false);
+    const ok = { titre: "UN CHANTIER", extrait: "Des ouvriers qualifiés.", phrase: "Des *ouvriers* qualifiés.", icones: ["Hammer"] };
+    const mauvais = { ...ok, phrase: "Le pharaon *prostitue* sa fille." };
+    const s = lireHistoire(JSON.stringify({ plans: [ok, ok, ok, ok, ok, mauvais], legende: "" }), "Des ouvriers qualifiés.", []);
+    expect(s?.plans).toHaveLength(5);
+  });
+});

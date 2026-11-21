@@ -36,7 +36,7 @@ Chaque plan :
 - "phrase" : la phrase dite par la voix off, 6 à 12 mots, tutoiement ou ton neutre, mets UN mot clé entre *astérisques* ;
 - "icones" : une ou deux icônes parmi : ${NOMS_ICONES_DECOUPE.join(", ")} ;
 - "photo" : 2 à 4 mots-clés EN ANGLAIS pour trouver sur Pexels une photo réelle d'UN seul sujet net, détouré ensuite sur fond kraft : de préférence le monument lui-même (ex. "Eiffel Tower", "Empire State Building"), sinon ce dont parle le plan (ex. "construction worker", "steel beam", "crane", "architect blueprint", "vintage radio"). Évite les paysages, les foules et les vues d'ensemble. Vide si rien ne s'y prête.
-Règles strictes : un chiffre, une date ou une durée n'apparaît QUE s'il figure dans les sources ; si les sources se contredisent sur un chiffre, écris « environ » ou n'écris pas le chiffre ; aucune exagération (« le plus grand du monde ») sans source ; pas de promesse, pas de politique, pas de religion, pas d'insulte.
+Règles strictes : un chiffre, une date ou une durée n'apparaît QUE s'il figure dans les sources ; si les sources se contredisent sur un chiffre, écris « environ » ou n'écris pas le chiffre ; aucune exagération (« le plus grand du monde ») sans source ; pas de promesse, pas de politique, pas de religion, pas d'insulte ; AUCUNE anecdote sexuelle, violente, morbide ou scabreuse, même racontée par un historien (la vidéo porte le nom d'une marque).
 "legende" : légende TikTok, 2 phrases qui donnent envie de réagir + une question + 3 hashtags (#construction #architecture #histoire), sans nom de marque ni lien.
 Réponds uniquement en JSON : {"plans":[{"titre":"…","extrait":"…","phrase":"…","icones":["…","…"],"photo":"…"}],"legende":"…"}`;
 }
@@ -62,6 +62,10 @@ Réponds uniquement en JSON : {"plans":[{"titre":"…","extrait":"…","phrase":
 
 // Coupure recopiée d'une source anglaise (« Construction started on… ») : refusée.
 const MOTS_ANGLAIS = /\b(the|and|was|were|of the|during|started|completed|building|ahead|opened|officially)\b/gi;
+// Garde-fou de marque : sexe, violence, morbide (une vidéo de marque part seule).
+const CHOQUANT = /prostitu|sexu|d[ée]bauche|\bviol(s|e|é|ée|ées|er)?\b|meurtr|assassin|tortur|cadavre|suicid|massacre|pendu/i;
+export const choquant = (t: string) => CHOQUANT.test(t);
+
 export const enAnglais = (t: string) => (t.match(MOTS_ANGLAIS) ?? []).length >= 2;
 
 export function lireHistoire(reponse: string, sources: string, interdits: string[] = []): ScriptHistoire | null {
@@ -81,7 +85,7 @@ export function lireHistoire(reponse: string, sources: string, interdits: string
       const noms = (Array.isArray(o.icones) ? o.icones : []).map((x) => String(x)).filter((x) => NOMS_ICONES_DECOUPE.includes(x));
       if (!titre || !extrait || !phrase || !noms.length) return [];
       const tout = `${titre} ${extrait} ${phrase.replace(/\*/g, "")}`;
-      if (texteInvente(tout, sources) || marqueDite(tout)) return [];
+      if (texteInvente(tout, sources) || marqueDite(tout) || choquant(tout)) return [];
       const recherche_photo = court(o.photo, 40).replace(/[^A-Za-z ]/g, "").trim() || undefined;
       return [{ titre, extrait, phrase, icones: [noms[0], noms[1]], recherche_photo }];
     });

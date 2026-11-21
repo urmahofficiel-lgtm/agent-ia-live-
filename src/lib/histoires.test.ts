@@ -87,3 +87,10 @@ describe("publication du soir", () => {
     expect(consigne.length).toBeLessThan(6000);
   });
 });
+
+describe("garde-fou de marque (21/11)", () => {
+  it("écarte les anecdotes scabreuses de la fiche", () => {
+    const f = lireFiche(reponse({ ...bonne, anecdotes: ["D'après Hérodote, le pharaon aurait prostitué sa fille pour financer le chantier.", "Elle devait être démontée."] }), eiffel, TEXTES);
+    expect(f?.anecdotes).toEqual(["Elle devait être démontée."]);
+  });
+});

@@ -4,7 +4,7 @@
 // anecdotes) dans une fiche, et prépare la vidéo « Histoire » du soir.
 // Logique pure, testable ; la recherche web est dans la route.
 import { texteInvente } from "./explication-script";
-import { MARQUE_HISTOIRE } from "./decoupe-script";
+import { choquant, MARQUE_HISTOIRE } from "./decoupe-script";
 
 export type Sujet = { cle: string; nom: string; recherche: string };
 
@@ -97,7 +97,7 @@ Champs (en français ; null ou liste vide si les sources ne le disent pas, n'inv
 - "ouvriers" (nombre de personnes sur le chantier, avec « environ » si les sources l'estiment) ;
 - "cout" (coût de construction avec la monnaie et l'époque, ex. « 7,8 millions de francs-or de l'époque ») ;
 - "chiffres" : 2 à 5 autres chiffres clés (hauteur, poids, matériaux…) ;
-- "anecdotes" : 2 à 4 faits surprenants, chacun en une phrase ;
+- "anecdotes" : 2 à 4 faits surprenants sur le CHANTIER (techniques, ouvriers, records, imprévus), chacun en une phrase ; jamais d'anecdote sexuelle, violente ou scabreuse ;
 - "accroche" : le fait le plus étonnant, en une phrase.
 Chaque chiffre ou date doit figurer tel quel dans une source. Si deux sources se contredisent, garde la fourchette (« entre … et … ») ou « environ ».
 Réponds uniquement en JSON avec ces clés.`;
@@ -113,8 +113,8 @@ export function lireFiche(reponse: string, s: Sujet, textes: string): Fiche | nu
   if (debut === -1 || fin <= debut) return null;
   try {
     const j = JSON.parse(reponse.slice(debut, fin + 1)) as Record<string, unknown>;
-    const sur = (x: string | null) => (x && !texteInvente(x, textes) ? x : null);
-    const surs = (l: string[]) => l.filter((x) => !texteInvente(x, textes));
+    const sur = (x: string | null) => (x && !texteInvente(x, textes) && !choquant(x) ? x : null);
+    const surs = (l: string[]) => l.filter((x) => !texteInvente(x, textes) && !choquant(x));
     const f: Fiche = {
       nom: txt(j.nom, 120) ?? s.nom,
       lieu: sur(txt(j.lieu, 120)),
