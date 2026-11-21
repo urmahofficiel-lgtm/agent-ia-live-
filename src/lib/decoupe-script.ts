@@ -33,9 +33,9 @@ Structure : plan 1 = accroche qui arrête le défilement (le paradoxe, le chiffr
 Chaque plan :
 - "titre" : titre de la coupure de journal, MAJUSCULES, 34 caractères au plus, 3 à 6 mots (le dernier mot sera surligné) ;
 - "extrait" : une phrase de la coupure, 95 caractères au plus ;
-- "phrase" : la phrase dite par la voix off, 6 à 14 mots, tutoiement ou ton neutre, mets UN mot clé entre *astérisques* ;
+- "phrase" : la phrase dite par la voix off, 6 à 12 mots, tutoiement ou ton neutre, mets UN mot clé entre *astérisques* ;
 - "icones" : une ou deux icônes parmi : ${NOMS_ICONES_DECOUPE.join(", ")} ;
-- "photo" : 2 à 4 mots-clés EN ANGLAIS pour trouver sur Pexels une photo réelle d'UN seul sujet net, détouré ensuite sur fond kraft (ex. "construction worker", "steel beam", "crane", "architect blueprint", "radio antenna"). Évite les paysages, les foules et les vues d'ensemble. Vide si rien ne s'y prête.
+- "photo" : 2 à 4 mots-clés EN ANGLAIS pour trouver sur Pexels une photo réelle d'UN seul sujet net, détouré ensuite sur fond kraft : de préférence le monument lui-même (ex. "Eiffel Tower", "Empire State Building"), sinon ce dont parle le plan (ex. "construction worker", "steel beam", "crane", "architect blueprint", "vintage radio"). Évite les paysages, les foules et les vues d'ensemble. Vide si rien ne s'y prête.
 Règles strictes : un chiffre, une date ou une durée n'apparaît QUE s'il figure dans les sources ; si les sources se contredisent sur un chiffre, écris « environ » ou n'écris pas le chiffre ; aucune exagération (« le plus grand du monde ») sans source ; pas de promesse, pas de politique, pas de religion, pas d'insulte.
 "legende" : légende TikTok, 2 phrases qui donnent envie de réagir + une question + 3 hashtags (#construction #architecture #histoire), sans nom de marque ni lien.
 Réponds uniquement en JSON : {"plans":[{"titre":"…","extrait":"…","phrase":"…","icones":["…","…"],"photo":"…"}],"legende":"…"}`;

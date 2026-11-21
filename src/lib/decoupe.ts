@@ -115,8 +115,8 @@ export function compositionDecoupe(e: Decoupe): string {
       if (p.photo) {
         // Photo détourée au centre, une petite icône à côté.
         el.push(
-          `<div id="${id}-photo" class="clip sticker photo" data-start="${deb}" data-duration="${d}" style="left:400px;top:960px"><img src="${ech(p.photo)}" alt=""></div>`,
-          `<div id="${id}-i0" class="clip sticker blob petit" data-start="${deb}" data-duration="${d}" style="left:850px;top:1090px">${icone(i1)}</div>`,
+          `<div id="${id}-photo" class="clip sticker photo" data-start="${deb}" data-duration="${d}" style="left:470px;top:925px"><img src="${ech(p.photo)}" alt=""></div>`,
+          `<div id="${id}-i0" class="clip sticker blob petit" data-start="${deb}" data-duration="${d}" style="left:900px;top:1080px">${icone(i1)}</div>`,
         );
         boil(anim, `#${id}-photo`, deb, d, 0, 0, -3 + a1 * 0.4, { p: 3, r: 0.6 }, 0.25, rnd);
         boil(anim, `#${id}-i0`, deb, d, 0, 0, 8, { p: 3, r: 0.8 }, 0.5, rnd);
@@ -129,7 +129,7 @@ export function compositionDecoupe(e: Decoupe): string {
         }
       }
     }
-    el.push(`<div id="${id}-phrase" class="clip sticker phrase" data-start="${deb}" data-duration="${d}" style="left:540px;top:1295px"><span>${motsCles(p.phrase)}</span></div>`);
+    el.push(`<div id="${id}-phrase" class="clip sticker phrase" data-start="${deb}" data-duration="${d}" style="left:540px;top:1370px"><span>${motsCles(p.phrase)}</span></div>`);
     boil(anim, `#${id}-phrase`, deb, d, 0, 0, 0, { p: 2, r: 0.2 }, 0.12, rnd);
     t += d;
   });
@@ -165,10 +165,10 @@ html, body { width: 1080px; height: 1920px; overflow: hidden; background: #c9a87
 .blob svg { width: 230px; height: 230px; }
 .blob.petit { width: 270px; height: 270px; border-width: 12px; }
 .blob.petit svg { width: 150px; height: 150px; }
-.photo img { display: block; max-width: 640px; max-height: 600px; }
+.photo img { display: block; max-width: 720px; max-height: 520px; }
 .scotch { width: 230px; height: 62px; background: rgba(255,236,160,.85); background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.35) 0 4px, transparent 4px 9px); }
-.phrase { width: 900px; text-align: center; }
-.phrase span { display: inline; background: #ffd60a; color: #141414; font-weight: 800; font-size: 66px; line-height: 1.5; text-transform: uppercase; padding: 8px 22px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.phrase { width: 960px; text-align: center; }
+.phrase span { display: inline; background: #ffd60a; color: #141414; font-weight: 800; font-size: 54px; line-height: 1.45; text-transform: uppercase; padding: 6px 18px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .phrase .cle { background: #141414; color: #ffd60a; padding: 0 10px; }
 .carte { width: 880px; padding: 70px 56px; background: #ffd60a; text-align: center; filter: drop-shadow(0 14px 14px rgba(40,25,10,.35)); background-image: repeating-linear-gradient(90deg, rgba(0,0,0,.05) 0 2px, transparent 2px 6px); }
 .carte .grand { font-family: "Anton", sans-serif; font-size: 130px; line-height: 1.02; text-transform: uppercase; }
