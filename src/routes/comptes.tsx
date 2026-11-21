@@ -39,7 +39,7 @@ type Compte = {
   nom_utilisateur: string | null;
   compte_externe_id: string | null;
   fournisseur:
-    "zernio" | "meta" | "instagram" | "bluesky" | "telegram" | "linkedin" | "youtube";
+    "zernio" | "meta" | "instagram" | "bluesky" | "telegram" | "linkedin" | "youtube" | "threads";
   cible_nom: string | null;
   // Langue et pays dans lesquels l'agent publie avec ce compte.
   marche: string;
@@ -344,7 +344,7 @@ function Comptes() {
       )}
 
       <p className="mb-2 text-xs text-doux">
-        Facebook, Instagram, YouTube, Bluesky et Telegram : connexion directe, gratuite
+        Facebook, Instagram, Threads, YouTube, Bluesky et Telegram : connexion directe, gratuite
         et sans limite ; elle n'occupe pas de place chez Zernio. Instagram doit
         être un compte professionnel ou créateur (réglage gratuit dans l'app
         Instagram : Paramètres → Type de compte).

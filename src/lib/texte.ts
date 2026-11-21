@@ -32,8 +32,9 @@ export function reglesReseau(plateforme?: string | null, langue = "français"): 
       return "- LinkedIn : accroche sur 2 lignes courtes, paragraphes d'une phrase. AUCUN lien dans le texte (LinkedIn réduit la portée des posts avec lien) : invite à réagir en commentaire ou à écrire en message privé. 2 ou 3 hashtags de métier, à la fin.";
     case "tiktok":
       return "- TikTok : 150 caractères maximum avant les hashtags, accroche directe. AUCUN lien (non cliquable) : « lien en bio ». 3 ou 4 hashtags, du plus large au plus précis.";
-    case "instagram":
     case "threads":
+      return "- Threads : ton de conversation, accroche en première ligne, 450 caractères maximum en tout (Threads coupe à 500). AUCUN lien (non cliquable dans le texte) : « lien en bio ». Un seul hashtag, à la fin (Threads n'en garde qu'un).";
+    case "instagram":
       return "- Instagram : accroche en première ligne. AUCUN lien (non cliquable) : « lien en bio ». 3 à 5 hashtags, du plus large au plus précis, à la fin.";
     default:
       return "- Termine par l'appel à l'action de la fiche et le lien du site, écrit en entier.";

@@ -50,6 +50,7 @@ import { Route as ApiMetaRetourRouteImport } from './routes/api/meta/retour'
 import { Route as ApiResendWebhookRouteImport } from './routes/api/resend/webhook'
 import { Route as ApiStudioMontageAutoRouteImport } from './routes/api/studio/montage-auto'
 import { Route as ApiStudioTestRouteImport } from './routes/api/studio/test'
+import { Route as ApiThreadsRetourRouteImport } from './routes/api/threads/retour'
 import { Route as ApiVisuelsIdRouteImport } from './routes/api/visuels/$id'
 import { Route as ApiYoutubeRetourRouteImport } from './routes/api/youtube/retour'
 
@@ -258,6 +259,11 @@ const ApiStudioTestRoute = ApiStudioTestRouteImport.update({
   path: '/api/studio/test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiThreadsRetourRoute = ApiThreadsRetourRouteImport.update({
+  id: '/api/threads/retour',
+  path: '/api/threads/retour',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVisuelsIdRoute = ApiVisuelsIdRouteImport.update({
   id: '/api/visuels/$id',
   path: '/api/visuels/$id',
@@ -311,6 +317,7 @@ export interface FileRoutesByFullPath {
   '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/studio/montage-auto': typeof ApiStudioMontageAutoRoute
   '/api/studio/test': typeof ApiStudioTestRoute
+  '/api/threads/retour': typeof ApiThreadsRetourRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
   '/api/youtube/retour': typeof ApiYoutubeRetourRoute
 }
@@ -356,6 +363,7 @@ export interface FileRoutesByTo {
   '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/studio/montage-auto': typeof ApiStudioMontageAutoRoute
   '/api/studio/test': typeof ApiStudioTestRoute
+  '/api/threads/retour': typeof ApiThreadsRetourRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
   '/api/youtube/retour': typeof ApiYoutubeRetourRoute
 }
@@ -402,6 +410,7 @@ export interface FileRoutesById {
   '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/studio/montage-auto': typeof ApiStudioMontageAutoRoute
   '/api/studio/test': typeof ApiStudioTestRoute
+  '/api/threads/retour': typeof ApiThreadsRetourRoute
   '/api/visuels/$id': typeof ApiVisuelsIdRoute
   '/api/youtube/retour': typeof ApiYoutubeRetourRoute
 }
@@ -449,6 +458,7 @@ export interface FileRouteTypes {
     | '/api/resend/webhook'
     | '/api/studio/montage-auto'
     | '/api/studio/test'
+    | '/api/threads/retour'
     | '/api/visuels/$id'
     | '/api/youtube/retour'
   fileRoutesByTo: FileRoutesByTo
@@ -494,6 +504,7 @@ export interface FileRouteTypes {
     | '/api/resend/webhook'
     | '/api/studio/montage-auto'
     | '/api/studio/test'
+    | '/api/threads/retour'
     | '/api/visuels/$id'
     | '/api/youtube/retour'
   id:
@@ -539,6 +550,7 @@ export interface FileRouteTypes {
     | '/api/resend/webhook'
     | '/api/studio/montage-auto'
     | '/api/studio/test'
+    | '/api/threads/retour'
     | '/api/visuels/$id'
     | '/api/youtube/retour'
   fileRoutesById: FileRoutesById
@@ -585,6 +597,7 @@ export interface RootRouteChildren {
   ApiResendWebhookRoute: typeof ApiResendWebhookRoute
   ApiStudioMontageAutoRoute: typeof ApiStudioMontageAutoRoute
   ApiStudioTestRoute: typeof ApiStudioTestRoute
+  ApiThreadsRetourRoute: typeof ApiThreadsRetourRoute
   ApiVisuelsIdRoute: typeof ApiVisuelsIdRoute
   ApiYoutubeRetourRoute: typeof ApiYoutubeRetourRoute
 }
@@ -878,6 +891,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStudioTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/threads/retour': {
+      id: '/api/threads/retour'
+      path: '/api/threads/retour'
+      fullPath: '/api/threads/retour'
+      preLoaderRoute: typeof ApiThreadsRetourRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/visuels/$id': {
       id: '/api/visuels/$id'
       path: '/api/visuels/$id'
@@ -937,6 +957,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiResendWebhookRoute: ApiResendWebhookRoute,
   ApiStudioMontageAutoRoute: ApiStudioMontageAutoRoute,
   ApiStudioTestRoute: ApiStudioTestRoute,
+  ApiThreadsRetourRoute: ApiThreadsRetourRoute,
   ApiVisuelsIdRoute: ApiVisuelsIdRoute,
   ApiYoutubeRetourRoute: ApiYoutubeRetourRoute,
 }

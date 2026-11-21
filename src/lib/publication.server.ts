@@ -1,4 +1,5 @@
 import { publierYoutube, type IdentifiantsYoutube } from "./youtube.server";
+import { prolongerJetonThreads, publierThreads } from "./threads.server";
 import { PLATEFORMES } from "./plateformes";
 import { nettoyerPost } from "./texte";
 import { clientMoteur } from "./supabase-serveur";
@@ -103,6 +104,19 @@ export async function publierAvecSuite(
     });
     if (error || !data) throw new Error("Connexion introuvable : reconnectez la chaîne YouTube (page Comptes).");
     return { id: await publierYoutube(JSON.parse(data as string) as IdentifiantsYoutube, texte, media), suite: rien };
+  }
+  if (compte.fournisseur === "threads") {
+    const secret = process.env.AGENT_TICK_SECRET ?? "";
+    const sb = clientMoteur();
+    const { data, error } = await sb.rpc("compte_jeton", { p_secret: secret, p_user: userId, p_externe: compte.compte_externe_id });
+    if (error || !data) throw new Error("Connexion introuvable : reconnectez le compte Threads (page Comptes).");
+    let jeton = data as string;
+    const neuf = await prolongerJetonThreads(jeton);
+    if (neuf && neuf !== jeton) {
+      jeton = neuf;
+      await sb.rpc("compte_maj_jeton", { p_secret: secret, p_user: userId, p_externe: compte.compte_externe_id, p_jeton: neuf });
+    }
+    return { id: await publierThreads(compte.compte_externe_id, jeton, texte, media, image), suite: rien };
   }
   if (compte.fournisseur === "bluesky" || compte.fournisseur === "telegram" || compte.fournisseur === "linkedin") {
     const { data, error } = await clientMoteur().rpc("compte_jeton", {

@@ -75,6 +75,7 @@ import { sessionBluesky } from "./bluesky.server";
 import { verifierTelegram } from "./telegram.server";
 import { linkedinConfigure, urlConnexionLinkedin } from "./linkedin.server";
 import { urlConnexionYoutube, youtubeConfigure } from "./youtube.server";
+import { threadsConfigure, urlConnexionThreads } from "./threads.server";
 import {
   creerProfil,
   deconnecterCompte,
@@ -488,6 +489,11 @@ export const urlConnexion = createServerFn({ method: "POST" })
       if (data.plateforme === "youtube" && data.via !== "zernio" && youtubeConfigure()) {
         const { user } = await utilisateurDepuisJeton(data.jeton);
         return { ok: true, url: urlConnexionYoutube(user.id) };
+      }
+      // Threads : compte en direct (API Threads gratuite), sans place chez Zernio.
+      if (data.plateforme === "threads" && data.via !== "zernio" && threadsConfigure()) {
+        const { user } = await utilisateurDepuisJeton(data.jeton);
+        return { ok: true, url: urlConnexionThreads(user.id) };
       }
       // LinkedIn : profil personnel en direct ; la page entreprise passe par Zernio.
       if (

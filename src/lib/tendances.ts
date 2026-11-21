@@ -113,7 +113,7 @@ export function hashtagsPropres(liste: string[]): string[] {
 
 // Nombre de hashtags par réseau : quelques-uns bien choisis valent mieux
 // qu'une liste (Facebook et LinkedIn n'en tirent presque rien).
-export const MAX_HASHTAGS: Record<string, number> = { tiktok: 4, instagram: 5, threads: 3, facebook: 2, linkedin: 3, youtube: 3, x: 2, bluesky: 2 };
+export const MAX_HASHTAGS: Record<string, number> = { tiktok: 4, instagram: 5, threads: 1, facebook: 2, linkedin: 3, youtube: 3, x: 2, bluesky: 2 };
 
 // Texte final : hashtags interdits retirés, doublons supprimés, nombre limité
 // selon le réseau, regroupés en fin de texte.
