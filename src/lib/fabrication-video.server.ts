@@ -475,9 +475,11 @@ async function fabriquerHistoire(
   const script = lireHistoire(
     await demanderIA(consigneHistoire(sujet, sources, marque), {
       systeme: "Tu es scénariste de vidéos courtes sur l'histoire de la construction. Tu réponds uniquement en JSON valide.",
-      maxTokens: 1800,
-      delaiTotal: 100_000,
-      gemini: "d'abord",
+      maxTokens: 1500,
+      // NVIDIA d'abord (60 % du temps pour son modèle encore actif) : Gemini
+      // répond souvent « surchargé » (503) et mangeait tout le délai.
+      delaiTotal: 150_000,
+      gemini: "secours",
     }),
     textes,
     interdits,
