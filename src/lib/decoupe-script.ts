@@ -37,7 +37,7 @@ Chaque plan :
 - "icones" : une ou deux icônes parmi : ${NOMS_ICONES_DECOUPE.join(", ")} ;
 - "photo" : 2 à 4 mots-clés EN ANGLAIS pour trouver sur Pexels une photo réelle d'UN seul sujet net, détouré ensuite sur fond kraft : de préférence le monument lui-même (ex. "Eiffel Tower", "Empire State Building"), sinon ce dont parle le plan (ex. "construction worker", "steel beam", "crane", "architect blueprint", "vintage radio"). Évite les paysages, les foules et les vues d'ensemble. Vide si rien ne s'y prête.
 Règles strictes : un chiffre, une date ou une durée n'apparaît QUE s'il figure dans les sources ; si les sources se contredisent sur un chiffre, écris « environ » ou n'écris pas le chiffre ; aucune exagération (« le plus grand du monde ») sans source ; pas de promesse, pas de politique, pas de religion, pas d'insulte ; AUCUNE anecdote sexuelle, violente, morbide ou scabreuse, même racontée par un historien (la vidéo porte le nom d'une marque).
-"legende" : légende TikTok, 2 phrases qui donnent envie de réagir + une question + 3 hashtags (#construction #architecture #histoire), sans nom de marque ni lien.
+"legende" : légende TikTok, 2 phrases qui donnent envie de réagir + une question + 3 hashtags propres à CETTE histoire : le monument ou le chantier lui-même (ex. #toureiffel), son lieu, son architecte ou son époque (ex. #paris, #gustaveeiffel), puis un thème précis (ex. #patrimoine, #genieCivil, #charpentemetallique) ; jamais une liste passe-partout comme #construction #architecture #histoire ; sans nom de marque ni lien.
 Réponds uniquement en JSON : {"plans":[{"titre":"…","extrait":"…","phrase":"…","icones":["…","…"],"photo":"…"}],"legende":"…"}`;
 }
 
@@ -56,7 +56,7 @@ Chaque plan :
 - "icones" : une ou deux icônes parmi : ${NOMS_ICONES_DECOUPE.join(", ")} ;
 - "photo" : 2 à 4 mots-clés EN ANGLAIS pour trouver sur Pexels une photo réelle d'UN seul sujet net, détouré ensuite (ex. "construction worker smartphone", "builder tablet", "craftsman paperwork", "hard hat"). Évite les paysages et les foules.
 Règles strictes : un chiffre n'apparaît QUE s'il figure dans la fiche ; pas de promesse (« garanti », « 100 % », « zéro erreur ») ; n'invente aucun client ni résultat.
-"legende" : légende TikTok, 2 phrases + une question + 3 hashtags métier (#btp #artisan #chantier), qui finit par « Lien en bio ».
+"legende" : légende TikTok, 2 phrases + une question + 3 hashtags adaptés à CE sujet : le métier visé (ex. #plombier, #electricien, #macon, #architecte), le problème ou l'outil présenté (ex. #devis, #facturation, #suividechantier) et au plus UN hashtag large (#btp ou #artisan) ; qui finit par « Lien en bio ».
 Réponds uniquement en JSON : {"plans":[{"titre":"…","extrait":"…","phrase":"…","icones":["…","…"],"photo":"…"}],"legende":"…"}`;
 }
 
