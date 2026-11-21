@@ -9,6 +9,7 @@ import type { PhotoStockee } from "@/lib/phototheque";
 import { fabriquerVideo } from "@/lib/fabrication-video.server";
 import { clientMoteur } from "@/lib/supabase-serveur";
 import { lireStyleImage, lireStyleVideo, styleVideoPour } from "@/lib/styles";
+import { reveillerRobotRendu } from "@/lib/robot-rendu.server";
 import { planifierJournees } from "@/lib/pilote.server";
 import { estEtranger, marcheDe } from "@/lib/marches";
 import { controlerPublication, type DejaPubliee } from "@/lib/controle-qualite";
@@ -387,16 +388,3 @@ export const Route = createFileRoute("/api/agent/tick")({
   },
 });
 
-// Lance le robot de rendu des vidéos animées (GitHub Actions) avec le jeton
-// GITHUB_RENDU_TOKEN (limité au dépôt, permission Actions seulement).
-async function reveillerRobotRendu() {
-  const jeton = process.env.GITHUB_RENDU_TOKEN;
-  if (!jeton) return;
-  const r = await fetch("https://api.github.com/repos/urmahofficiel-lgtm/agent-ia-live-/actions/workflows/rendu-video.yml/dispatches", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${jeton}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
-    body: JSON.stringify({ ref: "main" }),
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!r.ok) throw new Error(`GitHub ${r.status}`);
-}

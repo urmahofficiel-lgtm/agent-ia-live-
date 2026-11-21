@@ -30,6 +30,7 @@ import { Route as DesinscriptionJetonRouteImport } from './routes/desinscription
 import { Route as LCodeRouteImport } from './routes/l/$code'
 import { Route as ApiAgentCommentairesRouteImport } from './routes/api/agent/commentaires'
 import { Route as ApiAgentConcurrentsRouteImport } from './routes/api/agent/concurrents'
+import { Route as ApiAgentControleVideosRouteImport } from './routes/api/agent/controle-videos'
 import { Route as ApiAgentCoordonneesRouteImport } from './routes/api/agent/coordonnees'
 import { Route as ApiAgentDoublageRouteImport } from './routes/api/agent/doublage'
 import { Route as ApiAgentEmailsRouteImport } from './routes/api/agent/emails'
@@ -156,6 +157,11 @@ const ApiAgentConcurrentsRoute = ApiAgentConcurrentsRouteImport.update({
   path: '/api/agent/concurrents',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentControleVideosRoute = ApiAgentControleVideosRouteImport.update({
+  id: '/api/agent/controle-videos',
+  path: '/api/agent/controle-videos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAgentCoordonneesRoute = ApiAgentCoordonneesRouteImport.update({
   id: '/api/agent/coordonnees',
   path: '/api/agent/coordonnees',
@@ -279,6 +285,7 @@ export interface FileRoutesByFullPath {
   '/l/$code': typeof LCodeRoute
   '/api/agent/commentaires': typeof ApiAgentCommentairesRoute
   '/api/agent/concurrents': typeof ApiAgentConcurrentsRoute
+  '/api/agent/controle-videos': typeof ApiAgentControleVideosRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
@@ -322,6 +329,7 @@ export interface FileRoutesByTo {
   '/l/$code': typeof LCodeRoute
   '/api/agent/commentaires': typeof ApiAgentCommentairesRoute
   '/api/agent/concurrents': typeof ApiAgentConcurrentsRoute
+  '/api/agent/controle-videos': typeof ApiAgentControleVideosRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
@@ -366,6 +374,7 @@ export interface FileRoutesById {
   '/l/$code': typeof LCodeRoute
   '/api/agent/commentaires': typeof ApiAgentCommentairesRoute
   '/api/agent/concurrents': typeof ApiAgentConcurrentsRoute
+  '/api/agent/controle-videos': typeof ApiAgentControleVideosRoute
   '/api/agent/coordonnees': typeof ApiAgentCoordonneesRoute
   '/api/agent/doublage': typeof ApiAgentDoublageRoute
   '/api/agent/emails': typeof ApiAgentEmailsRoute
@@ -411,6 +420,7 @@ export interface FileRouteTypes {
     | '/l/$code'
     | '/api/agent/commentaires'
     | '/api/agent/concurrents'
+    | '/api/agent/controle-videos'
     | '/api/agent/coordonnees'
     | '/api/agent/doublage'
     | '/api/agent/emails'
@@ -454,6 +464,7 @@ export interface FileRouteTypes {
     | '/l/$code'
     | '/api/agent/commentaires'
     | '/api/agent/concurrents'
+    | '/api/agent/controle-videos'
     | '/api/agent/coordonnees'
     | '/api/agent/doublage'
     | '/api/agent/emails'
@@ -497,6 +508,7 @@ export interface FileRouteTypes {
     | '/l/$code'
     | '/api/agent/commentaires'
     | '/api/agent/concurrents'
+    | '/api/agent/controle-videos'
     | '/api/agent/coordonnees'
     | '/api/agent/doublage'
     | '/api/agent/emails'
@@ -541,6 +553,7 @@ export interface RootRouteChildren {
   LCodeRoute: typeof LCodeRoute
   ApiAgentCommentairesRoute: typeof ApiAgentCommentairesRoute
   ApiAgentConcurrentsRoute: typeof ApiAgentConcurrentsRoute
+  ApiAgentControleVideosRoute: typeof ApiAgentControleVideosRoute
   ApiAgentCoordonneesRoute: typeof ApiAgentCoordonneesRoute
   ApiAgentDoublageRoute: typeof ApiAgentDoublageRoute
   ApiAgentEmailsRoute: typeof ApiAgentEmailsRoute
@@ -712,6 +725,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentConcurrentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/controle-videos': {
+      id: '/api/agent/controle-videos'
+      path: '/api/agent/controle-videos'
+      fullPath: '/api/agent/controle-videos'
+      preLoaderRoute: typeof ApiAgentControleVideosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agent/coordonnees': {
       id: '/api/agent/coordonnees'
       path: '/api/agent/coordonnees'
@@ -877,6 +897,7 @@ const rootRouteChildren: RootRouteChildren = {
   LCodeRoute: LCodeRoute,
   ApiAgentCommentairesRoute: ApiAgentCommentairesRoute,
   ApiAgentConcurrentsRoute: ApiAgentConcurrentsRoute,
+  ApiAgentControleVideosRoute: ApiAgentControleVideosRoute,
   ApiAgentCoordonneesRoute: ApiAgentCoordonneesRoute,
   ApiAgentDoublageRoute: ApiAgentDoublageRoute,
   ApiAgentEmailsRoute: ApiAgentEmailsRoute,
