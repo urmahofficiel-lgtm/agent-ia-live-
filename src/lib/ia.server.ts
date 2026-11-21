@@ -14,11 +14,14 @@ const NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 // Ordre : les plus rapides d'abord (la rédaction se fait en direct).
 // Mesuré en production : gpt-oss-20b répond en 3 à 6 s ; deepseek-v4.1-flash
 // dépasse 45 s.
+// 21/11/2026 : gpt-oss-20b, nemotron-70b et deepseek-v4.1-flash répondent
+// 410 (retirés, écartés en quelques millisecondes) ; gemma-4-31b, plus lent,
+// passe en dernier pour garder tout le temps restant.
 const MODELES = [
   "openai/gpt-oss-20b",
-  "google/gemma-4-31b-it",
   "nvidia/llama-3.1-nemotron-70b-instruct",
   "deepseek-ai/deepseek-v4.1-flash",
+  "google/gemma-4-31b-it",
 ];
 
 const MODELE_DISPARU = new Set([404, 410]);
@@ -173,13 +176,15 @@ async function demanderNvidia(cle: string, systeme: string, demande: string, max
   // doit pas empêcher d'essayer les suivants.
   const modeles = [process.env.NVIDIA_MODELE, ...MODELES].filter((m): m is string => Boolean(m) && !retires.has(m!));
   let derniereErreur = "L'IA NVIDIA n'a pas répondu à temps. Réessayez.";
-  for (const modele of modeles) {
+  for (const [n, modele] of modeles.entries()) {
     const reste = echeance - Date.now();
     if (reste < 5_000) break;
     const debut = Date.now();
+    // Le dernier modèle n'a plus personne derrière lui : il garde tout le temps restant.
+    const dernier = n === modeles.length - 1;
     let r: Response;
     try {
-      r = await appelNvidia(cle, modele, systeme, demande, maxTokens, Math.min(delaiMax(maxTokens), Math.max(25_000, reste / 2), reste));
+      r = await appelNvidia(cle, modele, systeme, demande, maxTokens, Math.min(delaiMax(maxTokens), dernier ? reste : Math.max(25_000, reste / 2), reste));
     } catch {
       console.warn("NVIDIA : trop lent, modèle suivant", modele, Date.now() - debut, "ms");
       derniereErreur = "L'IA a mis trop de temps à répondre. Réessayez dans un instant.";
