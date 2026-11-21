@@ -22,7 +22,20 @@ begin
   if p_fournisseur not in ('bluesky', 'telegram', 'linkedin', 'youtube') then
     raise exception 'fournisseur non pris en charge';
   end if;
-  delete from public.comptes_connectes where user_id = p_user and fournisseur = p_fournisseur and plateforme = p_plateforme;
+  -- Reconnexion : la ligne existante est mise à jour (même compte, nouveau jeton).
+  select c.id into v_id from public.comptes_connectes c
+   where c.user_id = p_user and c.fournisseur = p_fournisseur and c.plateforme = p_plateforme
+   order by c.created_at desc limit 1;
+  if v_id is not null then
+    update public.comptes_connectes
+       set libelle = p_fournisseur || ':' || p_externe, compte_externe_id = p_externe, nom_utilisateur = p_nom
+     where id = v_id;
+    update prive.jetons_meta set jeton = p_jeton where compte_id = v_id;
+    if not found then
+      insert into prive.jetons_meta (compte_id, jeton) values (v_id, p_jeton);
+    end if;
+    return;
+  end if;
   v_statut := case when exists (
     select 1 from public.comptes_connectes
      where user_id = p_user and plateforme = p_plateforme and statut = 'connecte'
