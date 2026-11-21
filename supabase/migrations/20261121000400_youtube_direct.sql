@@ -93,12 +93,12 @@ begin
            or t.resultat ->> 'carrousel_etat' = 'echec'
          )
          and (
-           t.plateforme not in ('tiktok', 'youtube')
+           coalesce(t.plateforme, '') not in ('tiktok', 'youtube')
            or t.resultat ->> 'video_url' is not null
            or t.resultat ? 'carrousel'
          )
          and (
-           t.plateforme not in ('instagram', 'facebook')
+           coalesce(t.plateforme, '') not in ('instagram', 'facebook')
            or t.resultat ->> 'video_url' is not null
            or t.resultat ? 'carrousel'
            or t.resultat ->> 'video_etat' = 'echec'
