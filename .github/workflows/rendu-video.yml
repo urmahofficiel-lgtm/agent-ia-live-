@@ -58,7 +58,8 @@ jobs:
       - name: Détourage des photos (rembg)
         if: steps.file.outputs.a_rendre != '0'
         timeout-minutes: 8
-        run: pip install -r rendu-video/requirements.txt || echo "rembg indisponible : les vidéos garderont leurs icônes"
+        run: |
+          pip install -r rendu-video/requirements.txt || echo "rembg indisponible, les vidéos garderont leurs icônes"
       - name: Rendu
         if: steps.file.outputs.a_rendre != '0'
         env:
