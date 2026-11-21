@@ -83,9 +83,17 @@ export function lireCarrousel(reponse: string): Carrousel | null {
 
 // Texte français sans un seul accent (certains modèles de secours écrivent
 // « methode », « reponse ») : refusé, l'IA le réécrit.
+// Un texte court peut n'avoir aucun accent sans faute (« Marre des devis le
+// soir ? ») : on ne bloque que s'il contient un mot qui DEVRAIT en porter
+// (« deja », « tres », « creer »…), hashtags et liens mis à part.
+const MOTS_SANS_ACCENT =
+  /\b(deja|tres|etre|ete|apres|des que|voila|reponse|repondre|creer|cree|creez|genere|generer|gerer|gerez|metier|metiers|equipe|probleme|systeme|securite|securiser|qualite|interet|premiere|derniere|regle|electricien|electrique|numerique|telephone|delai|delais|recu|recus|frequent|reussir|reussite|resultat|resultats|evite|eviter|economie|economisez|detail|details|precis|pret|prete|tete|fete|meme|bientot|plutot|controle|controler|francais|beneficiez|beneficier|modele|modeles|devez|refaire|reglez|a jour|ca)\b/i;
+
 export function sansAccents(texte: string, marche?: string | null) {
   if (!marcheDe(marche).id.startsWith("fr")) return false;
-  return texte.replace(/\s+/g, " ").length > 150 && !/[àâäéèêëîïôöùûüç]/i.test(texte);
+  const propre = texte.replace(/https?:\/\/\S+|#[\p{L}\p{N}_]+/gu, " ").replace(/\s+/g, " ").trim();
+  if (propre.length <= 150 || /[àâäéèêëîïôöùûüç]/i.test(propre)) return false;
+  return MOTS_SANS_ACCENT.test(propre);
 }
 
 // --- Dessin -------------------------------------------------------------------------

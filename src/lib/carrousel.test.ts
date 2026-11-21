@@ -41,6 +41,12 @@ describe("carrousel", () => {
     expect(sansAccents(sans, "en-GB")).toBe(false);
   });
 
+  it("laisse passer un post correct qui n'a simplement aucun accent", () => {
+    const post =
+      "Marre des devis le soir ? 🛠️\nBTP Ecosystem fait vos devis par IA et factures Factur-X. 14j offerts sans CB, lien en bio.\nCombien d'heures tu y passes ?\n\n#btp #batiment #chantier #artisan";
+    expect(sansAccents(post, "fr-FR")).toBe(false);
+  });
+
   it("remet les apostrophes oubliées, sans toucher au reste", () => {
     expect(apostrophes("Chiffrer sans voir le chantier, c est courir vers l envoi d un devis qu il regrette")).toBe(
       "Chiffrer sans voir le chantier, c'est courir vers l'envoi d'un devis qu'il regrette",
