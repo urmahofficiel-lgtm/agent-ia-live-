@@ -29,3 +29,11 @@ Fichiers sources : visuels dans `public/linkedin/`, générateur dans le carnet 
 | 2026-11-18 | Appels d'offres (LinkedIn 16/11) + guide TikTok | LinkedIn AO 9 · guide 11 · TikTok 682 | 0 j'aime LinkedIn · TikTok 12 | 1 comm. par post LinkedIn (le nôtre, lien), 0 mot AO/GUIDE | Lien en 1er commentaire OK sur les 2 posts | LinkedIn reste à ~10 vues sans réaction, la moyenne n'a pas bougé ; TikTok est 60x plus vu | Sur LinkedIn, tester un post sans cadeau mais avec une question courte et un avis de métier pour provoquer des réactions |
 | 2026-11-20 | Modèles de devis (LinkedIn 18/11) + AO + guide + TikTok | Modèles 5 · AO 11 · guide 11 · TikTok guide 703 | 0 j'aime LinkedIn · TikTok 12 | 1 comm. (le nôtre, lien) par post LinkedIn, 0 mot MODELE/AO/GUIDE | Lien en 1er commentaire publié sur les 3 posts | 3 posts LinkedIn à 5-11 vues et 0 réaction : le format cadeau ne prend pas sur cette audience ; TikTok 703 vues | Prochain post LinkedIn : question courte du métier sans cadeau (changement déjà noté le 18/11) |
 | 2026-11-23 | Posts LinkedIn récents (agent) | « Analyse IA des appels d'offres » 54 · Facturation 2026 11 · 4 erreurs 10 · Architectes 5 | 1 j'aime (AO) · 0 ailleurs | AO 4 comm. · 4 erreurs 3 · Facturation 1 | Pas de nouveau post « guide gratuit » depuis le 20/11 | Le post « nouveauté produit » (analyse IA des appels d'offres) fait 5 fois la moyenne (54 contre ~10) avec 4 commentaires : une vraie nouveauté concrète parle plus qu'un cadeau | Prendre ce post comme modèle : annoncer une fonction concrète, avec une capture, et une question de métier à la fin |
+
+## Modèle en place (23/11/2026, accord de Younes)
+Le format « annonce d'une fonction concrète » est maintenant la règle LinkedIn de l'agent (src/lib/texte.ts, reglesReseau) :
+1. la douleur du métier ;
+2. UNE fonction réelle avec 3-4 tirets ;
+3. le bénéfice et l'essai ;
+4. une question de métier.
+Il remplace les posts « guide gratuit ».
