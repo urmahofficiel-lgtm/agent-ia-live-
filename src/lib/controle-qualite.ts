@@ -59,7 +59,7 @@ export const TEXTE_MINIMUM = 15;
 
 // `croissance` : publication du mode croissance (promesses intenables bloquées).
 export type APublier = { plateforme: string | null; titre: string; marche?: string | null; texte: string | null; croissance?: boolean };
-export type DejaPubliee = { plateforme: string | null; titre: string; publiee_le: string | null };
+export type DejaPubliee = { plateforme: string | null; titre: string; marche?: string | null; publiee_le: string | null };
 
 // Publication prévue dans les prochaines 24 h (ou déjà due) : l'écran de
 // relecture avant envoi. Le pilote planifie la journée vers 5 h du matin.
@@ -82,6 +82,8 @@ export function controlerPublication(p: APublier, recentes: DejaPubliee[], maint
   const doublon = recentes.some(
     (r) =>
       r.plateforme === p.plateforme &&
+      // Le même sujet dans une autre langue n'est pas un doublon.
+      (r.marche || MARCHE_DEFAUT) === (p.marche || MARCHE_DEFAUT) &&
       normaliser(r.titre) === titre &&
       r.publiee_le !== null &&
       maintenant - new Date(r.publiee_le).getTime() < DELAI_DOUBLON_H * 3_600_000,

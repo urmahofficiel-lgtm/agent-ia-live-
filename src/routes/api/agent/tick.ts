@@ -102,7 +102,7 @@ async function tick(secret: string) {
   const recentes = new Map<string, DejaPubliee[]>();
   const publieesRecemment = async (userId: string) => {
     if (!recentes.has(userId)) {
-      const { data: r } = await sb.rpc("agent_publications_recentes", { p_secret: secret, p_user: userId });
+      const { data: r } = await sb.rpc("agent_publications_recentes_marche", { p_secret: secret, p_user: userId });
       recentes.set(userId, (r ?? []) as DejaPubliee[]);
     }
     return recentes.get(userId)!;

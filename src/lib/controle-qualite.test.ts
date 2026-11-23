@@ -70,6 +70,12 @@ describe("controlerPublication", () => {
     ];
     expect(controlerPublication(base, recentes, maintenant)).toEqual([]);
   });
+
+  it("accepte le même sujet repris dans une autre langue le même jour", () => {
+    const recentes = [{ plateforme: "instagram", titre: base.titre, marche: "fr-FR", publiee_le: "2026-10-19T10:00:00Z" }];
+    expect(controlerPublication({ ...base, marche: "it-IT", texte: IT }, recentes, maintenant)).toEqual([]);
+    expect(controlerPublication(base, recentes, maintenant)).toHaveLength(1);
+  });
 });
 
 describe("controlerPublication — mode croissance", () => {
