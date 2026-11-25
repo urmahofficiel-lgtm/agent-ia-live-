@@ -37,3 +37,4 @@ Le format « annonce d'une fonction concrète » est maintenant la règle Linked
 3. le bénéfice et l'essai ;
 4. une question de métier.
 Il remplace les posts « guide gratuit ».
+| 2026-11-25 | « Chiffrage : pose de 40 m² de carrelage 80x80 » (24/11, FR + langue en plus) | 9 · 6 | 0 · 0 | 1 · 0 | Pas de post « guide gratuit » | Le texte suit le nouveau format, mais le sujet (un chiffrage) n'est pas l'annonce d'une fonction : retour à ~8 vues. C'est le sujet qui fait la portée, pas seulement la forme | Faire choisir à l'agent, pour LinkedIn, un sujet « fonction concrète » (analyse d'appels d'offres, devis dicté, suivi de chantier photo), à mesurer vendredi |
