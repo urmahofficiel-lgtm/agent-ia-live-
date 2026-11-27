@@ -39,3 +39,5 @@ Le format « annonce d'une fonction concrète » est maintenant la règle Linked
 Il remplace les posts « guide gratuit ».
 | 2026-11-25 | « Chiffrage : pose de 40 m² de carrelage 80x80 » (24/11, FR + langue en plus) | 9 · 6 | 0 · 0 | 1 · 0 | Pas de post « guide gratuit » | Le texte suit le nouveau format, mais le sujet (un chiffrage) n'est pas l'annonce d'une fonction : retour à ~8 vues. C'est le sujet qui fait la portée, pas seulement la forme | Faire choisir à l'agent, pour LinkedIn, un sujet « fonction concrète » (analyse d'appels d'offres, devis dicté, suivi de chantier photo), à mesurer vendredi |
 | 2026-11-27 | « Audit Qualibat : 5 réflexes » (26/11, FR + NL) | 3 · 2 | 0 · 0 | 1 · 0 | Pas de post « guide gratuit » | Encore un sujet « conseils », pas une fonction : 3 vues, le plus bas. Le sujet compte plus que la forme | Même changement, en attente de l'accord de Younes : le sujet LinkedIn est toujours une fonction concrète de l'outil |
+
+Accord de Younes, 27/11/2026 : sur LinkedIn, quel que soit le sujet du jour, le post annonce toujours UNE fonction réelle de l'outil. Le sujet ne sert que de point de départ (règle dans src/lib/texte.ts).
