@@ -434,26 +434,35 @@ async function fabriquerHistoire(
       await journal("info", `🔎 ${sources.length} sources : ${sources.map((s) => s.url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]).join(", ")}`);
     }
   }
-  const textes = sources.map((s) => `${s.titre} ${s.texte}`).join("\n") + `\n${t.titre} ${t.consigne}`;
+  // Le texte de la publication (déjà rédigé et contrôlé) compte aussi comme source.
+  const textes = sources.map((s) => `${s.titre} ${s.texte}`).join("\n") + `\n${t.titre} ${t.consigne}\n${t.brouillon ?? ""}`;
   // Histoire : la marque est interdite avant la dernière image ; présentation : permise.
   const interdits = presentation ? [] : [marque, marque.replace(/\s+/g, ""), marque.split(/\s+/)[0]].filter((m) => m.length >= 3);
   await journal("action", `🎬 Écriture du script « ${presentation ? "Présentation" : "Histoire"} » (papier découpé) : « ${t.titre} »`);
-  const script = lireHistoire(
+  // Deux essais : si le premier script cite des chiffres absents des sources
+  // (statistiques de marché inventées, par exemple), le second n'en a aucun.
+  const ecrire = async (sansChiffre: boolean) => lireHistoire(
     await demanderIA(
-      presentation
+      (presentation
         ? consignePresentation([sujet, t.consigne, t.brouillon ? `Texte de la publication : ${t.brouillon.slice(0, 700)}` : ""].filter(Boolean).join("\n"), contexte ?? "", marque)
-        : consigneHistoire(sujet, sources, marque),
+        : consigneHistoire(sujet, sources, marque)) +
+        (sansChiffre ? "\nIMPORTANT : le script précédent citait des chiffres absents des sources et a été refusé. Cette fois, n'écris AUCUN chiffre, aucune date, aucun pourcentage." : ""),
       {
       systeme: "Tu es scénariste de vidéos courtes pour le bâtiment. Tu réponds uniquement en JSON valide.",
       maxTokens: 1500,
       // NVIDIA d'abord (60 % du temps pour son modèle encore actif) : Gemini
       // répond souvent « surchargé » (503) et mangeait tout le délai.
-      delaiTotal: 150_000,
+      delaiTotal: sansChiffre ? 80_000 : 130_000,
       gemini: "secours",
     }),
     textes,
     interdits,
   );
+  let script = await ecrire(false);
+  if (!script) {
+    await journal("info", "Script refusé (chiffres absents des sources) : nouvel essai sans aucun chiffre.");
+    script = await ecrire(true);
+  }
   if (!script) throw new Error("script illisible, ou faits absents des sources");
   const essai = /14 jours/i.test(contexte ?? "") ? "14 JOURS GRATUITS" : "ESSAI GRATUIT";
   const plans = [...script.plans, planFinal(marque, site, essai)];
